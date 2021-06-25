@@ -1,4 +1,4 @@
-boto2
+boto3
 dask
 colorlog
 pillow
