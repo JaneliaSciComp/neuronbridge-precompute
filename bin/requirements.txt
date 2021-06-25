@@ -1,0 +1,7 @@
+boto2
+dask
+colorlog
+pillow
+requests
+simple_term_menu
+tqdm
