@@ -22,14 +22,14 @@ from simple_term_menu import TerminalMenu
 from tqdm.auto import tqdm
 
 
-__version__ = '0.0.1'
+__version__ = '0.0.2'
 # Configuration
 CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
 AWS = dict()
 S3_SECONDS = 60 * 60 * 12
 CDM_ALIGNMENT_SPACE = 'JRC2018_Unisex_20x_HR'
-NEURONBRIDGE_JSON_BASE = '/Volumes/neuronbridge'
-RENAME_COMPONENTS = ['neuronName', 'lineName', 'slideCode', 'objective']
+NEURONBRIDGE_JSON_BASE = '/nrs/neuronbridge'
+RENAME_COMPONENTS = ['maskPublishedName', 'publishedName', 'slideCode', 'objective']
 TEMPLATE = "An exception of type %s occurred. Arguments:\n%s"
 # pylint: disable=W0703
 
@@ -187,31 +187,45 @@ def handle_single_json_file(path):
         LOGGER.error(TEMPLATE, type(err).__name__, err.args)
         sys.exit(-1)
     filedict = dict()
-    newdir = '/'.join([NEURONBRIDGE_JSON_BASE, 'ppp_imagery', ARG.NEURONBRIDGE, ARG.LIBRARY])
+    newdir = '/'.join([NEURONBRIDGE_JSON_BASE, 'ppp_imagery', ARG.NEURONBRIDGE, ARG.LIBRARY,
+                       os.path.basename(path)[0:2]])
     newdir += '/' + os.path.basename(path).split('.')[0]
     try:
         Path(newdir).mkdir(parents=True, exist_ok=True)
     except Exception as err:
         LOGGER.error("Could not create %s", newdir)
         LOGGER.error(TEMPLATE, type(err).__name__, err.args)
+    for key in ['maskPublishedName', 'results']:
+        if key not in data:
+            LOGGER.critical("Invalid format for %s - missing %s")
+            sys.exit(-1)
+    body_id = data['maskPublishedName']
     for match in data['results']:
-        if 'imageVariants' not in match:
+        if 'sourceImageFiles' not in match:
+            #LOGGER.warning("No sourceImageFiles for %s in %s", match['sampleName'], path)
             continue
-        if 'lineName' not in match:
-            LOGGER.warning("No lineName for %s in %s", match['fullLmName'], path)
+        match['maskPublishedName'] = body_id
+        good = True
+        for key in RENAME_COMPONENTS:
+            if key not in match:
+                good = False
+                LOGGER.error("No %s for %s in %s", match['sampleName'], key, path)
+        if not good:
             continue
-        for img in match['imageVariants']:
+        for img_type, source_path in match['sourceImageFiles'].items():
             newname = '%s-%s-%s-%s' % tuple([match[key] for key in RENAME_COMPONENTS])
-            newname += "-%s-%s.png" % (CDM_ALIGNMENT_SPACE, img['variantType'].lower())
+            newname += "-%s-%s.png" % (CDM_ALIGNMENT_SPACE, img_type.lower())
             if newname in filedict:
-                LOGGER.error("Duplicate file name found for %s in %s", match['fullEmName'], path)
+                LOGGER.error("Duplicate file name found for %s in %s", match['sampleName'], path)
                 sys.exit(-1)
             filedict[newname] = 1
+            if not ARG.WRITE:
+                return
             newpath = '/'.join([newdir, newname])
             try:
-                shutil.copy(img['imagePath'], newpath)
+                shutil.copy(source_path, newpath)
             except Exception as err:
-                LOGGER.error("Could not copy %s to %s", img['imagePath'], newpath)
+                LOGGER.error("Could not copy %s to %s", source_path, newpath)
                 LOGGER.error(TEMPLATE, type(err).__name__, err.args)
                 sys.exit(-1)
 
@@ -264,6 +278,8 @@ if __name__ == '__main__':
                         help='NeuronBridge data version')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         default='dev', help='AWS S3 manifold')
+    PARSER.add_argument('--write', dest='WRITE', action='store_true',
+                        default=False, help='Write PNGs to local filesystem')
     PARSER.add_argument('--aws', dest='AWS', action='store_true',
                         default=False, help='Write PNGs to S3')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
