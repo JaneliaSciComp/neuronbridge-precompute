@@ -193,13 +193,16 @@ def upload_aws(client, bucket, sourcepath, targetpath):
         LOGGER.critical(err)
 
 
-def handle_single_json_file(path):
+def handle_single_json_file(path, s3_client):
     """ Process a single JSON file (there is one JSON file per body ID)
         Keyword arguments:
           path: JSON file path
         Returns:
           None
     """
+    bucket = AWS['ppp']
+    if ARG.MANIFOLD != 'prod':
+        bucket += '-dev'
     try:
         with open(path) as handle:
             data = json.load(handle)
@@ -243,8 +246,10 @@ def handle_single_json_file(path):
             if ARG.WRITE:
                 write_file(source_path, newdir, newname)
             if ARG.AWS:
-                s3_target = '/'.join([re.sub('.*' + ARG.LIBRARY, ARG.LIBRARY, newdir), newname])
+                s3_target = '/'.join([CDM_ALIGNMENT_SPACE, re.sub('.*' + ARG.LIBRARY, ARG.LIBRARY, newdir),
+                                      newname])
                 print(s3_target)
+                upload_aws(s3_client, bucket, sourcepath, s3_target)
                 sys.exit(-1)
 
 
@@ -257,7 +262,7 @@ def copy_files():
     """
     #pylint: disable=no-member
     s3_client = initialize_s3()
-    bucket = "janelia-flylight-color-depth"
+    bucket = AWS['cdm']
     if ARG.MANIFOLD != 'prod':
         bucket += '-dev'
     if not ARG.LIBRARY:
@@ -272,7 +277,7 @@ def copy_files():
     LOGGER.info("Preparing Dask")
     parallel = []
     for path in tqdm(json_files):
-        parallel.append(dask.delayed(handle_single_json_file)(path))
+        parallel.append(dask.delayed(handle_single_json_file)(path, s3_client))
     print("Copying %sPNGs" % ('and uploading ' if ARG.AWS else ''))
     with ProgressBar():
         dask.compute(*parallel)
