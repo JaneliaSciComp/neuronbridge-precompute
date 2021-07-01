@@ -243,7 +243,7 @@ def handle_single_json_file(path):
             if ARG.WRITE:
                 write_file(source_path, newdir, newname)
             if ARG.AWS:
-                s3_target = '/'.join([re.sub('.*' + ARG.LIBRARY, ARG.LIBRARY, newdir), newfile])
+                s3_target = '/'.join([re.sub('.*' + ARG.LIBRARY, ARG.LIBRARY, newdir), newname])
                 print(s3_target)
                 sys.exit(-1)
 
