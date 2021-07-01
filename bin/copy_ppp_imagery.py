@@ -35,7 +35,7 @@ TEMPLATE = "An exception of type %s occurred. Arguments:\n%s"
 
 
 class ProgressBar(Callback):
-    """ Callback to replace dask progress bar
+    """ Callback to replace Dask progress bar
     """
     def _start_state(self, _, state):
         self._tqdm = tqdm(total=sum(len(state[k]) for k in ['ready', 'waiting',
@@ -248,7 +248,6 @@ def handle_single_json_file(path, s3_client):
             if ARG.AWS:
                 s3_target = '/'.join([CDM_ALIGNMENT_SPACE, re.sub('.*' + ARG.LIBRARY, ARG.LIBRARY, newdir),
                                       newname])
-                print(s3_target)
                 upload_aws(s3_client, bucket, source_path, s3_target)
 
 
@@ -273,7 +272,7 @@ def copy_files():
         get_nb_version()
     json_files = glob("%s/%s/pppresults/flyem-to-flylight/*.json"
                       % (NEURONBRIDGE_JSON_BASE, ARG.NEURONBRIDGE))
-    LOGGER.info("Preparing Dask")
+    print("Preparing Dask")
     parallel = []
     for path in tqdm(json_files):
         parallel.append(dask.delayed(handle_single_json_file)(path, s3_client))
