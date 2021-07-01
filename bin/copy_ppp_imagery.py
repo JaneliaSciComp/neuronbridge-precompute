@@ -243,7 +243,8 @@ def handle_single_json_file(path):
             if ARG.WRITE:
                 write_file(source_path, newdir, newname)
             if ARG.AWS:
-                print(newdir + newname)
+                s3_target = '/'.join([re.sub('.*' + ARG.LIBRARY, ARG.LIBRARY, newdir), newfile])
+                print(s3_target)
                 sys.exit(-1)
 
 
@@ -261,6 +262,9 @@ def copy_files():
         bucket += '-dev'
     if not ARG.LIBRARY:
         get_library(s3_client, bucket)
+    if not os.access(NEURONBRIDGE_JSON_BASE, os.R_OK):
+        LOGGER.critical("Can't read from %s", NEURONBRIDGE_JSON_BASE)
+        sys.exit(-1)
     if not ARG.NEURONBRIDGE:
         get_nb_version()
     json_files = glob("%s/%s/pppresults/flyem-to-flylight/*.json"
