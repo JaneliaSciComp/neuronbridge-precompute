@@ -250,7 +250,6 @@ def handle_single_json_file(path, s3_client):
                                       newname])
                 print(s3_target)
                 upload_aws(s3_client, bucket, source_path, s3_target)
-                sys.exit(-1)
 
 
 def copy_files():
