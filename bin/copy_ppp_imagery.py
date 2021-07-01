@@ -34,11 +34,28 @@ TEMPLATE = "An exception of type %s occurred. Arguments:\n%s"
 # pylint: disable=W0703
 
 
+class ProgressBar(Callback):
+    """ Callback to replace dask progress bar
+    """
+    def _start_state(self, _, state):
+        self._tqdm = tqdm(total=sum(len(state[k]) for k in ['ready', 'waiting',
+                                                            'running', 'finished']),
+                          colour='green')
+
+    def _posttask(self, key, result, dsk, state, worker_id):
+        self._tqdm.update(1)
+
+    def _finish(self, dsk, state, errored):
+        pass
+
+
 def call_responder(server, endpoint):
     """ Call a responder
         Keyword arguments:
-        server: server
-        endpoint: REST endpoint
+          server: server
+          endpoint: REST endpoint
+        Returns:
+          JSON results
     """
     url = CONFIG[server]['url'] + endpoint
     try:
@@ -85,6 +102,13 @@ def initialize_s3():
 
 
 def get_library(client, bucket):
+    """ Prompt the user for a library selected from AWS S3 prefixes
+        Keyword arguments:
+          client: S3 client
+          bucket: S3 bucket
+        Returns:
+          None (sets ARG.LIBRARY)
+    """
     library = list()
     try:
         response = client.list_objects_v2(Bucket=bucket,
@@ -117,6 +141,12 @@ def get_library(client, bucket):
 
 
 def get_nb_version():
+    """ Prompt the user for a MeuronBridge version from subdirs in the base dir
+        Keyword arguments:
+          None
+        Returns:
+          None (sets ARG.NEURONBRIDGE)
+    """
     version = [re.sub('.*/', '', path) for path in glob(NEURONBRIDGE_JSON_BASE + '/v[0-9]*')]
     print("Select a NeuronBridge version:")
     terminal_menu = TerminalMenu(version)
@@ -127,18 +157,22 @@ def get_nb_version():
     ARG.NEURONBRIDGE = version[chosen]
 
 
-def convert_img(img, newname):
-    ''' Convert file to PNG format
+def write_file(source_path, newdir, newname):
+    """ Copy a file to a new directory
         Keyword arguments:
-          img: PIL image object
-          newname: new file name
+          source_path: source directory/filename
+          newdir: target directory
+          newname: target filename
         Returns:
-          New filepath
-    '''
-    LOGGER.debug("Converting %s", newname)
-    newpath = '/tmp/pngs/' + newname
-    img.save(newpath, 'PNG')
-    return newpath
+          None
+    """
+    newpath = '/'.join([newdir, newname])
+    try:
+        shutil.copy(source_path, newpath)
+    except Exception as err:
+        LOGGER.error("Could not copy %s to %s", source_path, newpath)
+        LOGGER.error(TEMPLATE, type(err).__name__, err.args)
+        sys.exit(-1)
 
 
 def upload_aws(client, bucket, sourcepath, targetpath):
@@ -159,26 +193,13 @@ def upload_aws(client, bucket, sourcepath, targetpath):
         LOGGER.critical(err)
 
 
-def convert_single_file(bucket, key):
-    s3_client = initialize_s3()
-    try:
-        s3_response_object = s3_client.get_object(Bucket=bucket, Key=key)
-        object_content = s3_response_object['Body'].read()
-        data_bytes_io = BytesIO(object_content)
-        img = Image.open(data_bytes_io)
-    except Exception as err:
-        LOGGER.critical(err)
-    if img.format != 'TIFF':
-        LOGGER.error("%s is not a TIFF file", key)
-    file = key.split('/')[-1].replace('.tif', '.png')
-    tmp_path = convert_img(img, file)
-    upload_path = re.sub(r'searchable_neurons.*', 'searchable_neurons/pngs/', key)
-    if ARG.AWS:
-        upload_aws(s3_client, bucket, tmp_path, upload_path + file)
-        os.remove(tmp_path)
-
-
 def handle_single_json_file(path):
+    """ Process a single JSON file (there is one JSON file per body ID)
+        Keyword arguments:
+          path: JSON file path
+        Returns:
+          None
+    """
     try:
         with open(path) as handle:
             data = json.load(handle)
@@ -219,32 +240,15 @@ def handle_single_json_file(path):
                 LOGGER.error("Duplicate file name found for %s in %s", match['sampleName'], path)
                 sys.exit(-1)
             filedict[newname] = 1
-            if not ARG.WRITE:
-                return
-            newpath = '/'.join([newdir, newname])
-            try:
-                shutil.copy(source_path, newpath)
-            except Exception as err:
-                LOGGER.error("Could not copy %s to %s", source_path, newpath)
-                LOGGER.error(TEMPLATE, type(err).__name__, err.args)
+            if ARG.WRITE:
+                write_file(source_path, newdir, newname)
+            if ARG.AWS:
+                print(newdir + newname)
                 sys.exit(-1)
 
 
-class ProgressBar(Callback):
-    def _start_state(self, dsk, state):
-        self._tqdm = tqdm(total=sum(len(state[k]) for k in ['ready', 'waiting',
-                                                            'running', 'finished']),
-                          colour='green')
-
-    def _posttask(self, key, result, dsk, state, worker_id):
-        self._tqdm.update(1)
-
-    def _finish(self, dsk, state, errored):
-        pass
-
-
 def copy_files():
-    """ Denormalize a bucket into a JSON file
+    """ Copy files specified in JSON files to /nrs/neuronbridge
         Keyword arguments:
           None
         Returns:
