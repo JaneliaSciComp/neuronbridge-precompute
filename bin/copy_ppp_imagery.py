@@ -200,7 +200,7 @@ def handle_single_json_file(path, s3_client):
         Returns:
           None
     """
-    bucket = AWS['ppp']
+    bucket = AWS['s3_bucket']['ppp']
     if ARG.MANIFOLD != 'prod':
         bucket += '-dev'
     try:
@@ -262,7 +262,7 @@ def copy_files():
     """
     #pylint: disable=no-member
     s3_client = initialize_s3()
-    bucket = AWS['cdm']
+    bucket = AWS['s3_bucket']['cdm']
     if ARG.MANIFOLD != 'prod':
         bucket += '-dev'
     if not ARG.LIBRARY:
