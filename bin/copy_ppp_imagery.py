@@ -249,7 +249,7 @@ def handle_single_json_file(path, s3_client):
                 s3_target = '/'.join([CDM_ALIGNMENT_SPACE, re.sub('.*' + ARG.LIBRARY, ARG.LIBRARY, newdir),
                                       newname])
                 print(s3_target)
-                upload_aws(s3_client, bucket, sourcepath, s3_target)
+                upload_aws(s3_client, bucket, source_path, s3_target)
                 sys.exit(-1)
 
 
