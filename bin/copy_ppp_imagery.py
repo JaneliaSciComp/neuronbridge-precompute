@@ -277,6 +277,7 @@ def handle_single_json_file(path):
             #LOGGER.warning("No sourceImageFiles for %s in %s", match['sampleName'], path)
             count['skipped'] += 1
             if ARG.WRITE:
+                print("Updating Mongo for no image files")
                 coll.update_one({"_id": mongo_id},
                                 {"$set": {"resultsSkipped": count['skipped']}})
             continue
@@ -289,6 +290,7 @@ def handle_single_json_file(path):
         if not good:
             count['skipped'] += 1
             if ARG.WRITE:
+                print("Updating Mongo for no good")
                 coll.update_one({"_id": mongo_id},
                                 {"$set": {"resultsSkipped": count['skipped']}})
             continue
