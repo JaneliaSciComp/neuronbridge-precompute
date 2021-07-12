@@ -81,10 +81,12 @@ def initialize_program():
     global AWS, CONFIG, DBM # pylint: disable=W0603
     data = call_responder('config', 'config/rest_services')
     CONFIG = data['config']
-    data = call_responder('config', 'config/db_config')
-    DATABASE = data['config']
     data = call_responder('config', 'config/aws')
     AWS = data['config']
+    data = call_responder('config', 'config/db_config')
+    DATABASE = data['config']
+    # Connect to Mongo
+    rwp = 'write' if ARG.WRITE else 'read'
     try:
         if ARG.MANIFOLD != 'local':
             client = MongoClient(DATABASE['jacs-mongo'][ARG.MANIFOLD][rwp]['host'])
