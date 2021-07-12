@@ -252,9 +252,7 @@ def handle_single_json_file(path):
             LOGGER.critical("Invalid format for %s - missing %s")
             sys.exit(-1)
     body_id = data['maskPublishedName']
-    if body_id not in ('942172835', '1886098460'):
-        return
-    LOGGER.info("Processing %s", body_id)
+    LOGGER.debug("Processing %s", body_id)
     coll = DBM.pppBodyIds
     check = coll.find_one({"bodyid": body_id})
     if not check:
@@ -272,7 +270,7 @@ def handle_single_json_file(path):
     else:
         mongo_id = check['_id']
         if check['resultsFound'] == (check['resultsSkipped'] + check['resultsUpdated']):
-            LOGGER.info("Body ID %s has already been processed", body_id)
+            LOGGER.debug("Body ID %s has already been processed", body_id)
             return
         payload = {"resultsFound": len(data['results']), "resultsUpdated": 0, "resultsSkipped": 0,
                    "filesFound": 0, "filesUpdated": 0}
@@ -351,8 +349,7 @@ def copy_files():
     print("Preparing Dask")
     parallel = []
     for path in tqdm(json_files):
-        if ('942172835' in path) or ('1886098460' in path):
-            parallel.append(dask.delayed(handle_single_json_file)(path))
+        parallel.append(dask.delayed(handle_single_json_file)(path))
     print("Copying and uploading %d body IDs" % (len(parallel)))
     with ProgressBar():
         dask.compute(*parallel)
