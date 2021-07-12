@@ -17,6 +17,7 @@ import boto3
 from botocore.exceptions import ClientError
 import dask
 from dask.callbacks import Callback
+from multiprocessing.pool import Pool
 from PIL import Image
 from pymongo import MongoClient
 import requests
@@ -358,8 +359,9 @@ def copy_files():
     for path in tqdm(json_files):
         parallel.append(dask.delayed(handle_single_json_file)(path))
     print("Copying and uploading %d body IDs" % (len(parallel)))
+    dask.config.set(pool=Pool(6))
     with ProgressBar():
-        dask.compute(*parallel, scheduler='processes', num_workers=8)
+        dask.compute(*parallel)
 
 
 if __name__ == '__main__':
