@@ -256,7 +256,7 @@ def handle_single_json_file(path):
     check = coll.find_one({"bodyid": body_id})
     if not check:
         payload = {"bodyid": body_id,
-                   "resultsFound": 0,
+                   "resultsFound": len(data['results']),
                    "resultsUpdated": 0,
                    "resultsSkipped": 0,
                    "creationDate": datetime.now(),
@@ -277,7 +277,6 @@ def handle_single_json_file(path):
             #LOGGER.warning("No sourceImageFiles for %s in %s", match['sampleName'], path)
             count['skipped'] += 1
             if ARG.WRITE:
-                print("Updating Mongo for no image files")
                 coll.update_one({"_id": mongo_id},
                                 {"$set": {"resultsSkipped": count['skipped']}})
             continue
@@ -290,7 +289,6 @@ def handle_single_json_file(path):
         if not good:
             count['skipped'] += 1
             if ARG.WRITE:
-                print("Updating Mongo for no good")
                 coll.update_one({"_id": mongo_id},
                                 {"$set": {"resultsSkipped": count['skipped']}})
             continue
@@ -310,7 +308,8 @@ def handle_single_json_file(path):
         count['updated'] += 1
         if ARG.WRITE:
             coll.update_one({"_id": mongo_id},
-                            {"$set": {"resultsUpdated": count['skipped']}})
+                            {"$set": {"resultsUpdated": count['updated']}})
+    print(count)
 
 
 def copy_files():
