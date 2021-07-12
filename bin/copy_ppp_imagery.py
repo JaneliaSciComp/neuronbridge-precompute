@@ -351,10 +351,8 @@ def copy_files():
     print("Preparing Dask")
     parallel = []
     for path in tqdm(json_files):
-        print(path)
-        if '942172835' not in path or '1886098460' not in path:
-            continue
-        parallel.append(dask.delayed(handle_single_json_file)(path))
+        if ('942172835' in path) or ('1886098460' in path):
+            parallel.append(dask.delayed(handle_single_json_file)(path))
     print("Copying and uploading %d body IDs" % (len(parallel)))
     with ProgressBar():
         dask.compute(*parallel)
