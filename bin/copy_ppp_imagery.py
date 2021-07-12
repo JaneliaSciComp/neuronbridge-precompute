@@ -322,7 +322,8 @@ def handle_single_json_file(path):
         count['rupdated'] += 1
         if ARG.WRITE:
             coll.update_one({"_id": mongo_id},
-                            {"$set": {"resultsUpdated": count['rupdated'], "updatedDate": datetime.now()}})
+                            {"$set": {"resultsUpdated": count['rupdated'],
+                                      "updatedDate": datetime.now()}})
 
 
 def copy_files():
@@ -344,8 +345,14 @@ def copy_files():
         sys.exit(-1)
     if not ARG.NEURONBRIDGE:
         get_nb_version()
-    json_files = glob("%s/%s/pppresults/flyem-to-flylight/*.json"
-                      % (NEURONBRIDGE_JSON_BASE, ARG.NEURONBRIDGE))
+    search_path = "%s/%s/pppresults/flyem-to-flylight/*.json" \
+                  % (NEURONBRIDGE_JSON_BASE, ARG.NEURONBRIDGE)
+    if ARG.BODYID:
+        search_path = search_path.replace("*", ARG.BODYID)
+    json_files = glob(search_path)
+    if len(json_files) == 1:
+        handle_single_json_file(json_files[0])
+        return
     print("Preparing Dask")
     parallel = []
     for path in tqdm(json_files):
@@ -361,6 +368,8 @@ if __name__ == '__main__':
                         help='Library')
     PARSER.add_argument('--neuronbridge', dest='NEURONBRIDGE', action='store',
                         help='NeuronBridge data version')
+    PARSER.add_argument('--bodyid', dest='BODYID', action='store',
+                        help='Body ID')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         default='dev', help='AWS S3 manifold')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',
