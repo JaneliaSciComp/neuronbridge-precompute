@@ -268,6 +268,8 @@ def handle_single_json_file(path):
             mongo_id = coll.insert_one(payload).inserted_id
     else:
         mongo_id = check['_id']
+        print(check)
+        sys.exit(1)
         payload = {"resultsFound": len(data['results']), "resultsUpdated": 0, "resultsSkipped": 0,
                    "filesFound": 0, "filesUpdated": 0}
         if ARG.WRITE:
@@ -318,7 +320,7 @@ def handle_single_json_file(path):
         count['rupdated'] += 1
         if ARG.WRITE:
             coll.update_one({"_id": mongo_id},
-                            {"$set": {"resultsUpdated": count['rupdated']}})
+                            {"$set": {"resultsUpdated": count['rupdated'], "updatedDate": datetime.now()}})
 
 
 def copy_files():
