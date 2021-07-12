@@ -273,7 +273,7 @@ def handle_single_json_file(path):
         if ARG.WRITE:
             coll.update_one({"_id": mongo_id},
                             {"$set": payload})
-    count = {"ffound": 0, "fupdated": 0, "rskipped": 0, "rupdated": 0
+    count = {"ffound": 0, "fupdated": 0, "rskipped": 0, "rupdated": 0}
     # Loop over files
     for match in data['results']:
         if 'sourceImageFiles' not in match:
