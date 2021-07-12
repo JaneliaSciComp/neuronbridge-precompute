@@ -17,16 +17,21 @@ from botocore.exceptions import ClientError
 import dask
 from dask.callbacks import Callback
 from PIL import Image
+from pymongo import MongoClient
 import requests
 from simple_term_menu import TerminalMenu
 from tqdm.auto import tqdm
 
 
-__version__ = '0.0.2'
+__version__ = '0.0.3'
 # Configuration
 CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
+# AWS
 AWS = dict()
 S3_SECONDS = 60 * 60 * 12
+# Database
+DBM = ''
+# General use
 CDM_ALIGNMENT_SPACE = 'JRC2018_Unisex_20x_HR'
 NEURONBRIDGE_JSON_BASE = '/nrs/neuronbridge'
 RENAME_COMPONENTS = ['maskPublishedName', 'publishedName', 'slideCode', 'objective']
@@ -72,11 +77,23 @@ def call_responder(server, endpoint):
 def initialize_program():
     """ Initialize
     """
-    global AWS, CONFIG # pylint: disable=W0603
+    global AWS, CONFIG, DBM # pylint: disable=W0603
     data = call_responder('config', 'config/rest_services')
     CONFIG = data['config']
     data = call_responder('config', 'config/aws')
     AWS = data['config']
+    try:
+        if ARG.MANIFOLD != 'local':
+            client = MongoClient(data['config']['jacs-mongo'][ARG.MANIFOLD][rwp]['host'])
+        else:
+            client = MongoClient()
+        DBM = client.jacs
+        if ARG.MANIFOLD == 'prod':
+            DBM.authenticate(data['config']['jacs-mongo'][ARG.MANIFOLD][rwp]['user'],
+                             data['config']['jacs-mongo'][ARG.MANIFOLD][rwp]['password'])
+    except Exception as err:
+        LOGGER.error('Could not connect to Mongo: %s', err)
+        sys.exit(-1)
 
 
 def initialize_s3():
@@ -168,8 +185,10 @@ def write_file(source_path, newdir, newname):
     """
     newpath = '/'.join([newdir, newname])
     try:
-        #shutil.copy(source_path, newpath)
-        os.link(source_path, newpath)
+        if ARG.LINK:
+            os.link(source_path, newpath)
+        else:
+            shutil.copy(source_path, newpath)
     except Exception as err:
         LOGGER.error("Could not copy %s to %s", source_path, newpath)
         LOGGER.error(TEMPLATE, type(err).__name__, err.args)
@@ -194,16 +213,18 @@ def upload_aws(client, bucket, sourcepath, targetpath):
         LOGGER.critical(err)
 
 
-def handle_single_json_file(path, s3_client):
+def handle_single_json_file(path):
     """ Process a single JSON file (there is one JSON file per body ID)
         Keyword arguments:
           path: JSON file path
         Returns:
           None
     """
+    s3_client = initialize_s3()
     bucket = AWS['s3_bucket']['ppp']
     if ARG.MANIFOLD != 'prod':
         bucket += '-dev'
+    # Read JSON file
     try:
         with open(path) as handle:
             data = json.load(handle)
@@ -225,9 +246,33 @@ def handle_single_json_file(path, s3_client):
             LOGGER.critical("Invalid format for %s - missing %s")
             sys.exit(-1)
     body_id = data['maskPublishedName']
+    coll = DBM.pppLoad
+    check = coll.find_one({"bodyid": body_id})
+    if not check:
+        payload = {"bodyid": body_id,
+                   "resultsFound": 0,
+                   "resultsUpdated": 0,
+                   "resultsSkipped": 0,
+                   "creationDate": datetime.now(),
+                   "updatedDate": datetime.now()
+                  }
+        if ARG.WRITE:
+            mongo_id = coll.insert_one(payload).inserted_id
+    else:
+        mongo_id = check['_id']
+        payload = {"resultsFound": len(data['results']), "resultsUpdated": 0, "resultsSkipped": 0}
+        if ARG.WRITE:
+            coll.update_one({"_id": mongo_id},
+                            {"$set": payload})
+    count = {"skipped": 0, "updated": 0}
+    # Loop over files
     for match in data['results']:
         if 'sourceImageFiles' not in match:
             #LOGGER.warning("No sourceImageFiles for %s in %s", match['sampleName'], path)
+            count['skipped'] += 1
+            if ARG.WRITE:
+                coll.update_one({"_id": mongo_id},
+                                {"$set": {"resultsSkipped": count['skipped']}})
             continue
         match['maskPublishedName'] = body_id
         good = True
@@ -236,6 +281,10 @@ def handle_single_json_file(path, s3_client):
                 good = False
                 LOGGER.error("No %s for %s in %s", match['sampleName'], key, path)
         if not good:
+            count['skipped'] += 1
+            if ARG.WRITE:
+                coll.update_one({"_id": mongo_id},
+                                {"$set": {"resultsSkipped": count['skipped']}})
             continue
         for img_type, source_path in match['sourceImageFiles'].items():
             newname = '%s-%s-%s-%s' % tuple([match[key] for key in RENAME_COMPONENTS])
@@ -246,10 +295,14 @@ def handle_single_json_file(path, s3_client):
             filedict[newname] = 1
             if ARG.WRITE:
                 write_file(source_path, newdir, newname)
-            if ARG.AWS:
-                s3_target = '/'.join([CDM_ALIGNMENT_SPACE, re.sub('.*' + ARG.LIBRARY, ARG.LIBRARY, newdir),
+                s3_target = '/'.join([CDM_ALIGNMENT_SPACE,
+                                      re.sub('.*' + ARG.LIBRARY, ARG.LIBRARY, newdir),
                                       newname])
                 upload_aws(s3_client, bucket, source_path, s3_target)
+        count['updated'] += 1
+        if ARG.WRITE:
+            coll.update_one({"_id": mongo_id},
+                            {"$set": {"resultsUpdated": count['skipped']}})
 
 
 def copy_files():
@@ -260,7 +313,6 @@ def copy_files():
           None
     """
     #pylint: disable=no-member
-    s3_client = initialize_s3()
     bucket = AWS['s3_bucket']['cdm']
     if ARG.MANIFOLD != 'prod':
         bucket += '-dev'
@@ -276,7 +328,7 @@ def copy_files():
     print("Preparing Dask")
     parallel = []
     for path in tqdm(json_files):
-        parallel.append(dask.delayed(handle_single_json_file)(path, s3_client))
+        parallel.append(dask.delayed(handle_single_json_file)(path))
     print("Copying %sPNGs" % ('and uploading ' if ARG.AWS else ''))
     with ProgressBar():
         dask.compute(*parallel)
@@ -292,8 +344,8 @@ if __name__ == '__main__':
                         default='dev', help='AWS S3 manifold')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',
                         default=False, help='Write PNGs to local filesystem')
-    PARSER.add_argument('--aws', dest='AWS', action='store_true',
-                        default=False, help='Write PNGs to S3')
+    PARSER.add_argument('--link', dest='LINK', action='store_true',
+                        default=False, help='Use symlinks instead onn copying')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
                         default=False, help='Flag, Chatty')
     PARSER.add_argument('--debug', dest='DEBUG', action='store_true',
