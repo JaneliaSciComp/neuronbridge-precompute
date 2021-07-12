@@ -346,9 +346,13 @@ def copy_files():
     json_files = glob("%s/%s/pppresults/flyem-to-flylight/*.json"
                       % (NEURONBRIDGE_JSON_BASE, ARG.NEURONBRIDGE))
     print("Preparing Dask")
+    count = 0
     parallel = []
     for path in tqdm(json_files):
         parallel.append(dask.delayed(handle_single_json_file)(path))
+        count += 1
+        if count > 15:
+            break
     print("Copying and uploading %d body IDs" % (len(parallel)))
     with ProgressBar():
         dask.compute(*parallel)
