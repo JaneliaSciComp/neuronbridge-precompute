@@ -359,7 +359,7 @@ def copy_files():
         parallel.append(dask.delayed(handle_single_json_file)(path))
     print("Copying and uploading %d body IDs" % (len(parallel)))
     with ProgressBar():
-        dask.compute(*parallel)
+        dask.compute(*parallel, scheduler='processes', num_workers=8)
 
 
 if __name__ == '__main__':
