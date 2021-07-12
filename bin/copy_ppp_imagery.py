@@ -322,6 +322,7 @@ def copy_files():
     if ARG.MANIFOLD != 'prod':
         bucket += '-dev'
     if not ARG.LIBRARY:
+        s3_client = initialize_s3()
         get_library(s3_client, bucket)
     if not os.access(NEURONBRIDGE_JSON_BASE, os.R_OK):
         LOGGER.critical("Can't read from %s", NEURONBRIDGE_JSON_BASE)
