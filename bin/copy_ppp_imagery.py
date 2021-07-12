@@ -337,7 +337,7 @@ def copy_files():
     for path in tqdm(json_files):
         parallel.append(dask.delayed(handle_single_json_file)(path))
         break
-    print("Copying and uploading %s body IDs")
+    print("Copying and uploading %d body IDs" % (len(parallel)))
     with ProgressBar():
         dask.compute(*parallel)
 
