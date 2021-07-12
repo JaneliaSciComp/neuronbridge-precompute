@@ -252,6 +252,9 @@ def handle_single_json_file(path):
             LOGGER.critical("Invalid format for %s - missing %s")
             sys.exit(-1)
     body_id = data['maskPublishedName']
+    if body_id not in ('942172835', '1886098460'):
+        return
+    LOGGER.info("Processing %s", body_id)
     coll = DBM.pppBodyIds
     check = coll.find_one({"bodyid": body_id})
     if not check:
@@ -346,13 +349,9 @@ def copy_files():
     json_files = glob("%s/%s/pppresults/flyem-to-flylight/*.json"
                       % (NEURONBRIDGE_JSON_BASE, ARG.NEURONBRIDGE))
     print("Preparing Dask")
-    count = 0
     parallel = []
     for path in tqdm(json_files):
         parallel.append(dask.delayed(handle_single_json_file)(path))
-        count += 1
-        if count > 15:
-            break
     print("Copying and uploading %d body IDs" % (len(parallel)))
     with ProgressBar():
         dask.compute(*parallel)
