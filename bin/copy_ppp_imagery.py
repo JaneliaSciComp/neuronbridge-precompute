@@ -17,7 +17,6 @@ import boto3
 from botocore.exceptions import ClientError
 import dask
 from dask.callbacks import Callback
-from multiprocessing.pool import Pool
 from PIL import Image
 from pymongo import MongoClient
 import requests
@@ -88,7 +87,6 @@ def initialize_program():
     data = call_responder('config', 'config/db_config')
     DATABASE = data['config']
     # Connect to Mongo
-    dask.config.set(pool=Pool(6))
     rwp = 'write' if ARG.WRITE else 'read'
     try:
         if ARG.MANIFOLD != 'local':
