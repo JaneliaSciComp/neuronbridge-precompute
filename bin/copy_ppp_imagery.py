@@ -168,7 +168,8 @@ def write_file(source_path, newdir, newname):
     """
     newpath = '/'.join([newdir, newname])
     try:
-        shutil.copy(source_path, newpath)
+        #shutil.copy(source_path, newpath)
+        os.link(source_path, newpath)
     except Exception as err:
         LOGGER.error("Could not copy %s to %s", source_path, newpath)
         LOGGER.error(TEMPLATE, type(err).__name__, err.args)
