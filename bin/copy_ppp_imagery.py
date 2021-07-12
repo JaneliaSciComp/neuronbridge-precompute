@@ -88,6 +88,7 @@ def initialize_program():
     data = call_responder('config', 'config/db_config')
     DATABASE = data['config']
     # Connect to Mongo
+    dask.config.set(pool=Pool(6))
     rwp = 'write' if ARG.WRITE else 'read'
     try:
         if ARG.MANIFOLD != 'local':
@@ -359,7 +360,6 @@ def copy_files():
     for path in tqdm(json_files):
         parallel.append(dask.delayed(handle_single_json_file)(path))
     print("Copying and uploading %d body IDs" % (len(parallel)))
-    dask.config.set(pool=Pool(6))
     with ProgressBar():
         dask.compute(*parallel)
 
