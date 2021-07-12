@@ -93,7 +93,7 @@ def initialize_program():
             client = MongoClient(DATABASE['jacs-mongo'][ARG.MANIFOLD][rwp]['host'])
         else:
             client = MongoClient()
-        DBM = client.jacs
+        DBM = client.ppp
         if ARG.MANIFOLD == 'prod':
             DBM.authenticate(DATABASE['jacs-mongo'][ARG.MANIFOLD][rwp]['user'],
                              DATABASE['jacs-mongo'][ARG.MANIFOLD][rwp]['password'])
@@ -252,7 +252,7 @@ def handle_single_json_file(path):
             LOGGER.critical("Invalid format for %s - missing %s")
             sys.exit(-1)
     body_id = data['maskPublishedName']
-    coll = DBM.pppLoad
+    coll = DBM.pppBodyIds
     check = coll.find_one({"bodyid": body_id})
     if not check:
         payload = {"bodyid": body_id,
