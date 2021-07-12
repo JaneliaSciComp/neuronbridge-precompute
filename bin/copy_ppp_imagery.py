@@ -335,6 +335,7 @@ def copy_files():
     parallel = []
     for path in tqdm(json_files):
         parallel.append(dask.delayed(handle_single_json_file)(path))
+        break
     print("Copying %sPNGs" % ('and uploading ' if ARG.AWS else ''))
     with ProgressBar():
         dask.compute(*parallel)
