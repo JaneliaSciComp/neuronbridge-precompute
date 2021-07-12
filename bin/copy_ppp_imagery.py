@@ -268,8 +268,9 @@ def handle_single_json_file(path):
             mongo_id = coll.insert_one(payload).inserted_id
     else:
         mongo_id = check['_id']
-        print(check)
-        sys.exit(1)
+        if check['resultsFound'] == (check['resultsSkipped'] + check['resultsUpdated']):
+            LOGGER.info("Body ID %s has already been processed", body_id)
+            return
         payload = {"resultsFound": len(data['results']), "resultsUpdated": 0, "resultsSkipped": 0,
                    "filesFound": 0, "filesUpdated": 0}
         if ARG.WRITE:
