@@ -259,6 +259,8 @@ def handle_single_json_file(path):
                    "resultsFound": len(data['results']),
                    "resultsUpdated": 0,
                    "resultsSkipped": 0,
+                   "filesFound": 0,
+                   "filesUpdated": 0,
                    "creationDate": datetime.now(),
                    "updatedDate": datetime.now()
                   }
@@ -266,19 +268,20 @@ def handle_single_json_file(path):
             mongo_id = coll.insert_one(payload).inserted_id
     else:
         mongo_id = check['_id']
-        payload = {"resultsFound": len(data['results']), "resultsUpdated": 0, "resultsSkipped": 0}
+        payload = {"resultsFound": len(data['results']), "resultsUpdated": 0, "resultsSkipped": 0,
+                   "filesFound": 0, "filesUpdated": 0}
         if ARG.WRITE:
             coll.update_one({"_id": mongo_id},
                             {"$set": payload})
-    count = {"skipped": 0, "updated": 0}
+    count = {"ffound": 0, "fupdated": 0, "rskipped": 0, "rupdated": 0
     # Loop over files
     for match in data['results']:
         if 'sourceImageFiles' not in match:
             #LOGGER.warning("No sourceImageFiles for %s in %s", match['sampleName'], path)
-            count['skipped'] += 1
+            count['rskipped'] += 1
             if ARG.WRITE:
                 coll.update_one({"_id": mongo_id},
-                                {"$set": {"resultsSkipped": count['skipped']}})
+                                {"$set": {"resultsSkipped": count['rskipped']}})
             continue
         match['maskPublishedName'] = body_id
         good = True
@@ -287,11 +290,15 @@ def handle_single_json_file(path):
                 good = False
                 LOGGER.error("No %s for %s in %s", match['sampleName'], key, path)
         if not good:
-            count['skipped'] += 1
+            count['rskipped'] += 1
             if ARG.WRITE:
                 coll.update_one({"_id": mongo_id},
-                                {"$set": {"resultsSkipped": count['skipped']}})
+                                {"$set": {"resultsSkipped": count['rskipped']}})
             continue
+        count['ffound'] += len(match['sourceImageFiles'])
+        if ARG.WRITE:
+            coll.update_one({"_id": mongo_id},
+                            {"$set": {"filesFound": count['ffound']}})
         for img_type, source_path in match['sourceImageFiles'].items():
             newname = '%s-%s-%s-%s' % tuple([match[key] for key in RENAME_COMPONENTS])
             newname += "-%s-%s.png" % (CDM_ALIGNMENT_SPACE, img_type.lower())
@@ -305,11 +312,13 @@ def handle_single_json_file(path):
                                       re.sub('.*' + ARG.LIBRARY, ARG.LIBRARY, newdir),
                                       newname])
                 upload_aws(s3_client, bucket, source_path, s3_target)
-        count['updated'] += 1
+                count['fupdated'] += 1
+                coll.update_one({"_id": mongo_id},
+                                {"$set": {"filesUpdated": count['fupdated']}})
+        count['rupdated'] += 1
         if ARG.WRITE:
             coll.update_one({"_id": mongo_id},
-                            {"$set": {"resultsUpdated": count['updated']}})
-    print(count)
+                            {"$set": {"resultsUpdated": count['rupdated']}})
 
 
 def copy_files():
