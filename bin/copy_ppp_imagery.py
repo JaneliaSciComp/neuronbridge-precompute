@@ -28,6 +28,7 @@ __version__ = '0.0.3'
 CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
 # AWS
 AWS = dict()
+DATABASE = dict()
 S3_SECONDS = 60 * 60 * 12
 # Database
 DBM = ''
@@ -80,17 +81,19 @@ def initialize_program():
     global AWS, CONFIG, DBM # pylint: disable=W0603
     data = call_responder('config', 'config/rest_services')
     CONFIG = data['config']
+    data = call_responder('config', 'config/db_config')
+    DATABASE = data['config']
     data = call_responder('config', 'config/aws')
     AWS = data['config']
     try:
         if ARG.MANIFOLD != 'local':
-            client = MongoClient(data['config']['jacs-mongo'][ARG.MANIFOLD][rwp]['host'])
+            client = MongoClient(DATABASE['jacs-mongo'][ARG.MANIFOLD][rwp]['host'])
         else:
             client = MongoClient()
         DBM = client.jacs
         if ARG.MANIFOLD == 'prod':
-            DBM.authenticate(data['config']['jacs-mongo'][ARG.MANIFOLD][rwp]['user'],
-                             data['config']['jacs-mongo'][ARG.MANIFOLD][rwp]['password'])
+            DBM.authenticate(DATABASE['jacs-mongo'][ARG.MANIFOLD][rwp]['user'],
+                             DATABASE['jacs-mongo'][ARG.MANIFOLD][rwp]['password'])
     except Exception as err:
         LOGGER.error('Could not connect to Mongo: %s', err)
         sys.exit(-1)
