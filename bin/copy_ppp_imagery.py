@@ -348,7 +348,7 @@ def copy_files():
     search_base = "%s/%s/pppresults/flyem-to-flylight" \
                   % (NEURONBRIDGE_JSON_BASE, ARG.NEURONBRIDGE)
     if ARG.FILE:
-        with open('C:/path/numbers.txt') as bids:
+        with open(ARG.FILE) as bids:
             for line in file:
                 line = line.strip() + ".json"
                 lines.append("/".join([search_base, line]))
