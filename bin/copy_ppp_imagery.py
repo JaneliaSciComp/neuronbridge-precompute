@@ -347,11 +347,12 @@ def copy_files():
         get_nb_version()
     search_base = "%s/%s/pppresults/flyem-to-flylight" \
                   % (NEURONBRIDGE_JSON_BASE, ARG.NEURONBRIDGE)
+    json_file = list()
     if ARG.FILE:
-        with open(ARG.FILE) as bids:
-            for line in file:
+        with open(ARG.FILE) as bid:
+            for line in bid_file:
                 line = line.strip() + ".json"
-                lines.append("/".join([search_base, line]))
+                json_files.append("/".join([search_base, line]))
     else:
         search_path = "/".join([search_base, "*.json"])
         if ARG.BODYID:
