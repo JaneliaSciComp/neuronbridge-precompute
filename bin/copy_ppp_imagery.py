@@ -347,7 +347,7 @@ def copy_files():
         get_nb_version()
     search_base = "%s/%s/pppresults/flyem-to-flylight" \
                   % (NEURONBRIDGE_JSON_BASE, ARG.NEURONBRIDGE)
-    json_file = list()
+    json_files = list()
     if ARG.FILE:
         with open(ARG.FILE) as bid_file:
             for line in bid_file:
