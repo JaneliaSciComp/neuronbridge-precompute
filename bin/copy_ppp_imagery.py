@@ -349,7 +349,7 @@ def copy_files():
                   % (NEURONBRIDGE_JSON_BASE, ARG.NEURONBRIDGE)
     json_file = list()
     if ARG.FILE:
-        with open(ARG.FILE) as bid:
+        with open(ARG.FILE) as bid_file:
             for line in bid_file:
                 line = line.strip() + ".json"
                 json_files.append("/".join([search_base, line]))
