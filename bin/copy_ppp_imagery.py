@@ -345,11 +345,18 @@ def copy_files():
         sys.exit(-1)
     if not ARG.NEURONBRIDGE:
         get_nb_version()
-    search_path = "%s/%s/pppresults/flyem-to-flylight/*.json" \
+    search_base = "%s/%s/pppresults/flyem-to-flylight" \
                   % (NEURONBRIDGE_JSON_BASE, ARG.NEURONBRIDGE)
-    if ARG.BODYID:
-        search_path = search_path.replace("*", ARG.BODYID)
-    json_files = glob(search_path)
+    if ARG.FILE:
+        with open('C:/path/numbers.txt') as bids:
+            for line in file:
+                line = line.strip()
+                lines.append("/".join([search_base, line]))
+    else:
+        search_path = "/".join([search_base, "*.json"])
+        if ARG.BODYID:
+            search_path = search_path.replace("*", ARG.BODYID)
+        json_files = glob(search_path)
     if len(json_files) == 1:
         handle_single_json_file(json_files[0])
         return
@@ -368,6 +375,8 @@ if __name__ == '__main__':
                         help='Library')
     PARSER.add_argument('--neuronbridge', dest='NEURONBRIDGE', action='store',
                         help='NeuronBridge data version')
+    PARSER.add_argument('--file', dest='FILE', action='store',
+                        help='File of body IDs to process')
     PARSER.add_argument('--bodyid', dest='BODYID', action='store',
                         help='Body ID')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
