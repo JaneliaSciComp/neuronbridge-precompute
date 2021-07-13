@@ -350,7 +350,7 @@ def copy_files():
     if ARG.FILE:
         with open('C:/path/numbers.txt') as bids:
             for line in file:
-                line = line.strip()
+                line = line.strip() + ".json"
                 lines.append("/".join([search_base, line]))
     else:
         search_path = "/".join([search_base, "*.json"])
