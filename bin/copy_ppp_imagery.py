@@ -40,6 +40,7 @@ RENAME_COMPONENTS = ['maskPublishedName', 'publishedName', 'slideCode', 'objecti
 TEMPLATE = "An exception of type %s occurred. Arguments:\n%s"
 # pylint: disable=W0703
 
+# -------------------------------------------------------------------------------
 
 class ProgressBar(Callback):
     """ Callback to replace Dask progress bar
@@ -180,6 +181,40 @@ def get_nb_version():
     ARG.NEURONBRIDGE = version[chosen]
 
 
+def check_data_format(data):
+    """ Ensure that necesary fields are in the body ID JSON data
+        Keyword arguments:
+          data: JSON data for body ID
+        Returns:
+          True or False
+    """
+    checked = True
+    for key in ['maskPublishedName', 'results']:
+        if key not in data:
+            LOGGER.critical("Invalid format for %s - missing %s")
+            checked = False
+    return checked
+
+
+def set_payload(body_id, data):
+    """ Set the payload for a nre document in Mongo
+        Keyword arguments:
+          body_id: body ID
+          data: JSON data for body ID
+        Returns:
+          Payload dictionary
+    """
+    return {"bodyid": body_id,
+            "resultsFound": len(data['results']),
+            "resultsUpdated": 0,
+            "resultsSkipped": 0,
+            "filesFound": 0,
+            "filesUpdated": 0,
+            "creationDate": datetime.now(),
+            "updatedDate": datetime.now()
+           }
+
+
 def write_file(source_path, newdir, newname):
     """ Copy a file to a new directory
         Keyword arguments:
@@ -228,9 +263,8 @@ def handle_single_json_file(path):
     """
     s3_client = initialize_s3()
     bucket = AWS['s3_bucket']['ppp']
-    if ARG.MANIFOLD != 'prod':
-        bucket += '-dev'
-    # Read JSON file
+    bucket += '-prod' if ARG.MANIFOLD == 'prod' else '-dev'
+    # Read JSON file into data
     try:
         with open(path) as handle:
             data = json.load(handle)
@@ -239,32 +273,24 @@ def handle_single_json_file(path):
         LOGGER.error(TEMPLATE, type(err).__name__, err.args)
         sys.exit(-1)
     filedict = dict()
+    # Create destination directory
     newdir = '/'.join([NEURONBRIDGE_JSON_BASE, 'ppp_imagery', ARG.NEURONBRIDGE, ARG.LIBRARY,
                        os.path.basename(path)[0:2]])
     newdir += '/' + os.path.basename(path).split('.')[0]
-    try:
-        Path(newdir).mkdir(parents=True, exist_ok=True)
-    except Exception as err:
-        LOGGER.error("Could not create %s", newdir)
-        LOGGER.error(TEMPLATE, type(err).__name__, err.args)
-    for key in ['maskPublishedName', 'results']:
-        if key not in data:
-            LOGGER.critical("Invalid format for %s - missing %s")
-            sys.exit(-1)
+    if not os.path.isdir(newdir):
+        try:
+            Path(newdir).mkdir(parents=True, exist_ok=True)
+        except Exception as err:
+            LOGGER.error("Could not create %s", newdir)
+            LOGGER.error(TEMPLATE, type(err).__name__, err.args)
+    if not check_data_format(data):
+        sys.exit(-1)
     body_id = data['maskPublishedName']
     LOGGER.debug("Processing %s", body_id)
     coll = DBM.pppBodyIds
     check = coll.find_one({"bodyid": body_id})
     if not check:
-        payload = {"bodyid": body_id,
-                   "resultsFound": len(data['results']),
-                   "resultsUpdated": 0,
-                   "resultsSkipped": 0,
-                   "filesFound": 0,
-                   "filesUpdated": 0,
-                   "creationDate": datetime.now(),
-                   "updatedDate": datetime.now()
-                  }
+        payload = set_payload(body_id, data)
         if ARG.WRITE:
             mongo_id = coll.insert_one(payload).inserted_id
     else:
@@ -278,10 +304,10 @@ def handle_single_json_file(path):
             coll.update_one({"_id": mongo_id},
                             {"$set": payload})
     count = {"ffound": 0, "fupdated": 0, "rskipped": 0, "rupdated": 0}
-    # Loop over files
+    # Loop over results
     for match in data['results']:
         if 'sourceImageFiles' not in match:
-            #LOGGER.warning("No sourceImageFiles for %s in %s", match['sampleName'], path)
+            LOGGER.debug("No sourceImageFiles for %s in %s", match['sampleName'], path)
             count['rskipped'] += 1
             if ARG.WRITE:
                 coll.update_one({"_id": mongo_id},
@@ -303,6 +329,7 @@ def handle_single_json_file(path):
         if ARG.WRITE:
             coll.update_one({"_id": mongo_id},
                             {"$set": {"filesFound": count['ffound']}})
+        # Loop over files for a single result
         for img_type, source_path in match['sourceImageFiles'].items():
             newname = '%s-%s-%s-%s' % tuple([match[key] for key in RENAME_COMPONENTS])
             newname += "-%s-%s.png" % (CDM_ALIGNMENT_SPACE, img_type.lower())
@@ -310,6 +337,7 @@ def handle_single_json_file(path):
                 LOGGER.error("Duplicate file name found for %s in %s", match['sampleName'], path)
                 sys.exit(-1)
             filedict[newname] = 1
+            # Copy file within /nrs and upload to AWS S3
             if ARG.WRITE:
                 write_file(source_path, newdir, newname)
                 s3_target = '/'.join([CDM_ALIGNMENT_SPACE,
@@ -369,6 +397,7 @@ def copy_files():
     with ProgressBar():
         dask.compute(*parallel)
 
+# -------------------------------------------------------------------------------
 
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(description="Produce denormalization files")
@@ -381,11 +410,12 @@ if __name__ == '__main__':
     PARSER.add_argument('--bodyid', dest='BODYID', action='store',
                         help='Body ID')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
-                        default='dev', help='AWS S3 manifold')
+                        default='dev', choices=['dev', 'prod'],
+                        help='Mongo / AWS S3 manifold')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',
                         default=False, help='Write PNGs to local filesystem')
     PARSER.add_argument('--link', dest='LINK', action='store_true',
-                        default=False, help='Use symlinks instead onn copying')
+                        default=False, help='Use symlinks instead of copying')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
                         default=False, help='Flag, Chatty')
     PARSER.add_argument('--debug', dest='DEBUG', action='store_true',
@@ -403,3 +433,4 @@ if __name__ == '__main__':
     LOGGER.addHandler(HANDLER)
     initialize_program()
     copy_files()
+    sys.exit(0)
