@@ -400,7 +400,7 @@ def copy_files():
 # -------------------------------------------------------------------------------
 
 if __name__ == '__main__':
-    PARSER = argparse.ArgumentParser(description="Produce denormalization files")
+    PARSER = argparse.ArgumentParser(description="Rename and copy PPP PNGs")
     PARSER.add_argument('--library', dest='LIBRARY', action='store',
                         help='Library')
     PARSER.add_argument('--neuronbridge', dest='NEURONBRIDGE', action='store',
