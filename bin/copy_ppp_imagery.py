@@ -36,7 +36,8 @@ DBM = ''
 # General use
 CDM_ALIGNMENT_SPACE = 'JRC2018_Unisex_20x_HR'
 NEURONBRIDGE_JSON_BASE = '/nrs/neuronbridge'
-RENAME_COMPONENTS = ['maskPublishedName', 'publishedName', 'slideCode', 'objective']
+RENAME_COMPONENTS = ['maskPublishedName',
+                     'publishedName', 'slideCode', 'objective']
 TEMPLATE = "An exception of type %s occurred. Arguments:\n%s"
 # pylint: disable=W0703
 
@@ -116,13 +117,13 @@ def initialize_s3():
                                      RoleSessionName="AssumeRoleSession1",
                                      DurationSeconds=S3_SECONDS)
         credentials = aro['Credentials']
-        s3_client = boto3.client('s3',
-                                 aws_access_key_id=credentials['AccessKeyId'],
-                                 aws_secret_access_key=credentials['SecretAccessKey'],
-                                 aws_session_token=credentials['SessionToken'])
+        s3c = boto3.client('s3',
+                           aws_access_key_id=credentials['AccessKeyId'],
+                           aws_secret_access_key=credentials['SecretAccessKey'],
+                           aws_session_token=credentials['SessionToken'])
     else:
-        s3_client = boto3.client('s3')
-    return s3_client
+        s3c = boto3.client('s3')
+    return s3c
 
 
 def get_library(client, bucket):
@@ -136,7 +137,8 @@ def get_library(client, bucket):
     library = list()
     try:
         response = client.list_objects_v2(Bucket=bucket,
-                                          Prefix=CDM_ALIGNMENT_SPACE + '/', Delimiter='/')
+                                          Prefix=CDM_ALIGNMENT_SPACE + '/',
+                                          Delimiter='/')
     except ClientError as err:
         LOGGER.critical(err)
         sys.exit(-1)
@@ -171,7 +173,8 @@ def get_nb_version():
         Returns:
           None (sets ARG.NEURONBRIDGE)
     """
-    version = [re.sub('.*/', '', path) for path in glob(NEURONBRIDGE_JSON_BASE + '/v[0-9]*')]
+    version = [re.sub('.*/', '', path)
+               for path in glob(NEURONBRIDGE_JSON_BASE + '/v[0-9]*')]
     print("Select a NeuronBridge version:")
     terminal_menu = TerminalMenu(version)
     chosen = terminal_menu.show()
@@ -212,7 +215,8 @@ def set_payload(body_id, data):
             "filesUpdated": 0,
             "creationDate": datetime.now(),
             "updatedDate": datetime.now()
-           }
+            }
+
 
 
 def write_file(source_path, newdir, newname):
@@ -249,7 +253,8 @@ def upload_aws(client, bucket, sourcepath, targetpath):
     LOGGER.debug("Uploading %s", targetpath)
     try:
         client.upload_file(sourcepath, bucket, targetpath,
-                           ExtraArgs={'ContentType': 'image/png', 'ACL': 'public-read'})
+                           ExtraArgs={'ContentType': 'image/png',
+                                      'ACL': 'public-read'})
     except Exception as err:
         LOGGER.critical(err)
 
@@ -274,7 +279,8 @@ def handle_single_json_file(path):
         sys.exit(-1)
     filedict = dict()
     # Create destination directory
-    newdir = '/'.join([NEURONBRIDGE_JSON_BASE, 'ppp_imagery', ARG.NEURONBRIDGE, ARG.LIBRARY,
+    newdir = '/'.join([NEURONBRIDGE_JSON_BASE, 'ppp_imagery',
+                       ARG.NEURONBRIDGE, ARG.LIBRARY,
                        os.path.basename(path)[0:2]])
     newdir += '/' + os.path.basename(path).split('.')[0]
     if not os.path.isdir(newdir):
@@ -295,11 +301,12 @@ def handle_single_json_file(path):
             mongo_id = coll.insert_one(payload).inserted_id
     else:
         mongo_id = check['_id']
-        if check['resultsFound'] == (check['resultsSkipped'] + check['resultsUpdated']):
+        if check['resultsFound'] == (check['resultsSkipped']
+                                     + check['resultsUpdated']):
             LOGGER.debug("Body ID %s has already been processed", body_id)
             return
-        payload = {"resultsFound": len(data['results']), "resultsUpdated": 0, "resultsSkipped": 0,
-                   "filesFound": 0, "filesUpdated": 0}
+        payload = {"resultsFound": len(data['results']), "resultsUpdated": 0,
+                   "resultsSkipped": 0, "filesFound": 0, "filesUpdated": 0}
         if ARG.WRITE:
             coll.update_one({"_id": mongo_id},
                             {"$set": payload})
@@ -307,7 +314,8 @@ def handle_single_json_file(path):
     # Loop over results
     for match in data['results']:
         if 'sourceImageFiles' not in match:
-            LOGGER.debug("No sourceImageFiles for %s in %s", match['sampleName'], path)
+            LOGGER.debug("No sourceImageFiles for %s in %s",
+                         match['sampleName'], path)
             count['rskipped'] += 1
             if ARG.WRITE:
                 coll.update_one({"_id": mongo_id},
@@ -318,7 +326,8 @@ def handle_single_json_file(path):
         for key in RENAME_COMPONENTS:
             if key not in match:
                 good = False
-                LOGGER.error("No %s for %s in %s", match['sampleName'], key, path)
+                LOGGER.error("No %s for %s in %s", match['sampleName'],
+                             key, path)
         if not good:
             count['rskipped'] += 1
             if ARG.WRITE:
@@ -334,14 +343,16 @@ def handle_single_json_file(path):
             newname = '%s-%s-%s-%s' % tuple([match[key] for key in RENAME_COMPONENTS])
             newname += "-%s-%s.png" % (CDM_ALIGNMENT_SPACE, img_type.lower())
             if newname in filedict:
-                LOGGER.error("Duplicate file name found for %s in %s", match['sampleName'], path)
+                LOGGER.error("Duplicate file name found for %s in %s",
+                             match['sampleName'], path)
                 sys.exit(-1)
             filedict[newname] = 1
             # Copy file within /nrs and upload to AWS S3
             if ARG.WRITE:
                 write_file(source_path, newdir, newname)
                 s3_target = '/'.join([CDM_ALIGNMENT_SPACE,
-                                      re.sub('.*' + ARG.LIBRARY, ARG.LIBRARY, newdir),
+                                      re.sub('.*' + ARG.LIBRARY,
+                                             ARG.LIBRARY, newdir),
                                       newname])
                 upload_aws(s3_client, bucket, source_path, s3_target)
                 count['fupdated'] += 1
