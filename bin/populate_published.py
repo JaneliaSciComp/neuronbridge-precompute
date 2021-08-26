@@ -220,19 +220,22 @@ def populate_table():
             LOGGER.error("No result type selected")
             sys.exit(0)
         ARG.RESULT = allowed[chosen]
-    if not ARG.TYPE:
-        print("Select library type:")
-        allowed = ['EM', 'LM']
-        terminal_menu = TerminalMenu(allowed)
-        chosen = terminal_menu.show()
-        if chosen is None:
-            LOGGER.error("No library type selected")
-            sys.exit(0)
-        ARG.TYPE = allowed[chosen]
-    if not ARG.NEURONBRIDGE:
-        get_nb_version()
+    if ARG.RESULT == 'cdm':
+        if not ARG.TYPE:
+            print("Select library type:")
+            allowed = ['EM', 'LM']
+            terminal_menu = TerminalMenu(allowed)
+            chosen = terminal_menu.show()
+            if chosen is None:
+                LOGGER.error("No library type selected")
+                sys.exit(0)
+            ARG.TYPE = allowed[chosen]
+    else:
+        ARG.TYPE = 'EM'
     if not ARG.LIBRARY:
         get_library()
+    if not ARG.NEURONBRIDGE:
+        get_nb_version()
     # Read JSON file into data
     path = '/'.join([RELEASE_LIBRARY_BASE, ARG.NEURONBRIDGE, ARG.LIBRARY])
     try:
