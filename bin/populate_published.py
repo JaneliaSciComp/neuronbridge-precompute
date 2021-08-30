@@ -4,8 +4,10 @@
 import argparse
 from glob import glob
 import json
+import os
 import re
 import sys
+from time import strftime
 import boto3
 from boto3.dynamodb.conditions import Key, Attr
 from botocore.exceptions import ClientError
@@ -26,10 +28,12 @@ TABLE = ''
 INSERTED = dict()
 
 # General use
-#RELEASE_LIBRARY_BASE = "/groups/scicompsoft/informatics/data/release_libraries"
 RELEASE_LIBRARY_BASE = "/Users/svirskasr/Documents/workspace/Git/neuronbridge-utilities/bin/release_libraries"
+RELEASE_LIBRARY_BASE = "/groups/scicompsoft/informatics/data/release_libraries"
+PPP_BASE = "/nrs/neuronbridge/ppp_imagery"
 COUNT = {"error": 0, "skipped": 0, "write": 0}
 TEMPLATE = "An exception of type %s occurred. Arguments:\n%s"
+USED_PPP = dict()
 # pylint: disable=W0703
 
 
@@ -65,7 +69,10 @@ def initialize_program():
     CONFIG = data['config']
     data = call_responder('config', 'config/aws')
     dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
-    TABLE = dynamodb.Table('janelia-neuronbridge-published')
+    ddt = "janelia-neuronbridge-published"
+    if ARG.MANIFOLD == "dev":
+        ddt += "-dev"
+    TABLE = dynamodb.Table(ddt)
 
 
 def get_nb_version():
@@ -75,8 +82,9 @@ def get_nb_version():
         Returns:
           None (sets ARG.NEURONBRIDGE)
     """
+    base_path = RELEASE_LIBRARY_BASE if ARG.RESULT == "cdm" else PPP_BASE
     version = [re.sub('.*/', '', path)
-               for path in glob(RELEASE_LIBRARY_BASE + '/v[0-9]*')]
+               for path in glob(base_path + '/v[0-9]*')]
     print("Select a NeuronBridge version:")
     terminal_menu = TerminalMenu(version)
     chosen = terminal_menu.show()
@@ -92,8 +100,10 @@ def get_library():
         Returns:
           None (sets ARG.LIBRARY)
     """
+    base_path = '/'.join([RELEASE_LIBRARY_BASE, ARG.NEURONBRIDGE, '*.json']) \
+                if ARG.RESULT == "cdm" else '/'.join([PPP_BASE, ARG.NEURONBRIDGE, '*'])
     library = [re.sub('.*/', '', path)
-               for path in glob('/'.join([RELEASE_LIBRARY_BASE, ARG.NEURONBRIDGE, '*.json']))]
+               for path in glob(base_path)]
     print("Select a library file:")
     terminal_menu = TerminalMenu(library)
     chosen = terminal_menu.show()
@@ -103,7 +113,8 @@ def get_library():
     ARG.LIBRARY = library[chosen]
 
 
-def perform_body_mapping(data):
+def scan_table():
+    LOGGER.info("Getting list of keys in DynamoDB")
     loaded = list()
     try:
         response = TABLE.scan()
@@ -118,6 +129,11 @@ def perform_body_mapping(data):
         LOGGER.error(TEMPLATE, type(err).__name__, err.args)
         sys.exit(-1)
     LOGGER.info("Items in table: %d", len(loaded))
+    return loaded
+
+
+def perform_body_mapping(data):
+    loaded = scan_table()
     if loaded:
         for item in tqdm(loaded, "Assigning neurons"):
             if item["keyType"] == "neuronType":
@@ -156,7 +172,7 @@ def get_row(key, key_type):
     except Exception as err:
         LOGGER.error(TEMPLATE, type(err).__name__, err.args)
         sys.exit(-1)
-    if "Item" in response and response["Item"]:
+    if "Item" in response and response["Item"] and ARG.RESULT in response:
         if key not in INSERTED:
             INSERTED[key] = {key_type: response["Item"]}
         else:
@@ -165,20 +181,23 @@ def get_row(key, key_type):
     return None, False
 
 
-def insert_row(key, key_type, result_type):
+def insert_row(key, key_type):
     payload, skip = get_row(key, key_type)
     if skip:
         COUNT['skipped'] += 1
         return
-    if key_type in ["bodyID", "publishedName"] and payload and result_type in payload \
-                                               and payload[result_type]:
+    if key_type in ["bodyID", "publishedName"] and payload and ARG.RESULT in payload \
+                                               and payload[ARG.RESULT]:
         COUNT['skipped'] += 1
         return
     LOGGER.debug("Insert %s (%s)", key, key_type)
     if not payload:
         payload = {"key": key, "keyType": key_type}
     payload["searchKey"] = key.lower()
-    payload[result_type] = True
+    payload[ARG.RESULT] = True
+    if ARG.RESULT == "ppp":
+        payload["cdm"] = False
+    payload["ppp"] = True if key in USED_PPP else False
     if ARG.TYPE == "EM" and ARG.RESULT == "cdm":
         if key_type == "neuronType":
             TYPE_BODY[key].sort()
@@ -196,18 +215,86 @@ def insert_row(key, key_type, result_type):
         COUNT['write'] += 1
 
 
-
 def process_single_item(item):
     if ARG.TYPE == "EM":
         if "publishedName" in item:
-            insert_row(item["publishedName"], "bodyID", ARG.RESULT)
+            insert_row(item["publishedName"], "bodyID")
         if "neuronType" in item:
-            insert_row(item["neuronType"], "neuronType", ARG.RESULT)
+            insert_row(item["neuronType"], "neuronType")
         if "neuronInstance" in item:
-            insert_row(item["neuronInstance"], "neuronInstance", ARG.RESULT)
+            insert_row(item["neuronInstance"], "neuronInstance")
     else:
         if "publishedName" in item:
-            insert_row(item["publishedName"], "publishingName", ARG.RESULT)
+            insert_row(item["publishedName"], "publishingName")
+
+
+def populate_cdm():
+    # Read JSON file into data
+    path = '/'.join([RELEASE_LIBRARY_BASE, ARG.NEURONBRIDGE, ARG.LIBRARY])
+    try:
+        with open(path) as handle:
+            data = json.load(handle)
+    except Exception as err:
+        LOGGER.error("Could not open %s", path)
+        LOGGER.error(TEMPLATE, type(err).__name__, err.args)
+        sys.exit(-1)
+    LOGGER.info("Loaded %d items from %s", len(data), path)
+    if ARG.TYPE == "EM" and ARG.RESULT == "cdm":
+        perform_body_mapping(data)
+    for item in tqdm(data, "Processing items"):
+        process_single_item(item)
+
+
+def index_ppp():
+    base_path = '/'.join([PPP_BASE, ARG.NEURONBRIDGE, ARG.LIBRARY, '*', '*'])
+    outer = glob(base_path)
+    published = {"bodies": dict(), "names": dict()}
+    LOGGER.info("Collecting body IDs and publishing names")
+    for path in tqdm(outer, desc="Body ID", position=0):
+        # Process a single body ID
+        inner = glob(path + "/*.png")
+        if len(inner):
+            published["bodies"][path.split("/")[-1]] = 1
+            for filepath in glob(path + "/*.png"):
+                _, name, _ = (filepath.split("/")[-1]).split("-", 2)
+                published["names"][name] = 1
+    if not ARG.WRITE:
+        print("Not in --write mode: will not write files")
+        return
+    file = {"bodies": "ppp_bodies.txt",
+            "names": "ppp_publishing_names.txt"}
+    base_path = '/'.join([RELEASE_LIBRARY_BASE, ARG.NEURONBRIDGE])
+    for ftype in file.keys():
+        LOGGER.info("Writing %s file" % (ftype))
+        stream = open("/".join([base_path, file[ftype]]), 'w')
+        for item in tqdm(published[ftype], desc="Writing %s" % (ftype)):
+            stream.write("%s\n" % (item))
+        stream.close()
+
+
+def ppp_action():
+    if ARG.ACTION == "index":
+        index_ppp()
+        return
+    dd_keys = dict()
+    # Populate DynamoDB with PPP-only matches
+    loaded = scan_table()
+    items = dict()
+    for item in loaded:
+        if item["keyType"] not in ["neuronInstance", "neuronType"]:
+            items[item["key"]] = item["keyType"]
+    # Read PPP results
+    for fname in ["ppp_bodies.txt", "ppp_publishing_names.txt"]:
+        ppp_file = "/".join([RELEASE_LIBRARY_BASE, ARG.NEURONBRIDGE, fname])
+        with open(ppp_file) as itemfile:
+            for line in itemfile:
+                USED_PPP[line.strip()] = 1
+        itemfile.close()
+    for key in USED_PPP:
+        if key not in items:
+            LOGGER.warning(key)
+            keytype = "bodyID" if key.isdigit() else "publishingName"
+            insert_row(key, keytype)
 
 
 def populate_table():
@@ -232,24 +319,30 @@ def populate_table():
             ARG.TYPE = allowed[chosen]
     else:
         ARG.TYPE = 'EM'
-    if not ARG.LIBRARY:
-        get_library()
     if not ARG.NEURONBRIDGE:
         get_nb_version()
-    # Read JSON file into data
-    path = '/'.join([RELEASE_LIBRARY_BASE, ARG.NEURONBRIDGE, ARG.LIBRARY])
-    try:
-        with open(path) as handle:
-            data = json.load(handle)
-    except Exception as err:
-        LOGGER.error("Could not open %s", path)
-        LOGGER.error(TEMPLATE, type(err).__name__, err.args)
-        sys.exit(-1)
-    LOGGER.info("Loaded %d items from %s", len(data), path)
-    if ARG.TYPE == "EM" and ARG.RESULT == "cdm":
-        perform_body_mapping(data)
-    for item in tqdm(data, "Processing items"):
-        process_single_item(item)
+    if ARG.RESULT == 'ppp' and not ARG.ACTION:
+        print("Select PPP action:")
+        allowed = ['Index', 'Populate']
+        terminal_menu = TerminalMenu(allowed)
+        chosen = terminal_menu.show()
+        if chosen is None:
+            LOGGER.error("No PPP action selected")
+            sys.exit(0)
+        ARG.ACTION = allowed[chosen].lower()
+    if not ARG.LIBRARY and ARG.ACTION == "index":
+        get_library()
+    if ARG.RESULT == "cdm":
+        # Read PPP results
+        ppp_file = "/".join([RELEASE_LIBRARY_BASE, ARG.NEURONBRIDGE,
+                             ("ppp_publishing_names.txt" if ARG.TYPE == 'LM' \
+                              else "ppp_bodies.txt")])
+        with open(ppp_file) as itemfile:
+            for line in itemfile:
+                USED_PPP[line.strip()] = 1
+        itemfile.close()
+        LOGGER.info("Read %d PPP matches", len(USED_PPP))
+    populate_cdm() if ARG.RESULT == 'cdm' else ppp_action()
     print(COUNT)
 
 
@@ -259,6 +352,8 @@ def populate_table():
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
         description='Populate the janelia-neuronbridge-published DynamoDB table')
+    PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
+                        choices=['prod', 'dev'], default='dev', help='Manifold')
     PARSER.add_argument('--library', dest='LIBRARY', action='store',
                         help='Library file')
     PARSER.add_argument('--neuronbridge', dest='NEURONBRIDGE', action='store',
@@ -267,6 +362,8 @@ if __name__ == '__main__':
                         choices=['cdm', 'ppp'], help='Result type')
     PARSER.add_argument('--type', dest='TYPE', action='store',
                         choices=['EM', 'LM'], help='Library type')
+    PARSER.add_argument('--action', dest='ACTION', action='store',
+                        choices=['index', 'populate'], help='PPP action')
     PARSER.add_argument('--write', action='store_true', dest='WRITE',
                         default=False, help='Write changes to database')
     PARSER.add_argument('--verbose', action='store_true', dest='VERBOSE',
