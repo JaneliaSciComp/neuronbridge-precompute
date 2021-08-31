@@ -1,15 +1,17 @@
-''' This program will
+''' This program will update the janelia-neuronbridge-published table in DynamoDB
+    To properly popualte this table, take the following steps:
+    1) Start with a blank table
+    2) Run the program with --result ppp --action index
+    3) Run the program once for every EM/LM release to process
+    4) Run the program with --result ppp --action populate
 '''
 
 import argparse
 from glob import glob
 import json
-import os
 import re
 import sys
-from time import strftime
 import boto3
-from boto3.dynamodb.conditions import Key, Attr
 from botocore.exceptions import ClientError
 import colorlog
 import requests
@@ -19,8 +21,6 @@ from tqdm import tqdm
 # pylint: disable=no-member
 # Configuration
 CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
-PUBLISH = {'published': 'Y', 'published_externally': '1', 'published_to': None,
-           'publishing_name': None, 'to_publish': 'Y'}
 TYPE_BODY = dict()
 INSTANCE_BODY = dict()
 # Database
@@ -28,7 +28,6 @@ TABLE = ''
 INSERTED = dict()
 
 # General use
-RELEASE_LIBRARY_BASE = "/Users/svirskasr/Documents/workspace/Git/neuronbridge-utilities/bin/release_libraries"
 RELEASE_LIBRARY_BASE = "/groups/scicompsoft/informatics/data/release_libraries"
 PPP_BASE = "/nrs/neuronbridge/ppp_imagery"
 COUNT = {"error": 0, "skipped": 0, "write": 0}
@@ -96,6 +95,7 @@ def get_nb_version():
 
 def get_library():
     """ Prompt the user for a library
+        Keyword arguments:
           None
         Returns:
           None (sets ARG.LIBRARY)
@@ -113,7 +113,30 @@ def get_library():
     ARG.LIBRARY = library[chosen]
 
 
+def get_ppp_action():
+    """ Prompt the user for a PPP action
+        Keyword arguments:
+          None
+        Returns:
+          None (sets ARG.ACTION)
+    """
+    print("Select PPP action:")
+    allowed = ['Index', 'Populate']
+    terminal_menu = TerminalMenu(allowed)
+    chosen = terminal_menu.show()
+    if chosen is None:
+        LOGGER.error("No PPP action selected")
+        sys.exit(0)
+    ARG.ACTION = allowed[chosen].lower()
+
+
 def scan_table():
+    """ Get a list of keys from DynamoDB
+        Keyword arguments:
+          None
+        Returns:
+          list of keys from DynamoDB
+    """
     LOGGER.info("Getting list of keys in DynamoDB")
     loaded = list()
     try:
@@ -132,7 +155,37 @@ def scan_table():
     return loaded
 
 
+def set_body(item):
+    """ Cache neuron types and instances in TYPE_BODY and INSTANCE_BODY
+        Keyword arguments:
+          item: dictionary of keys/key types
+        Returns:
+          None
+    """
+    if "neuronType" in item:
+        if item["neuronType"] in TYPE_BODY:
+            key = item["neuronType"]
+            if item["publishedName"] not in TYPE_BODY[key]:
+                TYPE_BODY[key].append(item["publishedName"])
+        else:
+            TYPE_BODY[item["neuronType"]] = list([item["publishedName"]])
+    if "neuronInstance" in item:
+        key = item["neuronInstance"]
+        if key in INSTANCE_BODY:
+            if item["publishedName"] not in INSTANCE_BODY[key]:
+                INSTANCE_BODY[key].append(item["publishedName"])
+        else:
+            #print("Added %s to %s" % (item["publishedName"], key))
+            INSTANCE_BODY[key] = list([item["publishedName"]])
+
+
 def perform_body_mapping(data):
+    """ Cache neuron types and instances in TYPE_BODY and INSTANCE_BODY
+        Keyword arguments:
+          data: JSON color depth MIP data
+        Returns:
+          None
+    """
     loaded = scan_table()
     if loaded:
         for item in tqdm(loaded, "Assigning neurons"):
@@ -143,26 +196,20 @@ def perform_body_mapping(data):
     LOGGER.info("Neuron types loaded from table: %d", len(TYPE_BODY))
     LOGGER.info("Neuron instances loaded from table: %d", len(INSTANCE_BODY))
     for item in tqdm(data, "Mapping body IDs"):
-        if "neuronType" in item:
-            if item["neuronType"] in TYPE_BODY:
-                key = item["neuronType"]
-                if item["publishedName"] not in TYPE_BODY[key]:
-                    TYPE_BODY[key].append(item["publishedName"])
-            else:
-                TYPE_BODY[item["neuronType"]] = list([item["publishedName"]])
-        if "neuronInstance" in item:
-            key = item["neuronInstance"]
-            if key in INSTANCE_BODY:
-                if item["publishedName"] not in INSTANCE_BODY[key]:
-                    INSTANCE_BODY[key].append(item["publishedName"])
-            else:
-                #print("Added %s to %s" % (item["publishedName"], key))
-                INSTANCE_BODY[key] = list([item["publishedName"]])
+        set_body(item)
     LOGGER.info("Neuron types cached: %d", len(TYPE_BODY))
     LOGGER.info("Neuron instances cached: %d", len(INSTANCE_BODY))
 
 
 def get_row(key, key_type):
+    """ Get a row from DynamoDB
+        Keyword arguments:
+          key: key
+          key_type: key type
+        Returns:
+          row from DynamoDB
+          True or False indicating if row was returned from cache
+    """
     if key in INSERTED and key_type in INSERTED[key]:
         return INSERTED[key][key_type], True
     try:
@@ -182,6 +229,13 @@ def get_row(key, key_type):
 
 
 def insert_row(key, key_type):
+    """ Insert a row into DynamoDB
+        Keyword arguments:
+          key: key
+          key_type: key type
+        Returns:
+          None
+    """
     payload, skip = get_row(key, key_type)
     if skip:
         COUNT['skipped'] += 1
@@ -197,7 +251,7 @@ def insert_row(key, key_type):
     payload[ARG.RESULT] = True
     if ARG.RESULT == "ppp":
         payload["cdm"] = False
-    payload["ppp"] = True if key in USED_PPP else False
+    payload["ppp"] = bool(key in USED_PPP)
     if ARG.TYPE == "EM" and ARG.RESULT == "cdm":
         if key_type == "neuronType":
             TYPE_BODY[key].sort()
@@ -216,6 +270,12 @@ def insert_row(key, key_type):
 
 
 def process_single_item(item):
+    """ Process a single item from color depth MIP JSON
+        Keyword arguments:
+          item: item from color depth MIP JSON
+        Returns:
+          None
+    """
     if ARG.TYPE == "EM":
         if "publishedName" in item:
             insert_row(item["publishedName"], "bodyID")
@@ -229,7 +289,12 @@ def process_single_item(item):
 
 
 def populate_cdm():
-    # Read JSON file into data
+    """ Read and process a color depth MIP JSON file
+        Keyword arguments:
+          item: item from color depth MIP JSON
+        Returns:
+          None
+    """
     path = '/'.join([RELEASE_LIBRARY_BASE, ARG.NEURONBRIDGE, ARG.LIBRARY])
     try:
         with open(path) as handle:
@@ -246,6 +311,12 @@ def populate_cdm():
 
 
 def index_ppp():
+    """ Create text file indices for PPP matches
+        Keyword arguments:
+          None
+        Returns:
+          None
+    """
     base_path = '/'.join([PPP_BASE, ARG.NEURONBRIDGE, ARG.LIBRARY, '*', '*'])
     outer = glob(base_path)
     published = {"bodies": dict(), "names": dict()}
@@ -253,7 +324,7 @@ def index_ppp():
     for path in tqdm(outer, desc="Body ID", position=0):
         # Process a single body ID
         inner = glob(path + "/*.png")
-        if len(inner):
+        if inner:
             published["bodies"][path.split("/")[-1]] = 1
             for filepath in glob(path + "/*.png"):
                 _, name, _ = (filepath.split("/")[-1]).split("-", 2)
@@ -264,19 +335,25 @@ def index_ppp():
     file = {"bodies": "ppp_bodies.txt",
             "names": "ppp_publishing_names.txt"}
     base_path = '/'.join([RELEASE_LIBRARY_BASE, ARG.NEURONBRIDGE])
-    for ftype in file.keys():
-        LOGGER.info("Writing %s file" % (ftype))
+    for ftype in file:
+        LOGGER.info("Writing %s file", ftype)
         stream = open("/".join([base_path, file[ftype]]), 'w')
         for item in tqdm(published[ftype], desc="Writing %s" % (ftype)):
             stream.write("%s\n" % (item))
+            COUNT['write'] += 1
         stream.close()
 
 
 def ppp_action():
+    """ Process PPP matches (create or process an index)
+        Keyword arguments:
+          None
+        Returns:
+          None
+    """
     if ARG.ACTION == "index":
         index_ppp()
         return
-    dd_keys = dict()
     # Populate DynamoDB with PPP-only matches
     loaded = scan_table()
     items = dict()
@@ -298,6 +375,12 @@ def ppp_action():
 
 
 def populate_table():
+    """ Populate the janelia-neuronbridge-published table
+        Keyword arguments:
+          None
+        Returns:
+          None
+    """
     if not ARG.RESULT:
         print("Select result type:")
         allowed = ['cdm', 'ppp']
@@ -322,14 +405,7 @@ def populate_table():
     if not ARG.NEURONBRIDGE:
         get_nb_version()
     if ARG.RESULT == 'ppp' and not ARG.ACTION:
-        print("Select PPP action:")
-        allowed = ['Index', 'Populate']
-        terminal_menu = TerminalMenu(allowed)
-        chosen = terminal_menu.show()
-        if chosen is None:
-            LOGGER.error("No PPP action selected")
-            sys.exit(0)
-        ARG.ACTION = allowed[chosen].lower()
+        get_ppp_action()
     if not ARG.LIBRARY and ARG.ACTION == "index":
         get_library()
     if ARG.RESULT == "cdm":
@@ -342,7 +418,9 @@ def populate_table():
                 USED_PPP[line.strip()] = 1
         itemfile.close()
         LOGGER.info("Read %d PPP matches", len(USED_PPP))
-    populate_cdm() if ARG.RESULT == 'cdm' else ppp_action()
+        populate_cdm()
+    else:
+        ppp_action()
     print(COUNT)
 
 
