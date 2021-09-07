@@ -23,6 +23,7 @@ from tqdm import tqdm
 CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
 TYPE_BODY = dict()
 INSTANCE_BODY = dict()
+KEY = "searchString"
 # Database
 TABLE = ''
 INSERTED = dict()
@@ -213,7 +214,7 @@ def get_row(key, key_type):
     if key in INSERTED and key_type in INSERTED[key]:
         return INSERTED[key][key_type], True
     try:
-        response = TABLE.get_item(Key={"key": key, "keyType": key_type})
+        response = TABLE.get_item(Key={"itemType": KEY, "searchKey": key.lower()})
     except ClientError as err:
         LOGGER.error(err.response['Error']['Message'])
     except Exception as err:
@@ -246,8 +247,10 @@ def insert_row(key, key_type):
         return
     LOGGER.debug("Insert %s (%s)", key, key_type)
     if not payload:
-        payload = {"key": key, "keyType": key_type}
-    payload["searchKey"] = key.lower()
+        payload = {"itemType": KEY, "searchKey": key.lower()}
+    payload["keyType"] = key_type
+    payload["filterKey"] = key.lower()
+    payload["name"] = key
     payload[ARG.RESULT] = True
     if ARG.RESULT == "ppp":
         payload["cdm"] = False
