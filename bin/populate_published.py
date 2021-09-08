@@ -409,7 +409,7 @@ def populate_table():
         get_nb_version()
     if ARG.RESULT == 'ppp' and not ARG.ACTION:
         get_ppp_action()
-    if not ARG.LIBRARY
+    if not ARG.LIBRARY:
         if not (ARG.RESULT == "ppp" and ARG.ACTION == "populate"):
             get_library()
     if ARG.RESULT == "cdm":
