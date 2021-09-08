@@ -101,8 +101,12 @@ def get_library():
         Returns:
           None (sets ARG.LIBRARY)
     """
-    base_path = '/'.join([RELEASE_LIBRARY_BASE, ARG.NEURONBRIDGE, '*.json']) \
-                if ARG.RESULT == "cdm" else '/'.join([PPP_BASE, ARG.NEURONBRIDGE, '*'])
+    if ARG.RESULT == "ppp":
+        base_path = '/'.join([PPP_BASE, ARG.NEURONBRIDGE, '*'])
+    elif ARG.TYPE == "EM":
+        base_path = '/'.join([RELEASE_LIBRARY_BASE, ARG.NEURONBRIDGE, '*.json'])
+    else:
+        base_path = '/'.join([RELEASE_LIBRARY_BASE, ARG.NEURONBRIDGE, '*.names'])
     library = [re.sub('.*/', '', path)
                for path in glob(base_path)]
     print("Select a library file:")
@@ -301,16 +305,27 @@ def populate_cdm():
           None
     """
     path = '/'.join([RELEASE_LIBRARY_BASE, ARG.NEURONBRIDGE, ARG.LIBRARY])
-    try:
-        with open(path) as handle:
-            data = json.load(handle)
-    except Exception as err:
-        LOGGER.error("Could not open %s", path)
-        LOGGER.error(TEMPLATE, type(err).__name__, err.args)
-        sys.exit(-1)
-    LOGGER.info("Loaded %d items from %s", len(data), path)
-    if ARG.TYPE == "EM" and ARG.RESULT == "cdm":
+    data = list()
+    if ARG.TYPE == "EM":
+        try:
+            with open(path) as handle:
+                data = json.load(handle)
+        except Exception as err:
+            LOGGER.error("Could not open %s", path)
+            LOGGER.error(TEMPLATE, type(err).__name__, err.args)
+            sys.exit(-1)
         perform_body_mapping(data)
+    else:
+        try:
+            with open(path) as handle:
+                while line := handle.readline().rstrip():
+                    if line not in data:
+                        data.append(line)
+        except Exception as err:
+            LOGGER.error("Could not open %s", path)
+            LOGGER.error(TEMPLATE, type(err).__name__, err.args)
+            sys.exit(-1)
+    LOGGER.info("Loaded %d items from %s", len(data), path)
     for item in tqdm(data, "Processing items"):
         process_single_item(item)
 
@@ -337,8 +352,8 @@ def index_ppp():
     if not ARG.WRITE:
         print("Not in --write mode: will not write files")
         return
-    file = {"bodies": "ppp_bodies.txt",
-            "names": "ppp_publishing_names.txt"}
+    file = {"bodies": "ppp_bodies.names",
+            "names": "ppp_publishing_names.names"}
     base_path = '/'.join([RELEASE_LIBRARY_BASE, ARG.NEURONBRIDGE])
     for ftype in file:
         LOGGER.info("Writing %s file", ftype)
@@ -366,7 +381,7 @@ def ppp_action():
         if item["keyType"] not in ["neuronInstance", "neuronType"]:
             items[item["name"]] = item["keyType"]
     # Read PPP results
-    for fname in ["ppp_bodies.txt", "ppp_publishing_names.txt"]:
+    for fname in ["ppp_bodies.names", "ppp_publishing_names.names"]:
         ppp_file = "/".join([RELEASE_LIBRARY_BASE, ARG.NEURONBRIDGE, fname])
         with open(ppp_file) as itemfile:
             for line in itemfile:
@@ -417,8 +432,8 @@ def populate_table():
     if ARG.RESULT == "cdm":
         # Read PPP results
         ppp_file = "/".join([RELEASE_LIBRARY_BASE, ARG.NEURONBRIDGE,
-                             ("ppp_publishing_names.txt" if ARG.TYPE == 'LM' \
-                              else "ppp_bodies.txt")])
+                             ("ppp_publishing_names.names" if ARG.TYPE == 'LM' \
+                              else "ppp_bodies.names")])
         with open(ppp_file) as itemfile:
             for line in itemfile:
                 USED_PPP[line.strip()] = 1
