@@ -106,8 +106,11 @@ def get_library():
         base_path = '/'.join([RELEASE_LIBRARY_BASE, ARG.NEURONBRIDGE, '*.json'])
     else:
         base_path = '/'.join([RELEASE_LIBRARY_BASE, ARG.NEURONBRIDGE, '*.names'])
-    library = [re.sub('.*/', '', path)
-               for path in glob(base_path)]
+    library = list()
+    for path in glob(base_path):
+        if ARG.RESULT == "cdm" and "ppp_" in path:
+            continue
+        library.append(re.sub('.*/', '', path))
     print("Select a library file:")
     terminal_menu = TerminalMenu(library)
     chosen = terminal_menu.show()
