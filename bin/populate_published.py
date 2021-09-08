@@ -362,7 +362,7 @@ def ppp_action():
     items = dict()
     for item in loaded:
         if item["keyType"] not in ["neuronInstance", "neuronType"]:
-            items[item["key"]] = item["keyType"]
+            items[item["name"]] = item["keyType"]
     # Read PPP results
     for fname in ["ppp_bodies.txt", "ppp_publishing_names.txt"]:
         ppp_file = "/".join([RELEASE_LIBRARY_BASE, ARG.NEURONBRIDGE, fname])
@@ -409,8 +409,9 @@ def populate_table():
         get_nb_version()
     if ARG.RESULT == 'ppp' and not ARG.ACTION:
         get_ppp_action()
-    if not ARG.LIBRARY and ARG.ACTION == "index":
-        get_library()
+    if not ARG.LIBRARY
+        if not (ARG.RESULT == "ppp" and ARG.ACTION == "populate"):
+            get_library()
     if ARG.RESULT == "cdm":
         # Read PPP results
         ppp_file = "/".join([RELEASE_LIBRARY_BASE, ARG.NEURONBRIDGE,
