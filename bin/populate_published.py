@@ -70,7 +70,7 @@ def initialize_program():
     data = call_responder('config', 'config/aws')
     dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
     ddt = "janelia-neuronbridge-published"
-    ddt += "-prod" if if ARG.MANIFOLD == "prod" else "-dev"
+    ddt += "-prod" if ARG.MANIFOLD == "prod" else "-dev"
     TABLE = dynamodb.Table(ddt)
 
 
