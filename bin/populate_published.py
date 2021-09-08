@@ -220,6 +220,8 @@ def get_row(key, key_type):
     except Exception as err:
         LOGGER.error(TEMPLATE, type(err).__name__, err.args)
         sys.exit(-1)
+    if not response:
+        return None, False
     if "Item" in response and response["Item"] and ARG.RESULT in response:
         if key not in INSERTED:
             INSERTED[key] = {key_type: response["Item"]}
