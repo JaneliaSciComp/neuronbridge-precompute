@@ -197,9 +197,9 @@ def perform_body_mapping(data):
     if loaded:
         for item in tqdm(loaded, "Assigning neurons"):
             if item["keyType"] == "neuronType":
-                TYPE_BODY[item["key"]] = item["bodyIDs"]
+                TYPE_BODY[item["name"]] = item["bodyIDs"]
             elif item["keyType"] == "neuronInstance":
-                INSTANCE_BODY[item["key"]] = item["bodyIDs"]
+                INSTANCE_BODY[item["name"]] = item["bodyIDs"]
     LOGGER.info("Neuron types loaded from table: %d", len(TYPE_BODY))
     LOGGER.info("Neuron instances loaded from table: %d", len(INSTANCE_BODY))
     for item in tqdm(data, "Mapping body IDs"):
