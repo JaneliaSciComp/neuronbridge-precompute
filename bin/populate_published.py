@@ -317,7 +317,8 @@ def populate_cdm():
     else:
         try:
             with open(path) as handle:
-                while line = handle.readline().rstrip():
+                for fline in handle:
+                    line = fline.rstrip()
                     if line not in data:
                         data.append(line)
         except Exception as err:
