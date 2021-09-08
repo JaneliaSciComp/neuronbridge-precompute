@@ -317,10 +317,8 @@ def populate_cdm():
     else:
         try:
             with open(path) as handle:
-                for fline in handle:
-                    line = fline.rstrip()
-                    if line not in data:
-                        data.append(line)
+                for line in handle:
+                    data.append({"publishedName": line.rstrip()})
         except Exception as err:
             LOGGER.error("Could not open %s", path)
             LOGGER.error(TEMPLATE, type(err).__name__, err.args)
