@@ -25,6 +25,7 @@ CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
 AWS = dict()
 S3_SECONDS = 60 * 60 * 12
 CDM_ALIGNMENT_SPACE = 'JRC2018_Unisex_20x_HR'
+#CDM_ALIGNMENT_SPACE = 'JRC2018_VNC_Unisex_40x_DS'
 
 
 def call_responder(server, endpoint):
@@ -152,9 +153,11 @@ def upload_aws(client, bucket, sourcepath, targetpath):
           url
     """
     LOGGER.debug("Uploading %s", targetpath)
+    payload = {'ContentType': 'image/png'}
+    if ARG.MANIFOLD == 'prod':
+        payload['ACL'] = 'public-read'
     try:
-        client.upload_file(sourcepath, bucket, targetpath,
-                           ExtraArgs={'ContentType': 'image/png', 'ACL': 'public-read'})
+        client.upload_file(sourcepath, bucket, targetpath,ExtraArgs=payload)
     except Exception as err:
         LOGGER.critical(err)
 
