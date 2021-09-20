@@ -64,14 +64,9 @@ def initialize_program():
         Returns:
           None
     """
-    global CONFIG, TABLE # pylint: disable=W0603
+    global CONFIG # pylint: disable=W0603
     data = call_responder('config', 'config/rest_services')
     CONFIG = data['config']
-    data = call_responder('config', 'config/aws')
-    dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
-    ddt = "janelia-neuronbridge-published"
-    ddt += "-prod" if ARG.MANIFOLD == "prod" else "-dev"
-    TABLE = dynamodb.Table(ddt)
 
 
 def get_nb_version():
@@ -169,21 +164,21 @@ def set_body(item):
         Returns:
           None
     """
+    bodydict = {item["publishedName"]: bool(item["publishedName"] in USED_PPP)}
     if "neuronType" in item:
         if item["neuronType"] in TYPE_BODY:
             key = item["neuronType"]
             if item["publishedName"] not in TYPE_BODY[key]:
-                TYPE_BODY[key].append(item["publishedName"])
+                TYPE_BODY[key].append(bodydict)
         else:
-            TYPE_BODY[item["neuronType"]] = list([item["publishedName"]])
+            TYPE_BODY[item["neuronType"]] = list([bodydict])
     if "neuronInstance" in item:
         key = item["neuronInstance"]
         if key in INSTANCE_BODY:
             if item["publishedName"] not in INSTANCE_BODY[key]:
-                INSTANCE_BODY[key].append(item["publishedName"])
+                INSTANCE_BODY[key].append(bodydict)
         else:
-            #print("Added %s to %s" % (item["publishedName"], key))
-            INSTANCE_BODY[key] = list([item["publishedName"]])
+            INSTANCE_BODY[key] = list([bodydict])
 
 
 def perform_body_mapping(data):
@@ -265,10 +260,8 @@ def insert_row(key, key_type):
     payload["ppp"] = bool(key in USED_PPP)
     if ARG.TYPE == "EM" and ARG.RESULT == "cdm":
         if key_type == "neuronType":
-            TYPE_BODY[key].sort()
             payload["bodyIDs"] = TYPE_BODY[key]
         elif key_type == "neuronInstance":
-            INSTANCE_BODY[key].sort()
             payload["bodyIDs"] = INSTANCE_BODY[key]
     if ARG.WRITE:
         response = TABLE.put_item(Item=payload)
@@ -402,6 +395,7 @@ def populate_table():
         Returns:
           None
     """
+    global TABLE # pylint: disable=W0603
     if not ARG.RESULT:
         print("Select result type:")
         allowed = ['cdm', 'ppp']
@@ -425,6 +419,10 @@ def populate_table():
         ARG.TYPE = 'EM'
     if not ARG.NEURONBRIDGE:
         get_nb_version()
+    dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
+    ddt = "janelia-neuronbridge-published"
+    ddt += "-" + ARG.NEURONBRIDGE
+    TABLE = dynamodb.Table(ddt)
     if ARG.RESULT == 'ppp' and not ARG.ACTION:
         get_ppp_action()
     if not ARG.LIBRARY:
@@ -452,8 +450,6 @@ def populate_table():
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
         description='Populate the janelia-neuronbridge-published DynamoDB table')
-    PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
-                        choices=['prod', 'dev'], default='dev', help='Manifold')
     PARSER.add_argument('--library', dest='LIBRARY', action='store',
                         help='Library file')
     PARSER.add_argument('--neuronbridge', dest='NEURONBRIDGE', action='store',
