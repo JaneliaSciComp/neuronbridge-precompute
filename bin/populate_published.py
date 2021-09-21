@@ -115,6 +115,36 @@ def get_library():
     ARG.LIBRARY = library[chosen]
 
 
+def get_result():
+    """ Prompt the user for a result type and library type
+        Keyword arguments:
+          None
+        Returns:
+          None (sets ARG.RESULT and ARG.TYPE)
+    """
+    if not ARG.RESULT:
+        print("Select result type:")
+        allowed = ['cdm', 'ppp']
+        terminal_menu = TerminalMenu(allowed)
+        chosen = terminal_menu.show()
+        if chosen is None:
+            LOGGER.error("No result type selected")
+            sys.exit(0)
+        ARG.RESULT = allowed[chosen]
+    if ARG.RESULT == 'cdm':
+        if not ARG.TYPE:
+            print("Select library type:")
+            allowed = ['EM', 'LM']
+            terminal_menu = TerminalMenu(allowed)
+            chosen = terminal_menu.show()
+            if chosen is None:
+                LOGGER.error("No library type selected")
+                sys.exit(0)
+            ARG.TYPE = allowed[chosen]
+    else:
+        ARG.TYPE = 'EM'
+
+
 def get_ppp_action():
     """ Prompt the user for a PPP action
         Keyword arguments:
@@ -396,27 +426,7 @@ def populate_table():
           None
     """
     global TABLE # pylint: disable=W0603
-    if not ARG.RESULT:
-        print("Select result type:")
-        allowed = ['cdm', 'ppp']
-        terminal_menu = TerminalMenu(allowed)
-        chosen = terminal_menu.show()
-        if chosen is None:
-            LOGGER.error("No result type selected")
-            sys.exit(0)
-        ARG.RESULT = allowed[chosen]
-    if ARG.RESULT == 'cdm':
-        if not ARG.TYPE:
-            print("Select library type:")
-            allowed = ['EM', 'LM']
-            terminal_menu = TerminalMenu(allowed)
-            chosen = terminal_menu.show()
-            if chosen is None:
-                LOGGER.error("No library type selected")
-                sys.exit(0)
-            ARG.TYPE = allowed[chosen]
-    else:
-        ARG.TYPE = 'EM'
+    get_result()
     if not ARG.NEURONBRIDGE:
         get_nb_version()
     dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
