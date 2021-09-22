@@ -17,6 +17,7 @@ from PIL import Image
 import requests
 from simple_term_menu import TerminalMenu
 from tqdm.auto import tqdm
+import neuronbridge_lib as NB
 
 
 __version__ = '0.0.2'
@@ -24,8 +25,6 @@ __version__ = '0.0.2'
 CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
 AWS = dict()
 S3_SECONDS = 60 * 60 * 12
-CDM_ALIGNMENT_SPACE = 'JRC2018_Unisex_20x_HR'
-#CDM_ALIGNMENT_SPACE = 'JRC2018_VNC_Unisex_40x_DS'
 
 
 def call_responder(server, endpoint):
@@ -79,42 +78,23 @@ def initialize_s3():
 
 
 def get_keyfile(client, bucket):
+    if not ARG.TEMPLATE:
+        ARG.TEMPLATE = NB.get_template(client, bucket)
+        if not ARG.TEMPLATE:
+            LOGGER.error("No alignment template selected")
+            sys.exit(0)
+        print(ARG.TEMPLATE)
     if not ARG.LIBRARY:
-        library = list()
-        try:
-            response = client.list_objects_v2(Bucket=bucket,
-                                              Prefix=CDM_ALIGNMENT_SPACE + '/', Delimiter='/')
-        except ClientError as err:
-            LOGGER.critical(err)
-            sys.exit(-1)
-        except Exception as err:
-            LOGGER.critical(err)
-            sys.exit(-1)
-        if 'CommonPrefixes' not in response:
-            LOGGER.critical("Could not find any libraries")
-            sys.exit(-1)
-        for prefix in response['CommonPrefixes']:
-            prefixname = prefix['Prefix'].split('/')[-2]
-            try:
-                key = CDM_ALIGNMENT_SPACE + '/' + prefixname \
-                      + '/searchable_neurons/keys_denormalized.json'
-                client.head_object(Bucket=bucket, Key=key)
-                library.append(prefixname)
-            except ClientError:
-                pass
-        print("Select a library:")
-        terminal_menu = TerminalMenu(library)
-        chosen = terminal_menu.show()
-        if chosen is None:
+        ARG.LIBRARY= NB.get_library(client, bucket, ARG.TEMPLATE)
+        if not ARG.LIBRARY:
             LOGGER.error("No library selected")
             sys.exit(0)
-        ARG.LIBRARY = library[chosen]
+        print(ARG.LIBRARY)
     if ARG.KEYFILE:
         with open(ARG.KEYFILE) as kfile:
             data = json.load(kfile)
         return data
-    print(ARG.LIBRARY)
-    key = CDM_ALIGNMENT_SPACE + '/' + ARG.LIBRARY + '/searchable_neurons/keys_denormalized.json'
+    key = ARG.TEMPLATE + '/' + ARG.LIBRARY + '/searchable_neurons/keys_denormalized.json'
     try:
         response = client.get_object(Bucket=bucket, Key=key)
         content = response['Body'].read()
@@ -222,6 +202,8 @@ if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(description="Produce denormalization files")
     PARSER.add_argument('--library', dest='LIBRARY', action='store',
                         help='Library')
+    PARSER.add_argument('--template', dest='TEMPLATE', action='store',
+                        help='Template')
     PARSER.add_argument('--keyfile', dest='KEYFILE', action='store',
                         help='AWS S3 key file')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
