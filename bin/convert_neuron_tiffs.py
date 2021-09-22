@@ -85,7 +85,7 @@ def get_keyfile(client, bucket):
             sys.exit(0)
         print(ARG.TEMPLATE)
     if not ARG.LIBRARY:
-        ARG.LIBRARY= NB.get_library(client, bucket, ARG.TEMPLATE)
+        ARG.LIBRARY = NB.get_library(client, bucket, ARG.TEMPLATE)
         if not ARG.LIBRARY:
             LOGGER.error("No library selected")
             sys.exit(0)
@@ -137,7 +137,7 @@ def upload_aws(client, bucket, sourcepath, targetpath):
     if ARG.MANIFOLD == 'prod':
         payload['ACL'] = 'public-read'
     try:
-        client.upload_file(sourcepath, bucket, targetpath,ExtraArgs=payload)
+        client.upload_file(sourcepath, bucket, targetpath, ExtraArgs=payload)
     except Exception as err:
         LOGGER.critical(err)
 
