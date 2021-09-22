@@ -28,18 +28,28 @@ def get_all_s3_objects(s3c, **base_kwargs):
         continuation_token = response.get('NextContinuationToken')
 
 
-def get_library(cdm_libs):
+def get_library(*args):
     """ Get a NeuronBridge library from provided configuration JSON
         Keyword arguments:
-          cdm_libs: "cdm_library" configuration JSON
+          cdm_bucket: "cdm_library" configuration JSON -or- bucket
+          prefix: alignment template (optional)
         Returns:
           Library
     """
     print("Select a library:")
     cdmlist = list()
-    for cdmlib in cdm_libs:
-        if cdm_libs[cdmlib]['name'] not in cdmlist:
-            cdmlist.append(cdm_libs[cdmlib]['name'])
+    if len(args) == 3:
+        paginator = args[0].get_paginator('list_objects')
+        result = paginator.paginate(Bucket=args[1], Prefix=args[2] + '/', Delimiter='/')
+        for prefix in result.search('CommonPrefixes'):
+            key = prefix.get('Prefix')
+            if re.search(r".+/", key):
+                cdmlist.append((key.split("/"))[1])
+    else:
+        cdm_libs = args[0]
+        for cdmlib in cdm_libs:
+            if cdm_libs[cdmlib]['name'] not in cdmlist:
+                cdmlist.append(cdm_libs[cdmlib]['name'])
     terminal_menu = TerminalMenu(cdmlist)
     chosen = terminal_menu.show()
     return cdmlist[chosen].replace(' ', '_') if chosen is not None else None
