@@ -45,7 +45,7 @@ TRANSACTIONS = dict()
 PNAME = dict()
 REC = {'line': '', 'slide_code': '', 'gender': '', 'objective': '', 'area': ''}
 S3_CLIENT = S3_RESOURCE = ''
-FULL_NAME = TAGS = ''
+FULL_NAME = ''
 MAX_SIZE = 500
 CREATE_THUMBNAIL = False
 S3_SECONDS = 60 * 60 * 12
@@ -242,19 +242,13 @@ def select_uploads():
 def initialize_program():
     """ Initialize
     """
-    global AWS, CLOAD, CONFIG, FULL_NAME, LIBRARY, TAGS # pylint: disable=W0603
-    data = call_responder('config', 'config/rest_services')
-    CONFIG = data['config']
-    data = call_responder('config', 'config/upload_cdms')
-    CLOAD = data['config']
-    data = call_responder('config', 'config/aws')
-    AWS = data['config']
-    data = call_responder('config', 'config/cdm_library')
-    LIBRARY = data['config']
+    global AWS, CLOAD, CONFIG, FULL_NAME, LIBRARY # pylint: disable=W0603
+    CONFIG = (call_responder('config', 'config/rest_services'))["config"]
+    CLOAD = (call_responder('config', 'config/upload_cdms'))["config"]
+    AWS = (call_responder('config', 'config/aws'))["config"]
+    LIBRARY = (call_responder('config', 'config/cdm_library'))["config"]
     get_parms()
     select_uploads()
-    TAGS = 'PROJECT=CDCS&STAGE=' + ARG.MANIFOLD + '&DEVELOPER=svirskasr&' \
-           + 'VERSION=' + __version__
     data = call_responder('config', 'config/db_config')
     (CONN['sage'], CURSOR['sage']) = db_connect(data['config']['sage']['prod'])
     if ARG.LIBRARY not in LIBRARY:
