@@ -1,7 +1,12 @@
 boto3
-dask[delayed]
+botocore
 colorlog
+dask[delayed]
+inquirer
 pillow
+pyjwt
 requests
 simple_term_menu
 tqdm
+MySQLdb
+PIL
