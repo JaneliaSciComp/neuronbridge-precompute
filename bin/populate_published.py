@@ -23,6 +23,7 @@ from tqdm import tqdm
 CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
 TYPE_BODY = dict()
 INSTANCE_BODY = dict()
+NEURON_PPP = {"neuronType": dict(), "neuronInstance": dict()}
 KEY = "searchString"
 # Database
 TABLE = ''
@@ -169,7 +170,7 @@ def scan_table():
         Returns:
           list of keys from DynamoDB
     """
-    LOGGER.info("Getting list of keys in DynamoDB")
+    print("Getting list of keys in DynamoDB")
     loaded = list()
     try:
         response = TABLE.scan()
@@ -211,6 +212,47 @@ def set_body(item):
             INSTANCE_BODY[key] = list([bodydict])
 
 
+def set_neuron_ppp():
+    """ Populate the NEURONPPP dictionary. It is keyed by key type/key, and contains
+        True if any associated body is in bodies known to PPP.
+        Keyword arguments:
+          None
+        Returns:
+          None
+    """
+    # Entries in TYPE_BODY and INSTANCE_BODY will look something like this:
+    # 'ORN_DL2d': [{'5812995304': True}, {'5812995304': True}]}
+    for item in tqdm(TYPE_BODY, "Mapping neuron types"):
+        NEURON_PPP["neuronType"][item] = False
+        for body in TYPE_BODY[item]:
+            if list(body.values())[0]:
+                NEURON_PPP["neuronType"][item] = True
+                break
+    for item in tqdm(INSTANCE_BODY, "Mapping neuron instances"):
+        NEURON_PPP["neuronInstance"][item] = False
+        for body in INSTANCE_BODY[item]:
+            if list(body.values())[0]:
+                NEURON_PPP["neuronInstance"][item] = True
+                break
+
+
+def compress_list(plist):
+    """ Shorten lists in the _BODY dictionaries by removing duplicates.
+        Keyword arguments:
+          plist: list to compress
+        Returns:
+          Processed dictionary
+    """
+    for item in plist:
+        ndict = dict()
+        for bdict in plist[item]:
+            for body in bdict:
+                ndict[body] = bdict[body]
+        plist[item] = list()
+        for body in ndict:
+            plist[item].append({body: ndict[body]})
+
+
 def perform_body_mapping(data):
     """ Cache neuron types and instances in TYPE_BODY and INSTANCE_BODY
         Keyword arguments:
@@ -231,6 +273,9 @@ def perform_body_mapping(data):
         set_body(item)
     LOGGER.info("Neuron types cached: %d", len(TYPE_BODY))
     LOGGER.info("Neuron instances cached: %d", len(INSTANCE_BODY))
+    compress_list(TYPE_BODY)
+    compress_list(INSTANCE_BODY)
+    set_neuron_ppp()
 
 
 def get_row(key, key_type):
@@ -253,7 +298,7 @@ def get_row(key, key_type):
         sys.exit(-1)
     if not response:
         return None, False
-    if "Item" in response and response["Item"] and ARG.RESULT in response:
+    if "Item" in response and response["Item"] and ARG.RESULT in response["Item"]:
         if key not in INSERTED:
             INSERTED[key] = {key_type: response["Item"]}
         else:
@@ -270,10 +315,15 @@ def insert_row(key, key_type):
         Returns:
           None
     """
+    if key_type == "bodyID":
+        if key not in USED_PPP:
+          LOGGER.warning("%s is not in PPP", key)
     payload, skip = get_row(key, key_type)
+    # Skip keys that this process has already written
     if skip:
         COUNT['skipped'] += 1
         return
+    # Skip publishng names/bodies that already have a CDM or PPP result
     if key_type in ["bodyID", "publishedName"] and payload and ARG.RESULT in payload \
                                                and payload[ARG.RESULT]:
         COUNT['skipped'] += 1
@@ -288,7 +338,10 @@ def insert_row(key, key_type):
     if ARG.RESULT == "ppp":
         payload["cdm"] = False
     payload["ppp"] = bool(key in USED_PPP)
+    # Add neuron types and instances
     if ARG.TYPE == "EM" and ARG.RESULT == "cdm":
+        if NEURON_PPP[key_type][key]:
+            payload["ppp"] = True
         if key_type == "neuronType":
             payload["bodyIDs"] = TYPE_BODY[key]
         elif key_type == "neuronInstance":
