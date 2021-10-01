@@ -20,7 +20,7 @@ from tqdm.auto import tqdm
 import neuronbridge_lib as NB
 
 
-__version__ = '0.0.2'
+__version__ = '1.0.0'
 # Configuration
 CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
 AWS = dict()
@@ -190,6 +190,8 @@ def convert_tiffs():
     parallel = []
     LOGGER.info("Preparing Dask")
     for key in data:
+        if not re.match(".+(\/" + ARG.REGEX + "\/)", key):
+            continue
         if '.tif' not in key.lower():
             continue
         parallel.append(dask.delayed(convert_single_file)(bucket, key))
@@ -206,6 +208,8 @@ if __name__ == '__main__':
                         help='Template')
     PARSER.add_argument('--keyfile', dest='KEYFILE', action='store',
                         help='AWS S3 key file')
+    PARSER.add_argument('--regex', dest='REGEX', action='store',
+                        default = "\d+", help='Subdivision processing regex')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         default='dev', help='AWS S3 manifold')
     PARSER.add_argument('--aws', dest='AWS', action='store_true',
