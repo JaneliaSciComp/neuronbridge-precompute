@@ -1,6 +1,6 @@
 ''' This program will Upload Color Depth MIPs to AWS S3.
 '''
-__version__ = '1.3.1'
+__version__ = '1.3.2'
 
 import argparse
 from datetime import datetime
@@ -223,10 +223,15 @@ def get_parms():
             LOGGER.error("No JSON file selected")
             terminate_program(0)
         ARG.JSON = '/'.join([json_base, jsonlist[chosen]])
-    # Get starting subdivision
 
 
 def set_searchable_subdivision(smp):
+    """ Set the first searchable_neurons subdivision
+        Keyword arguments:
+            smp: first sample from JSON file
+        Returns:
+            None
+    """
     if "alignmentSpace" not in smp:
         LOGGER.critical("Could not find alignment space in first sample")
         terminate_program(-1)
@@ -238,13 +243,15 @@ def set_searchable_subdivision(smp):
     library = LIBRARY[ARG.LIBRARY]['name'].replace(' ', '_')
     prefix = "/".join([smp["alignmentSpace"], library, "searchable_neurons"])
     maxnum = 0
-    for pag in S3_CLIENT.get_paginator("list_objects").paginate(Bucket=bucket, Prefix=prefix+"/", Delimiter="/"):
+    for pag in S3_CLIENT.get_paginator("list_objects")\
+                        .paginate(Bucket=bucket, Prefix=prefix+"/", Delimiter="/"):
         for obj in pag["CommonPrefixes"]:
             num = obj["Prefix"].split("/")[-2]
             if num.isdigit() and int(num) > maxnum:
                 maxnum = int(num)
     SUBDIVISION['prefix'] = maxnum + 1
-    LOGGER.warning("Will upload searchable neurons starting with subdivision %d", SUBDIVISION['prefix'])
+    LOGGER.warning("Will upload searchable neurons starting with subdivision %d",
+                   SUBDIVISION['prefix'])
 
 
 def select_uploads():
