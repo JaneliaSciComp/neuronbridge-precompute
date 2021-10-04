@@ -40,7 +40,7 @@ COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'No Consens
          'Skipped': 0, 'Already on S3': 0, 'Already on JACS': 0, 'Bad driver': 0,
          'Duplicate objects': 0, 'Unparsable files': 0, 'Updated on JACS': 0,
          'FlyEM flips': 0, 'Images': 0}
-SUBDIVISION = {'prefix': 1, 'counter': 0, 'limit': 100}
+SUBDIVISION = {'prefix': 1, 'counter': 0, 'limit': 100} #PLUG
 TRANSACTIONS = dict()
 PNAME = dict()
 REC = {'line': '', 'slide_code': '', 'gender': '', 'objective': '', 'area': ''}
@@ -223,6 +223,28 @@ def get_parms():
             LOGGER.error("No JSON file selected")
             terminate_program(0)
         ARG.JSON = '/'.join([json_base, jsonlist[chosen]])
+    # Get starting subdivision
+
+
+def set_searchable_subdivision(smp):
+    if "alignmentSpace" not in smp:
+        LOGGER.critical("Could not find alignment space in first sample")
+        terminate_program(-1)
+    bucket = AWS["s3_bucket"]["cdm"]
+    if ARG.INTERNAL:
+        bucket += '-int'
+    elif ARG.MANIFOLD != 'prod':
+        bucket += '-' + ARG.MANIFOLD
+    library = LIBRARY[ARG.LIBRARY]['name'].replace(' ', '_')
+    prefix = "/".join([smp["alignmentSpace"], library, "searchable_neurons"])
+    maxnum = 0
+    for pag in S3_CLIENT.get_paginator("list_objects").paginate(Bucket=bucket, Prefix=prefix+"/", Delimiter="/"):
+        for obj in pag["CommonPrefixes"]:
+            num = obj["Prefix"].split("/")[-2]
+            if num.isdigit() and int(num) > maxnum:
+                maxnum = int(num)
+    SUBDIVISION['prefix'] = maxnum + 1
+    LOGGER.warning("Will upload searchable neurons starting with subdivision %d", SUBDIVISION['prefix'])
 
 
 def select_uploads():
@@ -843,11 +865,21 @@ def upload_cdms_from_file():
     jfile.close()
     entries = len(data)
     print("Number of entries in JSON: %d" % entries)
+    set_searchable_subdivision(data[0])
+    alignment_space = ""
     for smp in tqdm(data):
+        if alignment_space:
+            if alignment_space != smp["alignmentSpace"]:
+                log_error("JSON file contains multiple alignment spaces")
+                terminate_program(-1)
+        else:
+            alignment_space = smp["alignmentSpace"]
         smp['_id'] = smp['id']
         if ARG.SAMPLES and COUNT['Samples'] >= ARG.SAMPLES:
             break
         COUNT['Samples'] += 1
+        if "20181121_65" in smp["slideCode"]: #PLUG
+            continue
         if not check_image(smp):
             continue
         REC['alignment_space'] = smp['alignmentSpace']
@@ -935,6 +967,7 @@ if __name__ == '__main__':
     HANDLER.setFormatter(colorlog.ColoredFormatter())
     LOGGER.addHandler(HANDLER)
 
+    S3CP = ERR = ''
     initialize_program()
     STAMP = strftime("%Y%m%dT%H%M%S")
     ERR_FILE = '%s_errors_%s.txt' % (ARG.LIBRARY, STAMP)
