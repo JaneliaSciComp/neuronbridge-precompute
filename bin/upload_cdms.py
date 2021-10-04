@@ -245,6 +245,8 @@ def set_searchable_subdivision(smp):
     maxnum = 0
     for pag in S3_CLIENT.get_paginator("list_objects")\
                         .paginate(Bucket=bucket, Prefix=prefix+"/", Delimiter="/"):
+        if "CommonPrefixes" not in pag:
+            break
         for obj in pag["CommonPrefixes"]:
             num = obj["Prefix"].split("/")[-2]
             if num.isdigit() and int(num) > maxnum:
