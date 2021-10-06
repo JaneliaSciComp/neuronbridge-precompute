@@ -1,6 +1,6 @@
 ''' This program will Upload Color Depth MIPs to AWS S3.
 '''
-__version__ = '1.3.2'
+__version__ = '1.3.3'
 
 import argparse
 from datetime import datetime
@@ -67,7 +67,7 @@ def terminate_program(code):
         if not os.path.getsize(S3CP_FILE):
             os.remove(S3CP_FILE)
         for fpath in [ERR_FILE, S3CP_FILE]:
-            if not os.path.getsize(fpath):
+            if os.path.exists(fpath) and not os.path.getsize(fpath):
                 os.remove(fpath)
     sys.exit(code)
 
@@ -213,7 +213,7 @@ def get_parms():
         print(ARG.NEURONBRIDGE)
     if not ARG.JSON:
         print("Select a JSON file:")
-        json_base = CLOAD['json_dir'] + "/%s/" % (ARG.NEURONBRIDGE)
+        json_base = CLOAD['json_dir'] + "/%s" % (ARG.NEURONBRIDGE)
         jsonlist = list(map(lambda jfile: jfile.split('/')[-1],
                             glob.glob(json_base + "/*.json")))
         jsonlist.sort()
@@ -230,7 +230,7 @@ def set_searchable_subdivision(smp):
         Keyword arguments:
             smp: first sample from JSON file
         Returns:
-            None
+            Alignment space
     """
     if "alignmentSpace" not in smp:
         LOGGER.critical("Could not find alignment space in first sample")
@@ -254,6 +254,7 @@ def set_searchable_subdivision(smp):
     SUBDIVISION['prefix'] = maxnum + 1
     LOGGER.warning("Will upload searchable neurons starting with subdivision %d",
                    SUBDIVISION['prefix'])
+    return smp["alignmentSpace"]
 
 
 def select_uploads():
@@ -855,6 +856,30 @@ def handle_variants(smp, newname):
         upload_flylight_variants(smp, newname)
 
 
+def confirm_run(alignment_space):
+    ''' Display parms and confirm run
+        Keyword arguments:
+          alignment_space: alignment space
+        Returns:
+          True or False
+    '''
+    print("Manifold:             %s" % (ARG.MANIFOLD))
+    print("Library:              %s" % (ARG.LIBRARY))
+    print("Alignment space:      %s" % (alignment_space))
+    print("NeuronBridge version: %s" % (ARG.NEURONBRIDGE))
+    print("JSON file:            %s" % (ARG.JSON))
+    print("Files to upload:      %s" % (", ".join(WILL_LOAD)))
+    print("Upload files to AWS:  %s" % ("Yes" if ARG.AWS else "No"))
+    print("Update JACS:          %s" % ("Yes" if ARG.WRITE else "No"))
+    print("Do you want to proceed?")
+    allowed = ['No', 'Yes']
+    terminal_menu = TerminalMenu(allowed)
+    chosen = terminal_menu.show()
+    if chosen is None or allowed[chosen] != "Yes":
+        return False
+    return True
+
+
 def upload_cdms_from_file():
     ''' Upload color depth MIPs and other files to AWS S3.
         The list of color depth MIPs comes from a supplied JSON file.
@@ -864,25 +889,26 @@ def upload_cdms_from_file():
           None
     '''
     if 'flyem_' not in ARG.LIBRARY:
+        print("Getting image mapping")
         driver = get_line_mapping()
         published_ids = get_image_mapping()
     else:
         driver = {}
         published_ids = {}
+    print("Loading JSON file")
     jfile = open(ARG.JSON, 'r')
     data = json.load(jfile)
     jfile.close()
     entries = len(data)
     print("Number of entries in JSON: %d" % entries)
-    set_searchable_subdivision(data[0])
-    alignment_space = ""
+    alignment_space = set_searchable_subdivision(data[0])
+    if not confirm_run(alignment_space):
+        return
+    print("Processing %s on %s manifold" % (ARG.LIBRARY, ARG.MANIFOLD))
     for smp in tqdm(data):
-        if alignment_space:
-            if alignment_space != smp["alignmentSpace"]:
-                log_error("JSON file contains multiple alignment spaces")
-                terminate_program(-1)
-        else:
-            alignment_space = smp["alignmentSpace"]
+        if alignment_space != smp["alignmentSpace"]:
+            log_error("JSON file contains multiple alignment spaces")
+            terminate_program(-1)
         smp['_id'] = smp['id']
         if ARG.SAMPLES and COUNT['Samples'] >= ARG.SAMPLES:
             break
@@ -984,7 +1010,6 @@ if __name__ == '__main__':
     S3CP_FILE = '%s_s3cp_%s.txt' % (ARG.LIBRARY, STAMP)
     S3CP = open(S3CP_FILE, 'w')
     START_TIME = datetime.now()
-    print("Processing %s on %s manifold" % (ARG.LIBRARY, ARG.MANIFOLD))
     upload_cdms_from_file()
     STOP_TIME = datetime.now()
     print("Elapsed time: %s" %  (STOP_TIME - START_TIME))
