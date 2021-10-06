@@ -208,6 +208,9 @@ def set_payload(body_id, data):
           Payload dictionary
     """
     return {"bodyid": body_id,
+            "template": CDM_ALIGNMENT_SPACE,
+            "library": ARG.LIBRARY,
+            "version": ARG.NEURONBRIDGE,
             "resultsFound": len(data['results']),
             "resultsUpdated": 0,
             "resultsSkipped": 0,
@@ -259,6 +262,24 @@ def upload_aws(client, bucket, sourcepath, targetpath):
         LOGGER.critical(err)
 
 
+def already_processed(coll, body_id):
+    """ Determine if a body ID has already been processed
+        Keyword arguments:
+          coll: collection
+          body_id: body ID
+        Returns:
+          "complete", "missing", or "partial"
+    """
+    check = coll.find_one({"bodyid": body_id, "template": CDM_ALIGNMENT_SPACE,
+                           "library": ARG.LIBRARY, "version": ARG.NEURONBRIDGE})
+    if not check:
+        return "missing"
+    if check['resultsFound'] == (check['resultsSkipped']
+                                 + check['resultsUpdated']):
+        return "complete"
+    return "partial"
+
+
 def handle_single_json_file(path):
     """ Process a single JSON file (there is one JSON file per body ID)
         Keyword arguments:
@@ -279,31 +300,30 @@ def handle_single_json_file(path):
         sys.exit(-1)
     filedict = dict()
     # Create destination directory
-    newdir = '/'.join([NEURONBRIDGE_JSON_BASE, 'ppp_imagery',
-                       ARG.NEURONBRIDGE, ARG.LIBRARY,
-                       os.path.basename(path)[0:2]])
-    newdir += '/' + os.path.basename(path).split('.')[0]
-    if not os.path.isdir(newdir):
-        try:
-            Path(newdir).mkdir(parents=True, exist_ok=True)
-        except Exception as err:
-            LOGGER.error("Could not create %s", newdir)
-            LOGGER.error(TEMPLATE, type(err).__name__, err.args)
+    if ARG.WRITE:
+        newdir = '/'.join([NEURONBRIDGE_JSON_BASE, 'ppp_imagery',
+                           ARG.NEURONBRIDGE, ARG.LIBRARY,
+                           os.path.basename(path)[0:2]])
+        newdir += '/' + os.path.basename(path).split('.')[0]
+        if not os.path.isdir(newdir):
+            try:
+                Path(newdir).mkdir(parents=True, exist_ok=True)
+            except Exception as err:
+                LOGGER.error("Could not create %s", newdir)
+                LOGGER.error(TEMPLATE, type(err).__name__, err.args)
     if not check_data_format(data):
         sys.exit(-1)
     body_id = data['maskPublishedName']
     LOGGER.debug("Processing %s", body_id)
     coll = DBM.pppBodyIds
-    check = coll.find_one({"bodyid": body_id})
-    if not check:
+    check = already_processed(coll, body_id)
+    if check == "missing":
         payload = set_payload(body_id, data)
         if ARG.WRITE:
             mongo_id = coll.insert_one(payload).inserted_id
     else:
         mongo_id = check['_id']
-        if check['resultsFound'] == (check['resultsSkipped']
-                                     + check['resultsUpdated']):
-            LOGGER.debug("Body ID %s has already been processed", body_id)
+        if check == "complete":
             return
         payload = {"resultsFound": len(data['results']), "resultsUpdated": 0,
                    "resultsSkipped": 0, "filesFound": 0, "filesUpdated": 0}
@@ -350,7 +370,7 @@ def handle_single_json_file(path):
             # Copy file within /nrs and upload to AWS S3
             if ARG.WRITE:
                 write_file(source_path, newdir, newname)
-                s3_target = '/'.join([CDM_ALIGNMENT_SPACE,
+                s3_target = '/'.join([ARG.NEURONBRIDGE, CDM_ALIGNMENT_SPACE,
                                       re.sub('.*' + ARG.LIBRARY,
                                              ARG.LIBRARY, newdir),
                                       newname])
@@ -402,11 +422,15 @@ def copy_files():
         return
     print("Preparing Dask")
     parallel = []
+    coll = DBM.pppBodyIds
     for path in tqdm(json_files):
-        parallel.append(dask.delayed(handle_single_json_file)(path))
+        body_id = path.split("/")[-1].replace(".json", "")
+        check = already_processed(coll, body_id)
+        if check != "complete":
+            parallel.append(dask.delayed(handle_single_json_file)(path))
     print("Copying and uploading %d body IDs" % (len(parallel)))
     with ProgressBar():
-        dask.compute(*parallel)
+        dask.compute(*parallel, num_workers=10)
 
 # -------------------------------------------------------------------------------
 
