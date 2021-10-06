@@ -32,7 +32,7 @@ INSERTED = dict()
 # General use
 RELEASE_LIBRARY_BASE = "/groups/scicompsoft/informatics/data/release_libraries"
 PPP_BASE = "/nrs/neuronbridge/ppp_imagery"
-COUNT = {"error": 0, "skipped": 0, "write": 0}
+COUNT = {"error": 0, "skipped": 0, "write": 0, "insert": 0, "update": 0}
 TEMPLATE = "An exception of type %s occurred. Arguments:\n%s"
 USED_PPP = dict()
 # pylint: disable=W0703
@@ -323,6 +323,10 @@ def insert_row(key, key_type):
     if skip:
         COUNT['skipped'] += 1
         return
+    if not payload:
+        COUNT["insert"] += 1
+    else:
+        COUNT["update"] += 1
     # Skip publishng names/bodies that already have a CDM or PPP result
     if key_type in ["bodyID", "publishedName"] and payload and ARG.RESULT in payload \
                                                and payload[ARG.RESULT]:
