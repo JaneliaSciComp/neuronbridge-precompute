@@ -36,6 +36,7 @@ DBM = ''
 # General use
 CDM_ALIGNMENT_SPACE = 'JRC2018_Unisex_20x_HR'
 NEURONBRIDGE_JSON_BASE = '/nrs/neuronbridge'
+PPP_BASE = NEURONBRIDGE_JSON_BASE + '/ppp_imagery'
 RENAME_COMPONENTS = ['maskPublishedName',
                      'publishedName', 'slideCode', 'objective']
 TEMPLATE = "An exception of type %s occurred. Arguments:\n%s"
@@ -236,7 +237,7 @@ def write_file(source_path, newdir, newname):
         if ARG.LINK:
             os.link(source_path, newpath)
         else:
-            shutil.copy(source_path, newpath)
+            shutil.copy2(source_path, newpath)
     except Exception as err:
         LOGGER.error("Could not copy %s to %s", source_path, newpath)
         LOGGER.error(TEMPLATE, type(err).__name__, err.args)
@@ -273,11 +274,12 @@ def already_processed(coll, body_id):
     check = coll.find_one({"bodyid": body_id, "template": CDM_ALIGNMENT_SPACE,
                            "library": ARG.LIBRARY, "version": ARG.NEURONBRIDGE})
     if not check:
-        return "missing"
+        return "missing", False
+    mongo_id = check['_id']
     if check['resultsFound'] == (check['resultsSkipped']
                                  + check['resultsUpdated']):
-        return "complete"
-    return "partial"
+        return "complete", mongo_id
+    return "partial", mongo_id
 
 
 def handle_single_json_file(path):
@@ -301,8 +303,7 @@ def handle_single_json_file(path):
     filedict = dict()
     # Create destination directory
     if ARG.WRITE:
-        newdir = '/'.join([NEURONBRIDGE_JSON_BASE, 'ppp_imagery',
-                           ARG.NEURONBRIDGE, ARG.LIBRARY,
+        newdir = '/'.join([PPP_BASE, ARG.NEURONBRIDGE, ARG.LIBRARY,
                            os.path.basename(path)[0:2]])
         newdir += '/' + os.path.basename(path).split('.')[0]
         if not os.path.isdir(newdir):
@@ -316,13 +317,12 @@ def handle_single_json_file(path):
     body_id = data['maskPublishedName']
     LOGGER.debug("Processing %s", body_id)
     coll = DBM.pppBodyIds
-    check = already_processed(coll, body_id)
+    check, mongo_id = already_processed(coll, body_id)
     if check == "missing":
         payload = set_payload(body_id, data)
         if ARG.WRITE:
             mongo_id = coll.insert_one(payload).inserted_id
     else:
-        mongo_id = check['_id']
         if check == "complete":
             return
         payload = {"resultsFound": len(data['results']), "resultsUpdated": 0,
@@ -374,7 +374,8 @@ def handle_single_json_file(path):
                                       re.sub('.*' + ARG.LIBRARY,
                                              ARG.LIBRARY, newdir),
                                       newname])
-                upload_aws(s3_client, bucket, source_path, s3_target)
+                if ARG.AWS:
+                    upload_aws(s3_client, bucket, source_path, s3_target)
                 count['fupdated'] += 1
                 coll.update_one({"_id": mongo_id},
                                 {"$set": {"filesUpdated": count['fupdated']}})
@@ -423,14 +424,21 @@ def copy_files():
     print("Preparing Dask")
     parallel = []
     coll = DBM.pppBodyIds
+    prefix = dict()
     for path in tqdm(json_files):
         body_id = path.split("/")[-1].replace(".json", "")
-        check = already_processed(coll, body_id)
+        prefix[body_id[0:2]] = 1
+        check, mongo_id = already_processed(coll, body_id)
         if check != "complete":
             parallel.append(dask.delayed(handle_single_json_file)(path))
-    print("Copying and uploading %d body IDs" % (len(parallel)))
+    print("Copying %s%d body IDs" % ("and uploading " if ARG.AWS else "", len(parallel)))
     with ProgressBar():
-        dask.compute(*parallel, num_workers=10)
+        dask.compute(*parallel, num_workers=12)
+    for key in sorted(prefix):
+        print('echo "Processing %s"' % (key))
+        print("aws s3 sync %s/%s/%s/%s s3://janelia-ppp-match-dev/%s/%s/%s --only-show-errors"
+              % (PPP_BASE, ARG.NEURONBRIDGE, ARG.LIBRARY, key, CDM_ALIGNMENT_SPACE,
+                 ARG.LIBRARY, key))
 
 # -------------------------------------------------------------------------------
 
@@ -447,8 +455,10 @@ if __name__ == '__main__':
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         default='dev', choices=['dev', 'prod'],
                         help='Mongo / AWS S3 manifold')
+    PARSER.add_argument('--aws', dest='AWS', action='store_true',
+                        default=False, help='Upload PNGs to AWS S3')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',
-                        default=False, help='Write PNGs to local filesystem')
+                        default=False, help='Write PNGs to local filesystem/S3')
     PARSER.add_argument('--link', dest='LINK', action='store_true',
                         default=False, help='Use symlinks instead of copying')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
