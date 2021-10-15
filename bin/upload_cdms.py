@@ -913,8 +913,6 @@ def upload_cdms_from_file():
         if ARG.SAMPLES and COUNT['Samples'] >= ARG.SAMPLES:
             break
         COUNT['Samples'] += 1
-        if "20181121_65" in smp["slideCode"]: #PLUG
-            continue
         if not check_image(smp):
             continue
         REC['alignment_space'] = smp['alignmentSpace']
