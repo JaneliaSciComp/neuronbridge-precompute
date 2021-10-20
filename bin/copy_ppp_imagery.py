@@ -93,13 +93,13 @@ def initialize_program():
     rwp = 'write' if ARG.WRITE else 'read'
     try:
         if ARG.MANIFOLD != 'local':
-            client = MongoClient(DATABASE['jacs-mongo'][ARG.MANIFOLD][rwp]['host'])
+            client = MongoClient(DATABASE['jacs-mongo']['dev'][rwp]['host'])
         else:
             client = MongoClient()
         DBM = client.ppp
-        if ARG.MANIFOLD == 'prod':
-            DBM.authenticate(DATABASE['jacs-mongo'][ARG.MANIFOLD][rwp]['user'],
-                             DATABASE['jacs-mongo'][ARG.MANIFOLD][rwp]['password'])
+        #if ARG.MANIFOLD == 'prod':
+        #    DBM.authenticate(DATABASE['jacs-mongo'][ARG.MANIFOLD][rwp]['user'],
+        #                     DATABASE['jacs-mongo'][ARG.MANIFOLD][rwp]['password'])
     except Exception as err:
         LOGGER.error('Could not connect to Mongo: %s', err)
         sys.exit(-1)
@@ -183,6 +183,24 @@ def get_nb_version():
         LOGGER.error("No NeuronBridge version selected")
         sys.exit(0)
     ARG.NEURONBRIDGE = version[chosen]
+
+
+def get_area():
+    """ Prompt the user for an area
+        Keyword arguments:
+          None
+        Returns:
+          None (sets ARG.AREA)
+    """
+    area = [path.split("/")[-2]
+            for path in glob('/'.join([NEURONBRIDGE_JSON_BASE, ARG.NEURONBRIDGE]) + '/*/pppresults')]
+    print("Select an area:")
+    terminal_menu = TerminalMenu(area)
+    chosen = terminal_menu.show()
+    if chosen is None:
+        LOGGER.error("No area selected")
+        sys.exit(0)
+    ARG.AREA = area[chosen]
 
 
 def check_data_format(data):
@@ -369,12 +387,13 @@ def handle_single_json_file(path):
             filedict[newname] = 1
             # Copy file within /nrs and upload to AWS S3
             if ARG.WRITE:
-                write_file(source_path, newdir, newname)
-                s3_target = '/'.join([ARG.NEURONBRIDGE, CDM_ALIGNMENT_SPACE,
-                                      re.sub('.*' + ARG.LIBRARY,
-                                             ARG.LIBRARY, newdir),
-                                      newname])
+                if ARG.NRS:
+                    write_file(source_path, newdir, newname)
                 if ARG.AWS:
+                    s3_target = '/'.join([ARG.NEURONBRIDGE, CDM_ALIGNMENT_SPACE,
+                                          re.sub('.*' + ARG.LIBRARY,
+                                                 ARG.LIBRARY, newdir),
+                                          newname])
                     upload_aws(s3_client, bucket, source_path, s3_target)
                 count['fupdated'] += 1
                 coll.update_one({"_id": mongo_id},
@@ -405,8 +424,10 @@ def copy_files():
         sys.exit(-1)
     if not ARG.NEURONBRIDGE:
         get_nb_version()
-    search_base = "%s/%s/pppresults/flyem-to-flylight" \
-                  % (NEURONBRIDGE_JSON_BASE, ARG.NEURONBRIDGE)
+    if not ARG.AREA:
+        get_area()
+    search_base = "%s/%s/%s/pppresults/flyem-to-flylight" \
+                   % (NEURONBRIDGE_JSON_BASE, ARG.NEURONBRIDGE, ARG.AREA)
     json_files = list()
     if ARG.FILE:
         with open(ARG.FILE) as bid_file:
@@ -432,13 +453,16 @@ def copy_files():
         if check != "complete":
             parallel.append(dask.delayed(handle_single_json_file)(path))
     print("Copying %s%d body IDs" % ("and uploading " if ARG.AWS else "", len(parallel)))
-    with ProgressBar():
-        dask.compute(*parallel, num_workers=12)
+    #with ProgressBar():
+    #    dask.compute(*parallel, num_workers=12)
+    cfile = "sync_%s_%s.sh" % (ARG.AREA, ARG.NEURONBRIDGE)
+    chandle = open(cfile, "w")
     for key in sorted(prefix):
-        print('echo "Processing %s"' % (key))
-        print("aws s3 sync %s/%s/%s/%s s3://janelia-ppp-match-dev/%s/%s/%s --only-show-errors"
-              % (PPP_BASE, ARG.NEURONBRIDGE, ARG.LIBRARY, key, CDM_ALIGNMENT_SPACE,
-                 ARG.LIBRARY, key))
+        chandle.write('echo "Processing %s"\n' % (key))
+        chandle.write("aws s3 sync %s/%s/%s/%s s3://janelia-ppp-match-%s/%s/%s/%s --only-show-errors\n"
+                      % (PPP_BASE, ARG.NEURONBRIDGE, ARG.LIBRARY, key, ARG.MANIFOLD, CDM_ALIGNMENT_SPACE,
+                      ARG.LIBRARY, key))
+    chandle.close()
 
 # -------------------------------------------------------------------------------
 
@@ -448,6 +472,8 @@ if __name__ == '__main__':
                         help='Library')
     PARSER.add_argument('--neuronbridge', dest='NEURONBRIDGE', action='store',
                         help='NeuronBridge data version')
+    PARSER.add_argument('--area', dest='AREA', action='store',
+                        help='Area (brain, vnc, etc.)')
     PARSER.add_argument('--file', dest='FILE', action='store',
                         help='File of body IDs to process')
     PARSER.add_argument('--bodyid', dest='BODYID', action='store',
@@ -455,10 +481,12 @@ if __name__ == '__main__':
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         default='dev', choices=['dev', 'prod'],
                         help='Mongo / AWS S3 manifold')
+    PARSER.add_argument('--nrs', dest='NRS', action='store_true',
+                        default=False, help='Write files to /nrs')
     PARSER.add_argument('--aws', dest='AWS', action='store_true',
-                        default=False, help='Upload PNGs to AWS S3')
+                        default=False, help='Upload files to AWS S3')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',
-                        default=False, help='Write PNGs to local filesystem/S3')
+                        default=False, help='Write files to local filesystem/S3')
     PARSER.add_argument('--link', dest='LINK', action='store_true',
                         default=False, help='Use symlinks instead of copying')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
