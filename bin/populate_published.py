@@ -104,8 +104,13 @@ def get_library():
         base_path = '/'.join([RELEASE_LIBRARY_BASE, ARG.NEURONBRIDGE, '*.names'])
     library = list()
     for path in glob(base_path):
-        if ARG.RESULT == "cdm" and "ppp_" in path:
-            continue
+        if ARG.RESULT == "cdm":
+            if  "ppp_" in path:
+                continue
+            if ARG.TYPE == "EM" and "flylight" in path:
+                continue
+            if ARG.TYPE == "LM" and "flyem" in path:
+                continue
         library.append(re.sub('.*/', '', path))
     print("Select a library file:")
     terminal_menu = TerminalMenu(library)
@@ -170,7 +175,7 @@ def scan_table():
         Returns:
           list of keys from DynamoDB
     """
-    print("Getting list of keys in DynamoDB")
+    LOGGER.info("Getting list of keys in DynamoDB")
     loaded = list()
     try:
         response = TABLE.scan()
@@ -343,7 +348,7 @@ def insert_row(key, key_type):
         payload["cdm"] = False
     payload["ppp"] = bool(key in USED_PPP)
     # Add neuron types and instances
-    if ARG.TYPE == "EM" and ARG.RESULT == "cdm":
+    if ARG.TYPE == "EM" and ARG.RESULT == "cdm" and key_type != "bodyID":
         if NEURON_PPP[key_type][key]:
             payload["ppp"] = True
         if key_type == "neuronType":
@@ -443,6 +448,8 @@ def index_ppp():
             stream.write("%s\n" % (item))
             COUNT['write'] += 1
         stream.close()
+    print("PPP bodies: %d" % (len(published["bodies"])))
+    print("PPP names : %d" % (len(published["names"])))
 
 
 def ppp_action():
@@ -463,11 +470,14 @@ def ppp_action():
             items[item["name"]] = item["keyType"]
     # Read PPP results
     for fname in ["ppp_bodies.names", "ppp_publishing_names.names"]:
+        count = 0
         ppp_file = "/".join([RELEASE_LIBRARY_BASE, ARG.NEURONBRIDGE, fname])
         with open(ppp_file) as itemfile:
             for line in itemfile:
                 USED_PPP[line.strip()] = 1
+                count += 1
         itemfile.close()
+        LOGGER.info("Items from %s: %d", ppp_file, count)
     for key in USED_PPP:
         if key not in items:
             LOGGER.warning(key)
@@ -508,7 +518,11 @@ def populate_table():
         populate_cdm()
     else:
         ppp_action()
-    print(COUNT)
+    print("Inserts: %d" % (COUNT["insert"]))
+    print("Updates: %d" % (COUNT["update"]))
+    print("Writes:  %d" % (COUNT["write"]))
+    print("Skipped: %d" % (COUNT["skipped"]))
+    print("Errors:  %d" % (COUNT["error"]))
 
 
 # -----------------------------------------------------------------------------
