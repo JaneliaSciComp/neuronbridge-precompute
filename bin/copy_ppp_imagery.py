@@ -34,7 +34,6 @@ S3_SECONDS = 60 * 60 * 12
 # Database
 DBM = ''
 # General use
-CDM_ALIGNMENT_SPACE = 'JRC2018_Unisex_20x_HR'
 NEURONBRIDGE_JSON_BASE = '/nrs/neuronbridge'
 PPP_BASE = NEURONBRIDGE_JSON_BASE + '/ppp_imagery'
 RENAME_COMPONENTS = ['maskPublishedName',
@@ -127,6 +126,35 @@ def initialize_s3():
     return s3c
 
 
+def get_template(client, bucket):
+    """ Prompt the user for a template selected from AWS S3 prefixes
+        Keyword arguments:
+          client: S3 client
+          bucket: S3 bucket
+        Returns:
+          None (sets ARG.TEMPLATE)
+    """
+    template = list()
+    try:
+        paginator = client.get_paginator('list_objects')
+        response = paginator.paginate(Bucket=bucket, Delimiter='/')
+    except ClientError as err:
+        LOGGER.critical(err)
+        sys.exit(-1)
+    except Exception as err:
+        LOGGER.critical(err)
+        sys.exit(-1)
+    for prefix in response.search('CommonPrefixes'):
+        template.append(prefix.get('Prefix').split('/')[0])
+    print("Select a template:")
+    terminal_menu = TerminalMenu(template)
+    chosen = terminal_menu.show()
+    if chosen is None:
+        LOGGER.error("No template selected")
+        sys.exit(0)
+    ARG.TEMPLATE = template[chosen]
+
+
 def get_library(client, bucket):
     """ Prompt the user for a library selected from AWS S3 prefixes
         Keyword arguments:
@@ -138,7 +166,7 @@ def get_library(client, bucket):
     library = list()
     try:
         response = client.list_objects_v2(Bucket=bucket,
-                                          Prefix=CDM_ALIGNMENT_SPACE + '/',
+                                          Prefix=ARG.TEMPLATE + '/',
                                           Delimiter='/')
     except ClientError as err:
         LOGGER.critical(err)
@@ -152,7 +180,7 @@ def get_library(client, bucket):
     for prefix in response['CommonPrefixes']:
         prefixname = prefix['Prefix'].split('/')[-2]
         try:
-            key = CDM_ALIGNMENT_SPACE + '/' + prefixname \
+            key = ARG.TEMPLATE + '/' + prefixname \
                   + '/searchable_neurons/keys_denormalized.json'
             client.head_object(Bucket=bucket, Key=key)
             library.append(prefixname)
@@ -227,7 +255,7 @@ def set_payload(body_id, data):
           Payload dictionary
     """
     return {"bodyid": body_id,
-            "template": CDM_ALIGNMENT_SPACE,
+            "template": ARG.TEMPLATE,
             "library": ARG.LIBRARY,
             "version": ARG.NEURONBRIDGE,
             "resultsFound": len(data['results']),
@@ -289,7 +317,7 @@ def already_processed(coll, body_id):
         Returns:
           "complete", "missing", or "partial"
     """
-    check = coll.find_one({"bodyid": body_id, "template": CDM_ALIGNMENT_SPACE,
+    check = coll.find_one({"bodyid": body_id, "template": ARG.TEMPLATE,
                            "library": ARG.LIBRARY, "version": ARG.NEURONBRIDGE})
     if not check:
         return "missing", False
@@ -309,7 +337,7 @@ def handle_single_json_file(path):
     """
     s3_client = initialize_s3()
     bucket = AWS['s3_bucket']['ppp']
-    bucket += '-prod' if ARG.MANIFOLD == 'prod' else '-dev'
+    bucket += '-' + ARG.MANIFOLD
     # Read JSON file into data
     try:
         with open(path) as handle:
@@ -379,7 +407,7 @@ def handle_single_json_file(path):
         # Loop over files for a single result
         for img_type, source_path in match['sourceImageFiles'].items():
             newname = '%s-%s-%s-%s' % tuple([match[key] for key in RENAME_COMPONENTS])
-            newname += "-%s-%s.png" % (CDM_ALIGNMENT_SPACE, img_type.lower())
+            newname += "-%s-%s.png" % (ARG.TEMPLATE, img_type.lower())
             if newname in filedict:
                 LOGGER.error("Duplicate file name found for %s in %s",
                              match['sampleName'], path)
@@ -390,7 +418,7 @@ def handle_single_json_file(path):
                 if ARG.NRS:
                     write_file(source_path, newdir, newname)
                 if ARG.AWS:
-                    s3_target = '/'.join([ARG.NEURONBRIDGE, CDM_ALIGNMENT_SPACE,
+                    s3_target = '/'.join([ARG.NEURONBRIDGE, ARG.TEMPLATE,
                                           re.sub('.*' + ARG.LIBRARY,
                                                  ARG.LIBRARY, newdir),
                                           newname])
@@ -405,6 +433,52 @@ def handle_single_json_file(path):
                                       "updatedDate": datetime.now()}})
 
 
+def confirm_run(search_path, body_count):
+    ''' Display parms and confirm run
+        Keyword arguments:
+          search_path: JSON search base
+          body_count: body count
+        Returns:
+          True or False
+    '''
+    print("Manifold:             %s" % (ARG.MANIFOLD))
+    print("Library:              %s" % (ARG.LIBRARY))
+    print("Alignment space:      %s" % (ARG.TEMPLATE))
+    print("NeuronBridge version: %s" % (ARG.NEURONBRIDGE))
+    print("Anatomical area:      %s" % (ARG.AREA))
+    print("JSON search base:     %s" % (search_path))
+    print("Body IDs:             %s" % (body_count))
+    print("Copy files to /nrs:   %s" % ("Yes" if ARG.NRS and ARG.WRITE else "No"))
+    print("Upload files to AWS:  %s" % ("Yes" if ARG.AWS and ARG.WRITE else "No"))
+    print("Do you want to proceed?")
+    allowed = ['No', 'Yes']
+    terminal_menu = TerminalMenu(allowed)
+    chosen = terminal_menu.show()
+    if chosen is None or allowed[chosen] != "Yes":
+        return False
+    return True
+
+
+def update_summary(bodies, complete=False):
+    coll = DBM.pppSummary
+    payload = {"library": ARG.LIBRARY,
+               "template": ARG.TEMPLATE,
+               "version": ARG.NEURONBRIDGE,
+               "manifold": ARG.MANIFOLD,
+               "bodies": bodies,
+               "complete": complete,
+               "updatedDate": datetime.now()
+              }
+    check = coll.find_one({"library": ARG.LIBRARY, "template": ARG.TEMPLATE,
+                           "version": ARG.NEURONBRIDGE})
+    post_id = check["_id"] if check else None
+    if not post_id:
+        coll.insert_one(payload)
+    else:
+        coll.update_one({"_id": post_id},
+                         {"$set": payload})
+
+
 def copy_files():
     """ Copy files specified in JSON files to /nrs/neuronbridge
         Keyword arguments:
@@ -415,10 +489,13 @@ def copy_files():
     #pylint: disable=no-member
     bucket = AWS['s3_bucket']['cdm']
     if ARG.MANIFOLD != 'prod':
-        bucket += '-dev'
-    if not ARG.LIBRARY:
+        bucket += '-' + ARG.MANIFOLD
+    if not ARG.TEMPLATE or not ARG.LIBRARY:
         s3_client = initialize_s3()
-        get_library(s3_client, bucket)
+        if not ARG.TEMPLATE:
+            get_template(s3_client, bucket)
+        if not ARG.LIBRARY:
+            get_library(s3_client, bucket)
     if not os.access(NEURONBRIDGE_JSON_BASE, os.R_OK):
         LOGGER.critical("Can't read from %s", NEURONBRIDGE_JSON_BASE)
         sys.exit(-1)
@@ -445,22 +522,30 @@ def copy_files():
     print("Preparing Dask")
     parallel = []
     coll = DBM.pppBodyIds
+    body_count = 0
     prefix = dict()
     for path in tqdm(json_files):
         body_id = path.split("/")[-1].replace(".json", "")
         prefix[body_id[0:2]] = 1
+        body_count += 1
         check, mongo_id = already_processed(coll, body_id)
         if check != "complete":
             parallel.append(dask.delayed(handle_single_json_file)(path))
+    if not confirm_run(search_path, body_count):
+        return
+    if WRITE:
+        update_summary(body_count)
     print("Copying %s%d body IDs" % ("and uploading " if ARG.AWS else "", len(parallel)))
-    #with ProgressBar():
-    #    dask.compute(*parallel, num_workers=12)
+    with ProgressBar():
+        dask.compute(*parallel, num_workers=12)
+    if WRITE:
+        update_summary(body_count, True)
     cfile = "sync_%s_%s.sh" % (ARG.AREA, ARG.NEURONBRIDGE)
     chandle = open(cfile, "w")
     for key in sorted(prefix):
         chandle.write('echo "Processing %s"\n' % (key))
         chandle.write("aws s3 sync %s/%s/%s/%s s3://janelia-ppp-match-%s/%s/%s/%s --only-show-errors\n"
-                      % (PPP_BASE, ARG.NEURONBRIDGE, ARG.LIBRARY, key, ARG.MANIFOLD, CDM_ALIGNMENT_SPACE,
+                      % (PPP_BASE, ARG.NEURONBRIDGE, ARG.LIBRARY, key, ARG.MANIFOLD, ARG.TEMPLATE,
                       ARG.LIBRARY, key))
     chandle.close()
 
@@ -468,8 +553,9 @@ def copy_files():
 
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(description="Rename and copy PPP PNGs")
-    PARSER.add_argument('--library', dest='LIBRARY', action='store',
-                        help='Library')
+    PARSER.add_argument('--library', dest='LIBRARY', action='store', help='Library')
+    # 'JRC2018_Unisex_20x_HR JRC2018_VNC_Unisex_40x_DS
+    PARSER.add_argument('--template', dest='TEMPLATE', action='store', help='Template')
     PARSER.add_argument('--neuronbridge', dest='NEURONBRIDGE', action='store',
                         help='NeuronBridge data version')
     PARSER.add_argument('--area', dest='AREA', action='store',
@@ -479,7 +565,7 @@ if __name__ == '__main__':
     PARSER.add_argument('--bodyid', dest='BODYID', action='store',
                         help='Body ID')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
-                        default='dev', choices=['dev', 'prod'],
+                        default='dev', choices=['dev', 'prod', 'dev-pre', 'prod-pre'],
                         help='Mongo / AWS S3 manifold')
     PARSER.add_argument('--nrs', dest='NRS', action='store_true',
                         default=False, help='Write files to /nrs')
