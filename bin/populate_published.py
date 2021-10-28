@@ -295,10 +295,12 @@ def get_row(key, key_type):
     """
     if key in INSERTED and key_type in INSERTED[key]:
         return INSERTED[key][key_type], True
+    response = None
     try:
         response = TABLE.get_item(Key={"itemType": KEY, "searchKey": key.lower()})
     except ClientError as err:
         LOGGER.error(err.response['Error']['Message'])
+        sys.exit(-1)
     except Exception as err:
         LOGGER.error(TEMPLATE, type(err).__name__, err.args)
         sys.exit(-1)
@@ -424,7 +426,7 @@ def index_ppp():
         Returns:
           None
     """
-    base_path = '/'.join([PPP_BASE, ARG.NEURONBRIDGE, ARG.LIBRARY, '*', '*'])
+    base_path = '/'.join([PPP_BASE, ARG.DBVERSION, ARG.LIBRARY, '*', '*'])
     outer = glob(base_path)
     published = {"bodies": dict(), "names": dict()}
     LOGGER.info("Collecting body IDs and publishing names")
@@ -472,7 +474,7 @@ def ppp_action():
     # Read PPP results
     for fname in ["ppp_bodies.names", "ppp_publishing_names.names"]:
         count = 0
-        ppp_file = "/".join([RELEASE_LIBRARY_BASE, ARG.NEURONBRIDGE, fname])
+        ppp_file = "/".join([RELEASE_LIBRARY_BASE, ARG.DBVERSION, fname])
         with open(ppp_file) as itemfile:
             for line in itemfile:
                 USED_PPP[line.strip()] = 1
@@ -499,7 +501,8 @@ def populate_table():
         get_nb_version()
     dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
     ddt = "janelia-neuronbridge-published"
-    ddt += "-" + ARG.NEURONBRIDGE
+    ddt += "-" + ARG.DBVERSION
+    LOGGER.info("Connecting to %s", ddt)
     TABLE = dynamodb.Table(ddt)
     if ARG.RESULT == 'ppp' and not ARG.ACTION:
         get_ppp_action()
@@ -508,7 +511,7 @@ def populate_table():
             get_library()
     if ARG.RESULT == "cdm":
         # Read PPP results
-        ppp_file = "/".join([RELEASE_LIBRARY_BASE, ARG.NEURONBRIDGE,
+        ppp_file = "/".join([RELEASE_LIBRARY_BASE, ARG.DBVERSION,
                              ("ppp_publishing_names.names" if ARG.TYPE == 'LM' \
                               else "ppp_bodies.names")])
         with open(ppp_file) as itemfile:
@@ -536,6 +539,8 @@ if __name__ == '__main__':
                         help='Library file')
     PARSER.add_argument('--neuronbridge', dest='NEURONBRIDGE', action='store',
                         help='NeuronBridge data version')
+    PARSER.add_argument('--dbversion', dest='DBVERSION', action='store',
+                        help='DynamoDB version (if different from --neuronbridge)')
     PARSER.add_argument('--result', dest='RESULT', action='store',
                         choices=['cdm', 'ppp'], help='Result type')
     PARSER.add_argument('--type', dest='TYPE', action='store',
@@ -549,6 +554,8 @@ if __name__ == '__main__':
     PARSER.add_argument('--debug', action='store_true', dest='DEBUG',
                         default=False, help='Turn on debug output')
     ARG = PARSER.parse_args()
+    if not ARG.DBVERSION:
+        ARG.DBVERSION = ARG.NEURONBRIDGE
 
     LOGGER = colorlog.getLogger()
     if ARG.DEBUG:
