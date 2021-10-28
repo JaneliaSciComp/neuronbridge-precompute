@@ -71,7 +71,7 @@ def initialize_program():
 
 
 def get_nb_version():
-    """ Prompt the user for a MeuronBridge version from subdirs in the base dir
+    """ Prompt the user for a NeuronBridge data version from subdirs in the base dir
         Keyword arguments:
           None
         Returns:
@@ -80,11 +80,12 @@ def get_nb_version():
     base_path = RELEASE_LIBRARY_BASE if ARG.RESULT == "cdm" else PPP_BASE
     version = [re.sub('.*/', '', path)
                for path in glob(base_path + '/v[0-9]*')]
-    print("Select a NeuronBridge version:")
+    print("Select a NeuronBridge data version:")
+    version.sort()
     terminal_menu = TerminalMenu(version)
     chosen = terminal_menu.show()
     if chosen is None:
-        LOGGER.error("No NeuronBridge version selected")
+        LOGGER.error("No NeuronBridge data version selected")
         sys.exit(0)
     ARG.NEURONBRIDGE = version[chosen]
 
