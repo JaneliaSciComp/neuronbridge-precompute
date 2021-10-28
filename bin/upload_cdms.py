@@ -36,8 +36,8 @@ CONN = dict()
 CURSOR = dict()
 # General use
 COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'No Consensus': 0,
-         'No sampleRef': 0, 'No publishing name': 0, 'No driver': 0, 'Not published': 0,
-         'Skipped': 0, 'Already on S3': 0, 'Already on JACS': 0, 'Bad driver': 0,
+         'No sampleRef': 0, 'No publishing name': 0, 'No driver': 0, 'Sample not published': 0,
+         'Line not published': 0, 'Skipped': 0, 'Already on S3': 0, 'Already on JACS': 0, 'Bad driver': 0,
          'Duplicate objects': 0, 'Unparsable files': 0, 'Updated on JACS': 0,
          'FlyEM flips': 0, 'Images': 0}
 SUBDIVISION = {'prefix': 1, 'counter': 0, 'limit': 100} #PLUG
@@ -192,10 +192,10 @@ def get_parms():
         liblist = list()
         for cdmlib in LIBRARY:
             if ARG.MANIFOLD not in LIBRARY[cdmlib]:
-                LIBRARY[cdmlib][ARG.MANIFOLD] = {'updated': 'Never'}
+                LIBRARY[cdmlib][ARG.MANIFOLD] = {'updated': None}
             liblist.append(cdmlib)
             text = cdmlib
-            if LIBRARY[cdmlib][ARG.MANIFOLD]['updated']:
+            if 'updated' in LIBRARY[cdmlib][ARG.MANIFOLD] and LIBRARY[cdmlib][ARG.MANIFOLD]['updated']:
                 text += " (last updated %s on %s)" \
                         % (LIBRARY[cdmlib][ARG.MANIFOLD]['updated'], ARG.MANIFOLD)
             cdmlist.append(text)
@@ -399,12 +399,13 @@ def get_line_mapping():
     LOGGER.info("Getting line/driver mapping")
     try:
         CURSOR['sage'].execute("SELECT DISTINCT publishing_name,driver FROM image_data_mv " \
-                               + "WHERE publishing_name IS NOT NULL AND driver IS NOT NULL")
+                               + "WHERE publishing_name IS NOT NULL")
         rows = CURSOR['sage'].fetchall()
     except MySQLdb.Error as err:
         sql_error(err)
     for row in rows:
-        driver[row['publishing_name']] = row['driver'].replace("_Collection", "").replace("-", "_")
+        if row['driver']:
+            driver[row['publishing_name']] = row['driver'].replace("_Collection", "").replace("-", "_")
     return driver
 
 
@@ -504,7 +505,7 @@ def get_smp_info(smp, published_ids):
     LOGGER.debug(sid)
     if ARG.LIBRARY in ['flylight_splitgal4_drivers']:
         if sid not in published_ids:
-            COUNT['Not published'] += 1
+            COUNT['Sample not published'] += 1
             err_text = "Sample %s was not published" % (sid)
             LOGGER.error(err_text)
             ERR.write(err_text + "\n")
@@ -548,6 +549,14 @@ def process_light(smp, driver, published_ids):
     REC['objective'] = smp['objective']
     REC['area'] = smp['anatomicalArea'].lower()
     if publishing_name in driver:
+        if not driver[publishing_name]:
+            COUNT['No driver'] += 1
+            err_text = "No driver for sample %s (%s)" % (sid, publishing_name)
+            LOGGER.error(err_text)
+            ERR.write(err_text + "\n")
+            if ARG.WRITE:
+                terminate_program(-1)
+            return False
         drv = driver[publishing_name]
         if drv not in CLOAD['drivers']:
             COUNT['Bad driver'] += 1
@@ -558,8 +567,8 @@ def process_light(smp, driver, published_ids):
                 terminate_program(-1)
             return False
     else:
-        COUNT['No driver'] += 1
-        err_text = "No driver for sample %s (%s)" % (sid, publishing_name)
+        COUNT['Line not published'] += 1
+        err_text = "Sample %s (%s) is not published in SAGE" % (sid, publishing_name)
         LOGGER.error(err_text)
         ERR.write(err_text + "\n")
         if ARG.WRITE:
