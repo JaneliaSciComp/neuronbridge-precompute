@@ -565,7 +565,7 @@ if __name__ == '__main__':
     PARSER.add_argument('--bodyid', dest='BODYID', action='store',
                         help='Body ID')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
-                        default='dev', choices=['dev', 'prod', 'dev-pre', 'prod-pre'],
+                        default='dev', choices=['dev', 'prod', 'devpre', 'prodpre'],
                         help='Mongo / AWS S3 manifold')
     PARSER.add_argument('--nrs', dest='NRS', action='store_true',
                         default=False, help='Write files to /nrs')

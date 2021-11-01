@@ -160,7 +160,7 @@ def initialize_s3():
     """
     global S3_CLIENT, S3_RESOURCE # pylint: disable=W0603
     LOGGER.info("Opening S3 client and resource")
-    if ARG.MANIFOLD == 'dev':
+    if "dev" in ARG.MANIFOLD:
         S3_CLIENT = boto3.client('s3')
         S3_RESOURCE = boto3.resource('s3')
     else:
@@ -988,7 +988,8 @@ if __name__ == '__main__':
                         default=False,
                         help='Flag, Check for previous AWS upload')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
-                        default='dev', help='S3 manifold')
+                        default='dev', choices=['dev', 'prod', 'devpre', 'prodpre'],
+                        help='S3 manifold')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',
                         default=False,
                         help='Flag, Actually write to JACS (and AWS if flag set)')

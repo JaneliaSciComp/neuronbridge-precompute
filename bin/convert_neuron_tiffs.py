@@ -185,7 +185,7 @@ def convert_tiffs():
     s3_client = initialize_s3()
     bucket = "janelia-flylight-color-depth"
     if ARG.MANIFOLD != 'prod':
-        bucket += '-dev'
+        bucket += '-' + ARG.MANIFOLD
     data = get_keyfile(s3_client, bucket)
     parallel = []
     LOGGER.info("Preparing Dask")
@@ -211,7 +211,8 @@ if __name__ == '__main__':
     PARSER.add_argument('--regex', dest='REGEX', action='store',
                         default = "\d+", help='Subdivision processing regex')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
-                        default='dev', help='AWS S3 manifold')
+                        default='dev', choices=['dev', 'prod', 'devpre', 'prodpre'],
+                        help='AWS S3 manifold')
     PARSER.add_argument('--aws', dest='AWS', action='store_true',
                         default=False, help='Write PNGs to S3')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
