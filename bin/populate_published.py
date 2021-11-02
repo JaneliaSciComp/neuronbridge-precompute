@@ -77,7 +77,7 @@ def get_nb_version():
         Returns:
           None (sets ARG.NEURONBRIDGE)
     """
-    base_path = RELEASE_LIBRARY_BASE if ARG.RESULT == "cdm" else PPP_BASE
+    base_path = RELEASE_LIBRARY_BASE
     version = [re.sub('.*/', '', path)
                for path in glob(base_path + '/v[0-9]*')]
     print("Select a NeuronBridge data version:")
@@ -90,6 +90,26 @@ def get_nb_version():
     ARG.NEURONBRIDGE = version[chosen]
 
 
+def get_ppp_version():
+    """ Prompt the user for a PPP data version from subdirs in the base dir
+        Keyword arguments:
+          None
+        Returns:
+          None (sets ARG.NEURONBRIDGE)
+    """
+    base_path = PPP_BASE
+    version = [re.sub('.*/', '', path)
+               for path in glob(base_path + '/v[0-9]*')]
+    print("Select a PPP version:")
+    version.sort()
+    terminal_menu = TerminalMenu(version)
+    chosen = terminal_menu.show()
+    if chosen is None:
+        LOGGER.error("No PPP version selected")
+        sys.exit(0)
+    ARG.PPPVERSION = version[chosen]
+
+
 def get_library():
     """ Prompt the user for a library
         Keyword arguments:
@@ -98,7 +118,7 @@ def get_library():
           None (sets ARG.LIBRARY)
     """
     if ARG.RESULT == "ppp":
-        base_path = '/'.join([PPP_BASE, ARG.NEURONBRIDGE, '*'])
+        base_path = '/'.join([PPP_BASE, ARG.PPPVERSION, '*'])
     elif ARG.TYPE == "EM":
         base_path = '/'.join([RELEASE_LIBRARY_BASE, ARG.NEURONBRIDGE, '*.json'])
     else:
@@ -426,7 +446,7 @@ def index_ppp():
         Returns:
           None
     """
-    base_path = '/'.join([PPP_BASE, ARG.DBVERSION, ARG.LIBRARY, '*', '*'])
+    base_path = '/'.join([PPP_BASE, ARG.PPPVERSION, ARG.LIBRARY, '*', '*'])
     outer = glob(base_path)
     published = {"bodies": dict(), "names": dict()}
     LOGGER.info("Collecting body IDs and publishing names")
@@ -474,7 +494,7 @@ def ppp_action():
     # Read PPP results
     for fname in ["ppp_bodies.names", "ppp_publishing_names.names"]:
         count = 0
-        ppp_file = "/".join([RELEASE_LIBRARY_BASE, ARG.DBVERSION, fname])
+        ppp_file = "/".join([RELEASE_LIBRARY_BASE, ARG.NEURONBRIDGE, fname])
         with open(ppp_file) as itemfile:
             for line in itemfile:
                 USED_PPP[line.strip()] = 1
@@ -499,9 +519,11 @@ def populate_table():
     get_result()
     if not ARG.NEURONBRIDGE:
         get_nb_version()
+    if ARG.RESULT == 'ppp' and not ARG.PPPVERSION:
+        get_ppp_version()
     dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
     ddt = "janelia-neuronbridge-published"
-    ddt += "-" + ARG.DBVERSION
+    ddt += "-" + ARG.NEURONBRIDGE
     LOGGER.info("Connecting to %s", ddt)
     TABLE = dynamodb.Table(ddt)
     if ARG.RESULT == 'ppp' and not ARG.ACTION:
@@ -511,7 +533,7 @@ def populate_table():
             get_library()
     if ARG.RESULT == "cdm":
         # Read PPP results
-        ppp_file = "/".join([RELEASE_LIBRARY_BASE, ARG.DBVERSION,
+        ppp_file = "/".join([RELEASE_LIBRARY_BASE, ARG.NEURONBRIDGE,
                              ("ppp_publishing_names.names" if ARG.TYPE == 'LM' \
                               else "ppp_bodies.names")])
         with open(ppp_file) as itemfile:
@@ -539,8 +561,8 @@ if __name__ == '__main__':
                         help='Library file')
     PARSER.add_argument('--neuronbridge', dest='NEURONBRIDGE', action='store',
                         help='NeuronBridge data version')
-    PARSER.add_argument('--dbversion', dest='DBVERSION', action='store',
-                        help='DynamoDB version (if different from --neuronbridge)')
+    PARSER.add_argument('--pppversion', dest='PPPVERSION', action='store',
+                        help='PPP version (if different from --neuronbridge)')
     PARSER.add_argument('--result', dest='RESULT', action='store',
                         choices=['cdm', 'ppp'], help='Result type')
     PARSER.add_argument('--type', dest='TYPE', action='store',
@@ -554,8 +576,6 @@ if __name__ == '__main__':
     PARSER.add_argument('--debug', action='store_true', dest='DEBUG',
                         default=False, help='Turn on debug output')
     ARG = PARSER.parse_args()
-    if not ARG.DBVERSION:
-        ARG.DBVERSION = ARG.NEURONBRIDGE
 
     LOGGER = colorlog.getLogger()
     if ARG.DEBUG:
