@@ -35,6 +35,7 @@ PPP_BASE = "/nrs/neuronbridge/ppp_imagery"
 COUNT = {"error": 0, "skipped": 0, "write": 0, "insert": 0, "update": 0}
 TEMPLATE = "An exception of type %s occurred. Arguments:\n%s"
 USED_PPP = dict()
+PPP_RESULTS = dict()
 # pylint: disable=W0703
 
 
@@ -343,10 +344,11 @@ def insert_row(key, key_type):
         Returns:
           None
     """
-    if key_type == "bodyID":
-        if key not in USED_PPP:
-          LOGGER.warning("%s is not in PPP", key)
     payload, skip = get_row(key, key_type)
+    if key in USED_PPP:
+        PPP_RESULTS[key] = True
+    else:
+        PPP_RESULTS[key] = False
     # Skip keys that this process has already written
     if skip:
         COUNT['skipped'] += 1
@@ -398,9 +400,9 @@ def process_single_item(item):
     if ARG.TYPE == "EM":
         if "publishedName" in item:
             insert_row(item["publishedName"], "bodyID")
-        if "neuronType" in item:
+        if "neuronType" in item and item["neuronType"]:
             insert_row(item["neuronType"], "neuronType")
-        if "neuronInstance" in item:
+        if "neuronInstance" in item and item["neuronInstance"]:
             insert_row(item["neuronInstance"], "neuronInstance")
     else:
         if "publishedName" in item:
@@ -542,6 +544,14 @@ def populate_table():
         itemfile.close()
         LOGGER.info("Read %d PPP matches", len(USED_PPP))
         populate_cdm()
+        ppp_present = ppp_not_present = 0
+        for key in PPP_RESULTS:
+           if PPP_RESULTS[key]:
+               ppp_present += 1
+           else:
+               ppp_not_present += 1
+        print("Keys in PPP:     %d" % (ppp_present))
+        print("Keys not in PPP: %d" % (ppp_not_present))
     else:
         ppp_action()
     print("Inserts: %d" % (COUNT["insert"]))
