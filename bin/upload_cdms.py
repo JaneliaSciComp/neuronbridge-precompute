@@ -29,6 +29,7 @@ CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
 AWS = dict()
 CLOAD = dict()
 LIBRARY = dict()
+MANIFOLDS = ['dev', 'prod', 'devpre', 'prodpre']
 VARIANTS = ["gradient", "searchable_neurons", "zgap"]
 WILL_LOAD = list()
 # Database
@@ -195,7 +196,8 @@ def get_parms():
                 LIBRARY[cdmlib][ARG.MANIFOLD] = {'updated': None}
             liblist.append(cdmlib)
             text = cdmlib
-            if 'updated' in LIBRARY[cdmlib][ARG.MANIFOLD] and LIBRARY[cdmlib][ARG.MANIFOLD]['updated']:
+            if 'updated' in LIBRARY[cdmlib][ARG.MANIFOLD] and LIBRARY[cdmlib][ARG.MANIFOLD]['updated'] \
+               and "0000-00-00" not in LIBRARY[cdmlib][ARG.MANIFOLD]['updated']:
                 text += " (last updated %s on %s)" \
                         % (LIBRARY[cdmlib][ARG.MANIFOLD]['updated'], ARG.MANIFOLD)
             cdmlist.append(text)
@@ -279,6 +281,24 @@ def initialize_program():
     CLOAD = (call_responder('config', 'config/upload_cdms'))["config"]
     AWS = (call_responder('config', 'config/aws'))["config"]
     LIBRARY = (call_responder('config', 'config/cdm_library'))["config"]
+    if ARG.WRITE:
+        if 'JACS_JWT' not in os.environ:
+            LOGGER.critical("Missing token - set in JACS_JWT environment variable")
+            terminate_program(-1)
+        response = decode_token(os.environ['JACS_JWT'])
+        if int(time()) >= response['exp']:
+            LOGGER.critical("Your token is expired")
+            terminate_program(-1)
+        FULL_NAME = response['full_name']
+        LOGGER.info("Authenticated as %s", FULL_NAME)
+    if not ARG.MANIFOLD:
+        print("Select a manifold")
+        terminal_menu = TerminalMenu(MANIFOLDS)
+        chosen = terminal_menu.show()
+        if chosen is None:
+            LOGGER.critical("You must select a manifold")
+            terminate_program(-1)
+        ARG.MANIFOLD = MANIFOLDS[chosen]
     get_parms()
     select_uploads()
     data = call_responder('config', 'config/db_config')
@@ -286,15 +306,6 @@ def initialize_program():
     if ARG.LIBRARY not in LIBRARY:
         LOGGER.critical("Unknown library %s", ARG.LIBRARY)
         terminate_program(-1)
-    if 'JACS_JWT' not in os.environ:
-        LOGGER.critical("Missing token - set in JACS_JWT environment variable")
-        terminate_program(-1)
-    response = decode_token(os.environ['JACS_JWT'])
-    if int(time()) >= response['exp']:
-        LOGGER.critical("Your token is expired")
-        terminate_program(-1)
-    FULL_NAME = response['full_name']
-    LOGGER.info("Authenticated as %s", FULL_NAME)
     initialize_s3()
 
 
@@ -988,8 +999,7 @@ if __name__ == '__main__':
                         default=False,
                         help='Flag, Check for previous AWS upload')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
-                        default='dev', choices=['dev', 'prod', 'devpre', 'prodpre'],
-                        help='S3 manifold')
+                        choices=MANIFOLDS, help='S3 manifold')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',
                         default=False,
                         help='Flag, Actually write to JACS (and AWS if flag set)')
