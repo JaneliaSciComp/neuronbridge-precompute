@@ -38,8 +38,8 @@ CURSOR = dict()
 # General use
 COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'No Consensus': 0,
          'No sampleRef': 0, 'No publishing name': 0, 'No driver': 0, 'Sample not published': 0,
-         'Line not published': 0, 'Skipped': 0, 'Already on S3': 0, 'Already on JACS': 0, 'Bad driver': 0,
-         'Duplicate objects': 0, 'Unparsable files': 0, 'Updated on JACS': 0,
+         'Line not published': 0, 'Skipped': 0, 'Already on S3': 0, 'Already on JACS': 0,
+         'Bad driver': 0, 'Duplicate objects': 0, 'Unparsable files': 0, 'Updated on JACS': 0,
          'FlyEM flips': 0, 'Images': 0}
 SUBDIVISION = {'prefix': 1, 'counter': 0, 'limit': 100} #PLUG
 TRANSACTIONS = dict()
@@ -196,7 +196,8 @@ def get_parms():
                 LIBRARY[cdmlib][ARG.MANIFOLD] = {'updated': None}
             liblist.append(cdmlib)
             text = cdmlib
-            if 'updated' in LIBRARY[cdmlib][ARG.MANIFOLD] and LIBRARY[cdmlib][ARG.MANIFOLD]['updated'] \
+            if 'updated' in LIBRARY[cdmlib][ARG.MANIFOLD] and \
+               LIBRARY[cdmlib][ARG.MANIFOLD]['updated'] \
                and "0000-00-00" not in LIBRARY[cdmlib][ARG.MANIFOLD]['updated']:
                 text += " (last updated %s on %s)" \
                         % (LIBRARY[cdmlib][ARG.MANIFOLD]['updated'], ARG.MANIFOLD)
@@ -416,7 +417,8 @@ def get_line_mapping():
         sql_error(err)
     for row in rows:
         if row['driver']:
-            driver[row['publishing_name']] = row['driver'].replace("_Collection", "").replace("-", "_")
+            driver[row['publishing_name']] = \
+                row['driver'].replace("_Collection", "").replace("-", "_")
     return driver
 
 

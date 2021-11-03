@@ -336,6 +336,33 @@ def get_row(key, key_type):
     return None, False
 
 
+def write_update_record(key, key_type, payload):
+    """ Insert or update a row in DynamoDB
+        Keyword arguments:
+          key: key
+          key_type: key type
+          payload: record payload
+        Returns:
+          None
+    """
+    # Add neuron types and instances
+    if ARG.TYPE == "EM" and ARG.RESULT == "cdm" and key_type != "bodyID":
+        if NEURON_PPP[key_type][key]:
+            payload["ppp"] = True
+        if key_type == "neuronType":
+            payload["bodyIDs"] = TYPE_BODY[key]
+        elif key_type == "neuronInstance":
+            payload["bodyIDs"] = INSTANCE_BODY[key]
+    if ARG.WRITE:
+        response = TABLE.put_item(Item=payload)
+        if 'ResponseMetadata' in response and response['ResponseMetadata']['HTTPStatusCode'] == 200:
+            COUNT['write'] += 1
+        else:
+            COUNT['error'] += 1
+    else:
+        COUNT['write'] += 1
+
+
 def insert_row(key, key_type):
     """ Insert a row into DynamoDB
         Keyword arguments:
@@ -353,10 +380,7 @@ def insert_row(key, key_type):
     if skip:
         COUNT['skipped'] += 1
         return
-    if not payload:
-        COUNT["insert"] += 1
-    else:
-        COUNT["update"] += 1
+    COUNT["update" if payload else "insert"] += 1
     # Skip publishng names/bodies that already have a CDM or PPP result
     if key_type in ["bodyID", "publishedName"] and payload and ARG.RESULT in payload \
                                                and payload[ARG.RESULT]:
@@ -372,22 +396,7 @@ def insert_row(key, key_type):
     if ARG.RESULT == "ppp":
         payload["cdm"] = False
     payload["ppp"] = bool(key in USED_PPP)
-    # Add neuron types and instances
-    if ARG.TYPE == "EM" and ARG.RESULT == "cdm" and key_type != "bodyID":
-        if NEURON_PPP[key_type][key]:
-            payload["ppp"] = True
-        if key_type == "neuronType":
-            payload["bodyIDs"] = TYPE_BODY[key]
-        elif key_type == "neuronInstance":
-            payload["bodyIDs"] = INSTANCE_BODY[key]
-    if ARG.WRITE:
-        response = TABLE.put_item(Item=payload)
-        if 'ResponseMetadata' in response and response['ResponseMetadata']['HTTPStatusCode'] == 200:
-            COUNT['write'] += 1
-        else:
-            COUNT['error'] += 1
-    else:
-        COUNT['write'] += 1
+    write_update_record(key, key_type, payload)
 
 
 def process_single_item(item):
@@ -546,10 +555,10 @@ def populate_table():
         populate_cdm()
         ppp_present = ppp_not_present = 0
         for key in PPP_RESULTS:
-           if PPP_RESULTS[key]:
-               ppp_present += 1
-           else:
-               ppp_not_present += 1
+            if PPP_RESULTS[key]:
+                ppp_present += 1
+            else:
+                ppp_not_present += 1
         print("Keys in PPP:     %d" % (ppp_present))
         print("Keys not in PPP: %d" % (ppp_not_present))
     else:
