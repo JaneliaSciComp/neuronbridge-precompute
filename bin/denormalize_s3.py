@@ -20,7 +20,6 @@ import colorlog
 import boto3
 from botocore.exceptions import ClientError
 import requests
-from tqdm import tqdm
 import neuronbridge_lib as NB
 
 __version__ = '1.1.1'
@@ -137,7 +136,8 @@ def get_parms(s3_client):
         if CDM[cdmlib]['name'].replace(' ', '_') == ARG.LIBRARY:
             for jsonfile in CDM[cdmlib][ARG.MANIFOLD]:
                 print("Library %s was last modified on %s on %s"
-                      % (CDM[cdmlib]['name'], ARG.MANIFOLD, CDM[cdmlib][ARG.MANIFOLD][jsonfile]['updated']))
+                      % (CDM[cdmlib]['name'], ARG.MANIFOLD,
+                         CDM[cdmlib][ARG.MANIFOLD][jsonfile]['updated']))
             break
 
 
