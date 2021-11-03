@@ -20,6 +20,7 @@ import colorlog
 import boto3
 from botocore.exceptions import ClientError
 import requests
+from tqdm import tqdm
 import neuronbridge_lib as NB
 
 __version__ = '1.1.1'
@@ -134,8 +135,9 @@ def get_parms(s3_client):
         print(ARG.TEMPLATE)
     for cdmlib in CDM:
         if CDM[cdmlib]['name'].replace(' ', '_') == ARG.LIBRARY:
-            print("Library %s was last modified on %s on %s"
-                  % (CDM[cdmlib]['name'], ARG.MANIFOLD, CDM[cdmlib][ARG.MANIFOLD]['updated']))
+            for jsonfile in CDM[cdmlib][ARG.MANIFOLD]:
+                print("Library %s was last modified on %s on %s"
+                      % (CDM[cdmlib]['name'], ARG.MANIFOLD, CDM[cdmlib][ARG.MANIFOLD][jsonfile]['updated']))
             break
 
 
@@ -174,6 +176,7 @@ def populate_batch_dict(s3_client, prefix):
         Returns:
           batch dictionary
     """
+    LOGGER.info("Batching keys")
     total_objects = dict()
     key_list = dict()
     max_batch = dict()
@@ -182,7 +185,8 @@ def populate_batch_dict(s3_client, prefix):
         max_batch[which] = 0
         first_batch[which] = 0
     for obj in NB.get_all_s3_objects(s3_client, Bucket=ARG.BUCKET, Prefix=prefix):
-        if KEYFILE in obj['Key'] or COUNTFILE in obj['Key'] or "pngs" in obj['Key']:
+        if KEYFILE in obj['Key'] or COUNTFILE in obj['Key'] or "pngs" in obj['Key'] \
+           or obj['Key'].endswith("/"):
             continue
         which = 'default'
         LOGGER.debug(obj['Key'])
@@ -236,6 +240,7 @@ def denormalize():
                'subprefixes': dict()}
     order_file = list()
     for which in batch_dict['keys']:
+        LOGGER.info("Processing %s imagery", which)
         prefix = '/'.join([ARG.TEMPLATE, ARG.LIBRARY])
         if which != 'default':
             prefix += '/' + which
@@ -258,6 +263,7 @@ def denormalize():
         upload_to_aws(s3_resource, json.dumps({"objectCount": batch_dict['count'][which]},
                                               indent=4), object_name)
     if not ARG.TEST:
+        LOGGER.info("Updating DynamoDB")
         dynamodb = boto3.resource('dynamodb')
         table = 'janelia-neuronbridge-denormalization-%s' % (ARG.MANIFOLD)
         table = dynamodb.Table(table)
