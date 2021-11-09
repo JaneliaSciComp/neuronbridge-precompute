@@ -1,3 +1,6 @@
+''' Create and display commands needed to populate DynamoDB
+'''
+
 import argparse
 from glob import glob
 import json
@@ -69,6 +72,12 @@ def get_nb_version():
 
 
 def create_name_file(path):
+    """ Create a "names" file
+        Keyword arguments:
+          path: path for names file
+        Returns:
+          None
+    """
     new_path = path.replace(".json", ".names")
     LOGGER.info("Creating %s", new_path)
     with open(path) as jsonfile:
@@ -83,6 +92,12 @@ def create_name_file(path):
 
 
 def run_populate():
+    """ Crreate commands needed to populate DynamoDB
+        Keyword arguments:
+          None
+        Returns:
+          None
+    """
     if not ARG.NEURONBRIDGE:
         get_nb_version()
     print("Run the following commands in sequence:")
@@ -95,11 +110,12 @@ def run_populate():
         version, lib = filedesc["file"].split("/")
         if filedesc["type"] == "LM":
             load = lib.replace(".json", ".names")
-            if not exists ("/".join([NEURONBRIDGE["base_path"], version, load])):
+            if not exists("/".join([NEURONBRIDGE["base_path"], version, load])):
                 create_name_file("/".join([NEURONBRIDGE["base_path"], filedesc["file"]]))
         else:
             load = lib
-        cmd = "  python3 populate_published.py --library %s --neuronbridge %s --result cdm --type %s" \
+        cmd = "  python3 populate_published.py --library " \
+              + "%s --neuronbridge %s --result cdm --type %s" \
               % (load, ARG.NEURONBRIDGE, filedesc["type"])
         command.append(cmd + " -write")
         print(cmd)
@@ -138,5 +154,3 @@ if __name__ == '__main__':
     initialize_program()
     run_populate()
     sys.exit(0)
-
-
