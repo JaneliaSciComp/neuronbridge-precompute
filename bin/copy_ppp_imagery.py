@@ -533,20 +533,24 @@ def copy_files():
             parallel.append(dask.delayed(handle_single_json_file)(path))
     if not confirm_run(search_path, body_count):
         return
-    if WRITE:
+    if ARG.WRITE:
         update_summary(body_count)
     print("Copying %s%d body IDs" % ("and uploading " if ARG.AWS else "", len(parallel)))
     with ProgressBar():
         dask.compute(*parallel, num_workers=12)
-    if WRITE:
+    if ARG.WRITE:
         update_summary(body_count, True)
     cfile = "sync_%s_%s.sh" % (ARG.AREA, ARG.NEURONBRIDGE)
     chandle = open(cfile, "w")
     for key in sorted(prefix):
-        chandle.write('echo "Processing %s"\n' % (key))
-        chandle.write("aws s3 sync %s/%s/%s/%s s3://janelia-ppp-match-%s/%s/%s/%s --only-show-errors\n"
-                      % (PPP_BASE, ARG.NEURONBRIDGE, ARG.LIBRARY, key, ARG.MANIFOLD, ARG.TEMPLATE,
-                      ARG.LIBRARY, key))
+        #chandle.write('echo "Processing %s"\n' % (key))
+        #chandle.write("aws s3 sync %s/%s/%s/%s s3://janelia-ppp-match-%s/%s/%s/%s --only-show-errors\n"
+        #              % (PPP_BASE, ARG.NEURONBRIDGE, ARG.LIBRARY, key, ARG.MANIFOLD, ARG.TEMPLATE,
+        #              ARG.LIBRARY, key))
+        chandle.write('echo "Submitting %s"\n' % (key))
+        chandle.write('bsub -J ppp_%s -n 4 -P neuronbridge "aws s3 sync %s/%s/%s/%s s3://janelia-ppp-match-%s/%s/%s/%s --only-show-errors"\n'
+                      % (key, PPP_BASE, ARG.NEURONBRIDGE, ARG.LIBRARY, key, ARG.MANIFOLD, ARG.TEMPLATE,
+                         ARG.LIBRARY, key))
     chandle.close()
 
 # -------------------------------------------------------------------------------
