@@ -38,6 +38,7 @@ NEURONBRIDGE_JSON_BASE = '/nrs/neuronbridge'
 PPP_BASE = NEURONBRIDGE_JSON_BASE + '/ppp_imagery'
 RENAME_COMPONENTS = ['maskPublishedName',
                      'publishedName', 'slideCode', 'objective']
+ERROR_ID = dict()
 TEMPLATE = "An exception of type %s occurred. Arguments:\n%s"
 # pylint: disable=W0703
 
@@ -317,6 +318,7 @@ def already_processed(coll, body_id):
         Returns:
           "complete", "missing", or "partial"
     """
+    return "missing", False #PLUG
     check = coll.find_one({"bodyid": body_id, "template": ARG.TEMPLATE,
                            "library": ARG.LIBRARY, "version": ARG.NEURONBRIDGE})
     if not check:
@@ -406,6 +408,8 @@ def handle_single_json_file(path):
                             {"$set": {"filesFound": count['ffound']}})
         # Loop over files for a single result
         for img_type, source_path in match['sourceImageFiles'].items():
+            if match['publishedName'] == "No Consensus":
+                ERROR_ID[match['maskPublishedName']] = True
             newname = '%s-%s-%s-%s' % tuple([match[key] for key in RENAME_COMPONENTS])
             newname += "-%s-%s.png" % (ARG.TEMPLATE, img_type.lower())
             if newname in filedict:
@@ -540,6 +544,14 @@ def copy_files():
         dask.compute(*parallel, num_workers=12)
     if ARG.WRITE:
         update_summary(body_count, True)
+    # Write error file
+    if len(ERROR_ID):
+        efile = "errors_%s_%s.txt" % (ARG.AREA, ARG.NEURONBRIDGE)
+        err = open(efile, "w")
+        for key in ERROR_ID:
+            err.write("%s\n" % (key))
+        err.close()
+    # Write sync file
     cfile = "sync_%s_%s.sh" % (ARG.AREA, ARG.NEURONBRIDGE)
     chandle = open(cfile, "w")
     for key in sorted(prefix):
