@@ -5,6 +5,8 @@
 import glob
 import os.path
 import re
+import socket
+import time
 from simple_term_menu import TerminalMenu
 
 RELEASE_LIBRARY_BASE = "/groups/scicompsoft/informatics/data/release_libraries"
@@ -92,3 +94,37 @@ def get_template(s3_client, bucket):
     terminal_menu = TerminalMenu(template)
     chosen = terminal_menu.show()
     return template[chosen] if chosen is not None else None
+
+def generate_jacs_uid(deployment_context=2, last_uid=None):
+    """ Generate a JACS-style UID
+        Keyword arguments:
+          deployment_context: deployment context [2]
+          last_uid: last UID generated [None]
+        Returns:
+          UID
+    """
+    current_time_offset = 921700000000
+    max_tries = 1023
+    current_index = 0
+    try:
+        hostname = socket.gethostname()
+        ipa = socket.gethostbyname(hostname)
+    except Exception:
+        ipa = socket.gethostbyname('localhost')
+    ip_component = int(ipa.split('.')[-1]) & 0xFF
+    next_uid = None
+    while (current_index <= max_tries) and not next_uid:
+        time_component = int(time.time()*1000) - current_time_offset
+        time_component = (time_component << 22)
+        next_uid = time_component + (current_index << 12) + (deployment_context << 8) + ip_component
+        if last_uid and (last_uid == next_uid):
+            next_uid = None
+            current_index += 1
+        if not next_uid and (current_index > max_tries):
+            time.sleep(0.5)
+            current_index = 0
+    if not next_uid:
+        print("Could not generate JACS UID")
+        sys.exit(-1)
+    return next_uid
+
