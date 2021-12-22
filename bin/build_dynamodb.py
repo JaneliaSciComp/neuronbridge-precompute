@@ -132,7 +132,7 @@ def run_populate():
 
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
-        description='Populate a NeuronBridge ynamoDB table')
+        description='Populate a NeuronBridge DynamoDB table')
     PARSER.add_argument('--neuronbridge', dest='NEURONBRIDGE', action='store',
                         help='NeuronBridge data version')
     PARSER.add_argument('--verbose', action='store_true', dest='VERBOSE',
