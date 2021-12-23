@@ -17,7 +17,7 @@ S3_CLIENT = None
 BASE_BUCKET = "janelia-ppp-match-"
 PREFIX = "JRC2018_Unisex_20x_HR/FlyEM_Hemibrain_v1.2.1"
 # General
-COUNT = {"Prefixes": 0, "Body IDs": 0, "Submitted": 0, "Submit error": 0}
+COUNT = {"Prefixes": 0, "Pages": 0, "Body IDs": 0, "Submitted": 0, "Submit error": 0}
 
 # -------------------------------------------------------------------------------
 
@@ -79,16 +79,21 @@ def create_thumbnails():
     for lev1pre in tqdm(lev1, desc="Prefixes"):
         bpre = lev1pre.get('Prefix').split("/")[-2]
         COUNT["Prefixes"] += 1
-        result2 = S3_CLIENT.list_objects(Bucket=bucket, Prefix="/".join([PREFIX, bpre]) + "/",
-                                         Delimiter="/")
-        lev2 = result2.get('CommonPrefixes')
-        for lev2pre in lev2:
-            body = lev2pre.get('Prefix').split("/")[-2]
-            COUNT["Body IDs"] += 1
-            if ARG.WRITE:
-                invoke_lambda(bucket, body)
-            else:
-                LOGGER.debug("/".join([bucket, bpre, body]))
+        #result2 = S3_CLIENT.list_objects(Bucket=bucket, Prefix="/".join([PREFIX, bpre]) + "/",
+        #                                 Delimiter="/")
+        paginator = S3_CLIENT.get_paginator("list_objects")
+        pages = paginator.paginate(Bucket=bucket, Prefix="/".join([PREFIX, bpre]) + "/",
+                                   Delimiter="/")
+        for page in pages:
+            COUNT["Pages"] += 1
+            lev2 = page.get('CommonPrefixes')
+            for lev2pre in lev2:
+                body = lev2pre.get('Prefix').split("/")[-2]
+                COUNT["Body IDs"] += 1
+                if ARG.WRITE:
+                    invoke_lambda(bucket, body)
+                else:
+                    LOGGER.debug("/".join([bucket, bpre, body]))
     print(COUNT)
 
 # -----------------------------------------------------------------------------
