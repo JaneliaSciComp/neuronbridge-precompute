@@ -197,7 +197,7 @@ def convert_tiffs():
         parallel.append(dask.delayed(convert_single_file)(bucket, key))
     print("Creating %sPNGs" % ('and uploading ' if ARG.AWS else ''))
     with ProgressBar():
-        dask.compute(*parallel)
+        dask.compute(*parallel, num_workers=12)
 
 
 if __name__ == '__main__':
