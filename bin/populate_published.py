@@ -9,6 +9,7 @@
 import argparse
 from glob import glob
 import json
+from os.path import exists
 import re
 import sys
 import boto3
@@ -457,6 +458,17 @@ def index_ppp():
         Returns:
           None
     """
+    fbase_path = '/'.join([RELEASE_LIBRARY_BASE, ARG.NEURONBRIDGE])
+    file = {"bodies": "ppp_bodies.names",
+            "names": "ppp_publishing_names.names"}
+    have_indices = True
+    for ftype in file:
+      if not exists("/".join([fbase_path, file[ftype]])):
+          have_indices = False
+          break
+    if have_indices:
+        LOGGER.warning("Index files already exist")
+        return
     base_path = '/'.join([PPP_BASE, ARG.PPPVERSION, ARG.LIBRARY, '*', '*'])
     outer = glob(base_path)
     published = {"bodies": dict(), "names": dict()}
@@ -472,12 +484,9 @@ def index_ppp():
     if not ARG.WRITE:
         print("Not in --write mode: will not write files")
         return
-    file = {"bodies": "ppp_bodies.names",
-            "names": "ppp_publishing_names.names"}
-    base_path = '/'.join([RELEASE_LIBRARY_BASE, ARG.NEURONBRIDGE])
     for ftype in file:
         LOGGER.info("Writing %s file", ftype)
-        stream = open("/".join([base_path, file[ftype]]), 'w')
+        stream = open("/".join([fbase_path, file[ftype]]), 'w')
         for item in tqdm(published[ftype], desc="Writing %s" % (ftype)):
             stream.write("%s\n" % (item))
             COUNT['write'] += 1
