@@ -104,7 +104,7 @@ def run_populate():
     command = list()
     cmd = "  python3 populate_published.py --neuronbridge %s --result ppp --action index" \
           % (ARG.NEURONBRIDGE)
-    command.append(cmd + " -write")
+    command.append(cmd + " --write")
     print(cmd)
     for filedesc in NEURONBRIDGE["versions"][ARG.NEURONBRIDGE]:
         version, lib = filedesc["file"].split("/")
