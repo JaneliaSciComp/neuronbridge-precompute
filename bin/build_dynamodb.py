@@ -51,16 +51,19 @@ def initialize_program():
     NEURONBRIDGE = data['config']
 
 
-def get_nb_version():
+def get_nb_version(method="filesystem"):
     """ Prompt the user for a NeuronBridge version from subdirs in the base dir
         Keyword arguments:
-          None
+          method: method to find versions (filesystem or config)
         Returns:
           None (sets ARG.NEURONBRIDGE)
     """
-    base_path = NEURONBRIDGE["base_path"]
-    version = [re.sub('.*/', '', path)
-               for path in glob(base_path + '/v[0-9]*')]
+    if method == "filesystem":
+        base_path = NEURONBRIDGE["base_path"]
+        version = [re.sub('.*/', '', path)
+                   for path in glob(base_path + '/v[0-9]*')]
+    else:
+        version = list(NEURONBRIDGE["versions"].keys())
     print("Select a NeuronBridge data version:")
     version.sort()
     terminal_menu = TerminalMenu(version)
@@ -92,7 +95,7 @@ def create_name_file(path):
 
 
 def run_populate():
-    """ Crreate commands needed to populate DynamoDB
+    """ Create commands needed to populate DynamoDB
         Keyword arguments:
           None
         Returns:
@@ -100,7 +103,7 @@ def run_populate():
     """
     if not ARG.NEURONBRIDGE:
         get_nb_version()
-    print("Run the following commands in sequence:")
+    print("Run the following commands in sequence to populate DynamoDB:")
     command = list()
     cmd = "  python3 populate_published.py --neuronbridge %s --result ppp --action index" \
           % (ARG.NEURONBRIDGE)
@@ -127,6 +130,32 @@ def run_populate():
     for cmd in command:
         print(cmd)
 
+
+def run_links():
+    """ Create commands for linking files
+        Keyword arguments:
+          None
+        Returns:
+          None
+    """
+    if not ARG.NEURONBRIDGE:
+        get_nb_version("config")
+    print("Run the following commands in sequence to build the links:")
+    base_path = NEURONBRIDGE["base_path"]
+    for lib in NEURONBRIDGE["versions"][ARG.NEURONBRIDGE]:
+        source = "/".join([base_path, lib["file"]])
+        if not exists(source):
+            LOGGER.error("Source file %s does not exist", source)
+        else:
+            target = "/".join([base_path, ARG.NEURONBRIDGE, lib["file"].split("/")[-1]])
+            print("ln -s %s %s " % (source, target))
+        source = source.replace(".json", ".names")
+        if not exists(source):
+            LOGGER.error("Source file %s does not exist", source)
+        else:
+            target = target.replace(".json", ".names")
+            print("ln -s %s %s " % (source, target))
+
 # -----------------------------------------------------------------------------
 
 
@@ -135,6 +164,8 @@ if __name__ == '__main__':
         description='Populate a NeuronBridge DynamoDB table')
     PARSER.add_argument('--neuronbridge', dest='NEURONBRIDGE', action='store',
                         help='NeuronBridge data version')
+    PARSER.add_argument('--links', action='store_true', dest='LINKS',
+                        default=False, help='Display commands to build links')
     PARSER.add_argument('--verbose', action='store_true', dest='VERBOSE',
                         default=False, help='Turn on verbose output')
     PARSER.add_argument('--debug', action='store_true', dest='DEBUG',
@@ -152,5 +183,5 @@ if __name__ == '__main__':
     HANDLER.setFormatter(colorlog.ColoredFormatter())
     LOGGER.addHandler(HANDLER)
     initialize_program()
-    run_populate()
+    _ = run_links() if ARG.LINKS else run_populate()
     sys.exit(0)
