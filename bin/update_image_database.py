@@ -23,8 +23,8 @@ CURSOR = dict()
 DBM = ''
 INSERT_BATCH = 5000
 READ = {"PRIMARY": "SELECT slide_code,alignment_space_unisex,objective,s.url,"
-                   + "line,area,tile,workstation_sample_id,alps_release "
-                   + "FROM image_data_mv i JOIN secondary_image_vw s ON "
+                   + "line,original_line,area,tile,workstation_sample_id,alps_release,"
+                   + "s.product FROM image_data_mv i JOIN secondary_image_vw s ON "
                    + "(i.id=s.image_id) WHERE alignment_space_unisex IS NOT NULL "
                    + "AND s.product='aligned_jrc2018_unisex_hr_stack' ORDER BY 1,3"
        }
@@ -105,9 +105,11 @@ def db_connect(dbd):
 def initialize_program():
     """ Initialize program
     """
-    global CONFIG, DATABASE, DBM  # pylint: disable=W0603
+    global CONFIG, DATABASE, DBM, PRODUCT # pylint: disable=W0603
     data = call_responder('config', 'config/rest_services')
     CONFIG = data['config']
+    data = call_responder('config', 'config/imagery_product')
+    PRODUCT = data['config']
     data = call_responder('config', 'config/db_config')
     # Connect to external publishing databases
     if ARG.DATABASE:
@@ -190,8 +192,9 @@ def set_payload(row, key):
             LAST_UID = next_uid
         time.sleep(.0005)
         payload = {"_id": next_uid,
-                   "line": row["line"],
                    "name": row["line"],
+                   "line": row["line"],
+                   "originalLine": row["original_line"],
                    "area": row["area"],
                    "tile": row["tile"],
                    "sampleRef" : "Sample#" + row["workstation_sample_id"],
@@ -220,12 +223,12 @@ def compare_images(coll, key, row, payload):
           None
     """
     update_db = False
-    for itype in ["alignment"]:
-        if CURRENT[key]["images"][itype] == row["url"]:
+    for itype in ["aligned_jrc2018_unisex_hr_stack"]:
+        if CURRENT[key]["files"][PRODUCT[itype]] == row["url"]:
             COUNT["skip"] += 1
         else:
             update_db = True
-            newpayload = {"images": {itype: row["url"]}} #Multiples?
+            newpayload["files"] = {PRODUCT[itype]: row["url"]}
     if "ownerKey" not in payload:
         update_db = True
         newpayload = {"name": payload["line"],
@@ -266,7 +269,9 @@ def process_db(dbn):
         if key in CURRENT:
             compare_images(coll, key, row, payload)
         else:
-            payload["images"] = {"alignment": row["url"]}
+            if row["product"] not in PRODUCT:
+                terminate_program("Key %s is not in the imagery_product config", row["product"])
+            payload["files"] = {PRODUCT[row["product"]]: row["url"]}
             if icounter == INSERT_BATCH:
                 if ARG.WRITE:
                     LOGGER.debug("Writing %d records", len(payload_list))

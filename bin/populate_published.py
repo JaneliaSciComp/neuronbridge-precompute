@@ -1,7 +1,7 @@
 ''' This program will update the janelia-neuronbridge-published table in DynamoDB
     To properly popualte this table, take the following steps:
     1) Start with a blank table
-    2) Run the program with --result ppp --action index
+    2) Run the program with --result ppp --action index to build PPP files
     3) Run the program once for every EM/LM release to process
     4) Run the program with --result ppp --action populate
 '''
@@ -463,9 +463,9 @@ def index_ppp():
             "names": "ppp_publishing_names.names"}
     have_indices = True
     for ftype in file:
-      if not exists("/".join([fbase_path, file[ftype]])):
-          have_indices = False
-          break
+        if not exists("/".join([fbase_path, file[ftype]])):
+            have_indices = False
+            break
     if have_indices:
         LOGGER.warning("Index files already exist")
         return
