@@ -115,22 +115,22 @@ def initialize_program():
     if ARG.DATABASE:
         DATABASE = [ARG.DATABASE]
     for dbn in DATABASE:
-        (CONN[dbn], CURSOR[dbn]) = db_connect(data['config'][dbn]["staging"])
+        (CONN[dbn], CURSOR[dbn]) = db_connect(data['config'][dbn][ARG.MANIFOLD])
     # Connect to Mongo
-    LOGGER.info("Connecting to Mongo on %s", ARG.MANIFOLD)
+    LOGGER.info("Connecting to Mongo on %s", ARG.MONGO)
     rwp = 'write' if ARG.WRITE else 'read'
     try:
-        if ARG.MANIFOLD == 'prod':
-            client = MongoClient(data['config']['jacs-mongo'][ARG.MANIFOLD][rwp]['host'],
+        if ARG.MONGO == 'prod':
+            client = MongoClient(data['config']['jacs-mongo'][ARG.MONGO][rwp]['host'],
                                  replicaSet='replWorkstation')
-        elif ARG.MANIFOLD == 'local':
+        elif ARG.MONGO == 'local':
             client = MongoClient()
         else:
-            client = MongoClient(data['config']['jacs-mongo'][ARG.MANIFOLD][rwp]['host'])
+            client = MongoClient(data['config']['jacs-mongo'][ARG.MONGO][rwp]['host'])
         DBM = client.jacs
-        if ARG.MANIFOLD == 'prod':
-            DBM.authenticate(data['config']['jacs-mongo'][ARG.MANIFOLD][rwp]['user'],
-                             data['config']['jacs-mongo'][ARG.MANIFOLD][rwp]['password'])
+        if ARG.MONGO == 'prod':
+            DBM.authenticate(data['config']['jacs-mongo'][ARG.MONGO][rwp]['user'],
+                             data['config']['jacs-mongo'][ARG.MONGO][rwp]['password'])
     except Exception as err:
         terminate_program('Could not connect to Mongo: %s' % (err))
 
@@ -318,11 +318,15 @@ if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
         description="Get NeuPrint metadata")
     PARSER.add_argument('--release', dest='RELEASE', action='store',
-                        help='NeuPrint release [optional]')
+                        help='Release [optional]')
     PARSER.add_argument('--database', dest='DATABASE', action='store',
                         choices=['gen1mcfo', 'mbew'], default='', help='Database')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
-                        choices=['dev', 'prod', 'local'], default='dev', help='Manifold')
+                        choices=['dev', 'prod', 'staging'], default='prod',
+                        help='Manifold')
+    PARSER.add_argument('--mongo', dest='MONGO', action='store',
+                        choices=['dev', 'prod', 'local'], default='dev',
+                        help='Mongo manifold')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',
                         default=False, help='Actually write to Mongo')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
