@@ -224,11 +224,11 @@ def compare_images(coll, key, row, payload):
     """
     update_db = False
     for itype in ["aligned_jrc2018_unisex_hr_stack"]:
-        if CURRENT[key]["files"][PRODUCT[itype]] == row["url"]:
+        if CURRENT[key]["files"][PRODUCT["sage"][itype]] == row["url"]:
             COUNT["skip"] += 1
         else:
             update_db = True
-            newpayload["files"] = {PRODUCT[itype]: row["url"]}
+            newpayload["files"] = {PRODUCT["sage"][itype]: row["url"]}
     if "ownerKey" not in payload:
         update_db = True
         newpayload = {"name": payload["line"],
@@ -269,9 +269,9 @@ def process_db(dbn):
         if key in CURRENT:
             compare_images(coll, key, row, payload)
         else:
-            if row["product"] not in PRODUCT:
+            if row["product"] not in PRODUCT["sage"]:
                 terminate_program("Key %s is not in the imagery_product config", row["product"])
-            payload["files"] = {PRODUCT[row["product"]]: row["url"]}
+            payload["files"] = {PRODUCT["sage"][row["product"]]: row["url"]}
             if icounter == INSERT_BATCH:
                 if ARG.WRITE:
                     LOGGER.debug("Writing %d records", len(payload_list))
