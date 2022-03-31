@@ -20,7 +20,7 @@ CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
 DATABASE = ["gen1mcfo", "mbew"]
 CONN = dict()
 CURSOR = dict()
-DBM = ''
+DBM = PRODUCT = ''
 INSERT_BATCH = 5000
 READ = {"PRIMARY": "SELECT slide_code,alignment_space_unisex,objective,s.url,"
                    + "line,original_line,area,tile,workstation_sample_id,alps_release,"
@@ -142,6 +142,7 @@ def get_short_objective(obj):
         Returns:
           Shortened objective
     """
+    # pylint: disable=R1710
     obj = obj.lower()
     for tobj in ('20x', '40x', '63x'):
         if tobj in obj:
@@ -223,6 +224,7 @@ def compare_images(coll, key, row, payload):
           None
     """
     update_db = False
+    newpayload = {}
     for itype in ["aligned_jrc2018_unisex_hr_stack"]:
         if CURRENT[key]["files"][PRODUCT["sage"][itype]] == row["url"]:
             COUNT["skip"] += 1
