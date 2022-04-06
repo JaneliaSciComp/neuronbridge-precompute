@@ -161,7 +161,8 @@ def process_imagery():
             total["mysql"] += row["cnt"]
             total["mongo"] += mcnt
         print("%-26s  %-6s  %-6s" % ("-"*26, "-"*6, "-"*6))
-        print("%-26s  %6d  %6d" % ("TOTAL", total["mysql"], total["mongo"]))
+        line = "%-26s  %6d  %6d" % ("TOTAL", total["mysql"], total["mongo"])
+        print((Fore.GREEN if total["mysql"] == total["mongo"] else Fore.RED) + line)
 
 
 if __name__ == '__main__':
