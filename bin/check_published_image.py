@@ -104,8 +104,9 @@ def initialize_program():
     CONFIG = data['config']
     # Databases
     data = call_responder('config', 'config/db_config')
-    (CONN[ARG.DATABASE], CURSOR[ARG.DATABASE]) = \
-        db_connect(data['config'][ARG.DATABASE][ARG.MANIFOLD])
+    if not ARG.QUICK:
+        (CONN[ARG.DATABASE], CURSOR[ARG.DATABASE]) = \
+            db_connect(data['config'][ARG.DATABASE][ARG.MANIFOLD])
     # Connect to Mongo
     LOGGER.info("Connecting to Mongo on %s", ARG.MONGO)
     rwp = 'read'
@@ -137,16 +138,32 @@ def process_imagery():
     mongo = {}
     for rel in result:
         mongo[rel['_id']] = rel['count']
-    try:
-        CURSOR[ARG.DATABASE].execute(READ["IMG"])
-        rows = CURSOR[ARG.DATABASE].fetchall()
-    except MySQLdb.Error as err:
-        sql_error(err)
-    print("%-26s  %-5s  %-5s" % ("Release", "MySQL", "Mongo"))
-    for row in rows:
-        mcnt = mongo[row["alps_release"]] if row["alps_release"] in mongo else 0
-        line = "%-26s  %-5d  %-5d" % (row["alps_release"], row["cnt"], mcnt)
-        print((Fore.GREEN if row["cnt"] == mcnt else Fore.RED) + line)
+    for mkey in sorted(mongo):
+        print(mkey, mongo[mkey])
+    if ARG.QUICK:
+        print("%-26s  %-6s" % ("Release", "Mongo"))
+        total = 0
+        for mkey in sorted(mongo):
+            print("%-26s  %6d" % (mkey, mongo[mkey]))
+            total += mongo[mkey]
+        print("%-26s  %-6s" % ("-"*26, "-"*6))
+        print("%-26s  %6d" % ("TOTAL", total))
+    else:
+        try:
+            CURSOR[ARG.DATABASE].execute(READ["IMG"])
+            rows = CURSOR[ARG.DATABASE].fetchall()
+        except MySQLdb.Error as err:
+            sql_error(err)
+        total = {"mysql": 0, "mongo": 0}
+        print("%-26s  %-6s  %-6s" % ("Release", "MySQL", "Mongo"))
+        for row in rows:
+            mcnt = mongo[row["alps_release"]] if row["alps_release"] in mongo else 0
+            line = "%-26s  %-6d  %-6d" % (row["alps_release"], row["cnt"], mcnt)
+            print((Fore.GREEN if row["cnt"] == mcnt else Fore.RED) + line)
+            total["mysql"] += row["cnt"]
+            total["mongo"] += mcnt
+        print("%-26s  %-6s    %-6s" % ("-"*26, "-"*6, "-"*6))
+        print("%-26s  %6d  %6d" % ("TOTAL", total["mysql"], total["mongo"]))
 
 
 if __name__ == '__main__':
@@ -159,6 +176,8 @@ if __name__ == '__main__':
                         help='Publishing manifold')
     PARSER.add_argument('--mongo', dest='MONGO', action='store',
                         default='dev', choices=['dev', 'prod', 'local'], help='Mongo manifold')
+    PARSER.add_argument('--quick', dest='QUICK', action='store_true',
+                        default=False, help='Do not crosscheck with publishing database')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
                         default=False, help='Flag, Chatty')
     PARSER.add_argument('--debug', dest='DEBUG', action='store_true',
