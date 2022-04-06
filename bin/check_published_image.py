@@ -138,8 +138,6 @@ def process_imagery():
     mongo = {}
     for rel in result:
         mongo[rel['_id']] = rel['count']
-    for mkey in sorted(mongo):
-        print(mkey, mongo[mkey])
     if ARG.QUICK:
         print("%-26s  %-6s" % ("Release", "Mongo"))
         total = 0
@@ -162,7 +160,7 @@ def process_imagery():
             print((Fore.GREEN if row["cnt"] == mcnt else Fore.RED) + line)
             total["mysql"] += row["cnt"]
             total["mongo"] += mcnt
-        print("%-26s  %-6s    %-6s" % ("-"*26, "-"*6, "-"*6))
+        print("%-26s  %-6s  %-6s" % ("-"*26, "-"*6, "-"*6))
         print("%-26s  %6d  %6d" % ("TOTAL", total["mysql"], total["mongo"]))
 
 
