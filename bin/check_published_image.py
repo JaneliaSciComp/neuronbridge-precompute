@@ -156,7 +156,7 @@ def process_imagery():
         print("%-26s  %-6s  %-6s" % ("Release", "MySQL", "Mongo"))
         for row in rows:
             mcnt = mongo[row["alps_release"]] if row["alps_release"] in mongo else 0
-            line = "%-26s  %-6d  %-6d" % (row["alps_release"], row["cnt"], mcnt)
+            line = "%-26s  %6d  %6d" % (row["alps_release"], row["cnt"], mcnt)
             print((Fore.GREEN if row["cnt"] == mcnt else Fore.RED) + line)
             total["mysql"] += row["cnt"]
             total["mongo"] += mcnt
