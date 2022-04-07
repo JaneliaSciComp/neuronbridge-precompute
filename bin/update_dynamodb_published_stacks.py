@@ -5,6 +5,7 @@ import argparse
 from copy import deepcopy
 import sys
 import boto3
+from colorama import Fore, Style
 import colorlog
 import requests
 from pymongo import MongoClient
@@ -119,12 +120,9 @@ def set_payload(row):
     ckey = "-".join([key, skey])
     if ckey in INSERTED:
         terminate_program("Key %s is already in table" % (ckey))
-    if row["slideCode"] in SLIDE_CODE:
-        print(row["slideCode"])
     SLIDE_CODE[row["slideCode"]] = True
     INSERTED[ckey] = True
-    payload = {"itemType": key,
-               "searchKey": skey.lower()
+    payload = {"itemType": ckey.lower(),
               }
     for itm in ["name", "area", "tile", "releaseName", "slideCode", "objective", "alignmentSpace"]:
         payload[itm] = row[itm]
@@ -163,9 +161,10 @@ def process_mongo():
     for row in tqdm(rows, total=record_cnt):
         payload = set_payload(row)
         write_payload(payload)
-    print("Items read:    %d" % (record_cnt))
+    tcolor = Fore.GREEN if record_cnt == COUNT["write"] else Fore.RED
+    print("Items read:    %s" % (tcolor + str(record_cnt) + Style.RESET_ALL))
     print("Slide codes:   %d" % (len(SLIDE_CODE)))
-    print("Items written: %d" % (COUNT["write"]))
+    print("Items written: %s" % (tcolor + str(COUNT["write"]) + Style.RESET_ALL))
     print("Write errors:  %d" % (COUNT["error"]))
 
 
