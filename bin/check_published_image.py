@@ -3,7 +3,7 @@
 
 import argparse
 import sys
-from colorama import Fore
+from colorama import Fore, Style
 import colorlog
 import requests
 import MySQLdb
@@ -160,7 +160,7 @@ def process_imagery():
             print((Fore.GREEN if row["cnt"] == mcnt else Fore.RED) + line)
             total["mysql"] += row["cnt"]
             total["mongo"] += mcnt
-        print("%-26s  %-6s  %-6s" % ("-"*26, "-"*6, "-"*6))
+        print(Style.RESET_ALL + "%-26s  %-6s  %-6s" % ("-"*26, "-"*6, "-"*6))
         line = "%-26s  %6d  %6d" % ("TOTAL", total["mysql"], total["mongo"])
         print((Fore.GREEN if total["mysql"] == total["mongo"] else Fore.RED) + line)
 
