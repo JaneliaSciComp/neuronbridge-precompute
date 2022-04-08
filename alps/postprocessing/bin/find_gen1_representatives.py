@@ -34,6 +34,7 @@ JACS_KEYS = dict()
 LAST_UID = None
 COUNT = {"publishing": 0, "sage": 0, "jacs": 0, "missing_cdm": 0, "missing_unisex": 0,
          "jacs_error": 0, "sage_error": 0, "insert": 0}
+# pylint: disable=W0703,E1101
 
 
 def terminate_program(msg=None):
@@ -152,6 +153,36 @@ def delete_existing(coll):
     LOGGER.info("Records deleted from Mongo: %d", result.deleted_count)
 
 
+def get_sage_rows(line, file, rows):
+    """ Find representative iages from a publishing database
+        Keyword arguments:
+          line: fly line
+          file: filename
+          rows: SAGE rows
+        Returns:
+          Rows from SAGE
+    """
+    uid = file.split(".")[0]
+    try:
+        CURSOR['sage'].execute(READ['IMG'], (line, "%" + uid + "%"))
+        rows = CURSOR['sage'].fetchall()
+    except MySQLdb.Error as err:
+        sql_error(err)
+    if not rows:
+        ERROR.write("Line %s %s was not found in SAGE\n" % (line, file))
+        COUNT["sage_error"] += 1
+        return None
+    if len(rows) > 1:
+        ERROR.write("Line %s %s has multiple entries in SAGE\n" % (line, file))
+        COUNT["sage_error"] += 1
+        return None
+    if not rows[0]["area"]:
+        ERROR.write("No area for %s %s\n" % (line, rows[0]["name"]))
+        COUNT["sage_error"] += 1
+        return None
+    return rows
+
+
 def get_jacs_data(row):
     """ Get data from JACS for an LSM
         Keyword arguments:
@@ -176,6 +207,51 @@ def get_jacs_data(row):
         COUNT["jacs_error"] += 1
         return None
     return result
+
+
+def get_objective(result, sample):
+    """ Find 20x objective results
+        Keyword arguments:
+          result: JACS data
+          sample: sample
+        Returns:
+          Objective record (or None if not found)
+    """
+    if not isinstance(result, list) or len(result) != 1:
+        ERROR.write("Could not find sample list %s in JACS\n" % (sample))
+        COUNT["jacs_error"] += 1
+        return None
+    if "objectiveSamples" not in result[0]:
+        ERROR.write("Could not find sample %s in JACS\n" % (sample))
+        COUNT["jacs_error"] += 1
+        return None
+    obj = None
+    for obj_dict in result[0]['objectiveSamples']:
+        if "20x" in obj_dict["objective"]:
+            return obj
+    ERROR.write("No 20x objective in sample %s\n" % (sample))
+    COUNT["jacs_error"] += 1
+    return None
+
+
+def get_pipeline_run_result(obj, sample):
+    """ Find pipeline run result
+        Keyword arguments:
+          obj: objective record
+          sample: sample
+        Returns:
+          Run result record (or None if not found)
+    """
+    prr = None
+    for pr_list in obj["pipelineRuns"]:
+        if "results" in pr_list:
+            for res_dict in pr_list["results"]:
+                if re.search(r"JRC\d\d\d\d_.*Unisex_.*CMTK", res_dict["name"]):
+                    prr = res_dict
+    if not prr:
+        ERROR.write("No Unisex pipeline run in sample %s\n" % (sample))
+        COUNT["missing_unisex"] += 1
+    return prr
 
 
 def set_payload(pname, result, obj):
@@ -225,33 +301,12 @@ def process_sample_result(result, pname, tile):
           CDM file path
     """
     sample = result[0]["_id"]
-    if not isinstance(result, list) or len(result) != 1:
-        ERROR.write("Could not find sample list %s in JACS\n" % (sample))
-        COUNT["jacs_error"] += 1
-        return [None] * 2
-    if "objectiveSamples" not in result[0]:
-        ERROR.write("Could not find sample %s in JACS\n" % (sample))
-        COUNT["jacs_error"] += 1
-        return [None] * 2
-    obj = None
-    for obj_dict in result[0]['objectiveSamples']:
-        if "20x" in obj_dict["objective"]:
-            obj = obj_dict
-            break
+    obj = get_objective(result, sample)
     if not obj:
-        ERROR.write("No 20x objective in sample %s\n" % (sample))
-        COUNT["jacs_error"] += 1
         return [None] * 2
     COUNT["jacs"] += 1
-    prr = None
-    for pr_list in obj["pipelineRuns"]:
-        if "results" in pr_list:
-            for res_dict in pr_list["results"]:
-                if re.search(r"JRC\d\d\d\d_.*Unisex_.*CMTK", res_dict["name"]):
-                    prr = res_dict
+    prr = get_pipeline_run_result(obj, sample)
     if not prr:
-        ERROR.write("No Unisex pipeline run in sample %s\n" % (sample))
-        COUNT["missing_unisex"] += 1
         return [None] * 2
     missing = []
     for req in ["driver", "gender", "slideCode"]:
@@ -282,6 +337,90 @@ def process_sample_result(result, pname, tile):
     return [None] * 2
 
 
+def get_file_dict(files, publishing_name, result, payload, tile):
+    """ Get a dictionary of files
+        Keyword arguments:
+          files: files from JACS
+          result: JACS result
+          payload: payload
+          tile: tile
+        Returns:
+          File dictionary
+    """
+    fdict = {}
+    for file in files:
+        if file == "ColorDepthMip1":
+            obj = "-".join([publishing_name, result[0]["slideCode"], result[0]["gender"],
+                            payload["objective"], tile, payload["alignmentSpace"], "CDM_1.png"])
+        else:
+            obj = "-".join([publishing_name, result[0]["slideCode"], result[0]["gender"],
+                            payload["objective"], tile, payload["alignmentSpace"],
+                            "aligned_stack.h5j"])
+        target = "/".join([TARGET, publishing_name, obj])
+        fdict[file] = target
+        COPY.write("%s\t%s\n" % (files[file], target))
+    return fdict
+
+
+def write_collection(coll, payload_list, icounter):
+    """ Write a list of payloads to the MongoDB collection
+        Keyword arguments:
+          coll: MongoDB collection
+          payload_list: list of payloads
+          icounter: payload counter
+        Returns:
+          None
+    """
+    if ARG.WRITE:
+        LOGGER.debug("Writing %d records", len(payload_list))
+        result = coll.insert_many(payload_list)
+        COUNT["insert"] += len(result.inserted_ids)
+    else:
+        COUNT["insert"] += icounter
+
+
+def process_flew_rows(coll, flew_rows):
+    """ Process representative images from a publishing database
+        Keyword arguments:
+          coll: MongoDB collection
+          flew_rows: rows from FLEW database
+        Returns:
+          None
+    """
+    icounter = 0
+    payload_list = list()
+    for flew in tqdm(flew_rows):
+        publishing_name = flew['line']
+        file = flew['name'].split('/')[-1]
+        line = "_".join(file.split("-")[0].split("_", 4)[0:4])
+        rows = get_sage_rows(line, file, rows)
+        if not rows:
+            continue
+        COUNT["sage"] += 1
+        tile = "ventral_nerve_cord" if rows[0]["area"] == "VNC" else "brain"
+        if not tile:
+            LOGGER.error("Missing tile for %s %s", publishing_name, file)
+            continue
+        result = get_jacs_data(rows[0])
+        if not result:
+            continue
+        payload, files = process_sample_result(result, publishing_name, tile)
+        if not files:
+            continue
+        fdict = get_file_dict(files, publishing_name, result, payload, tile)
+        payload["files"] = fdict
+        if icounter == INSERT_BATCH:
+            write_collection(coll, payload_list, icounter)
+            icounter = 0
+            payload_list = list()
+        payload_list.append(payload)
+        icounter += 1
+    if icounter:
+        write_collection(coll, payload_list, icounter)
+    COPY.close()
+    ERROR.close()
+
+
 def process_imagery():
     """ Find representative iages from a publishing database
         Keyword arguments:
@@ -298,74 +437,7 @@ def process_imagery():
     except MySQLdb.Error as err:
         sql_error(err)
     COUNT["publishing"] = len(flew_rows)
-    icounter = 0
-    payload_list = list()
-    for flew in tqdm(flew_rows):
-        publishing_name = flew['line']
-        file = flew['name'].split('/')[-1]
-        line = "_".join(file.split("-")[0].split("_", 4)[0:4])
-        uid = file.split(".")[0]
-        try:
-            CURSOR['sage'].execute(READ['IMG'], (line, "%" + uid + "%"))
-            rows = CURSOR['sage'].fetchall()
-        except MySQLdb.Error as err:
-            sql_error(err)
-        if not rows:
-            ERROR.write("Line %s %s was not found in SAGE\n" % (line, file))
-            COUNT["sage_error"] += 1
-            continue
-        if len(rows) > 1:
-            ERROR.write("Line %s %s has multiple entries in SAGE\n" % (line, file))
-            COUNT["sage_error"] += 1
-            continue
-        if not rows[0]["area"]:
-            ERROR.write("No area for %s %s\n" % (line, rows[0]["name"]))
-            COUNT["sage_error"] += 1
-            continue
-        COUNT["sage"] += 1
-        tile = "ventral_nerve_cord" if rows[0]["area"] == "VNC" else "brain"
-        if not tile:
-            LOGGER.error("Missing tile for %s %s", publishing_name, file)
-            continue
-        result = get_jacs_data(rows[0])
-        if not result:
-            continue
-        payload, files = process_sample_result(result, publishing_name, tile)
-        if not files:
-            continue
-        fdict = {}
-        for file in files:
-            if file == "ColorDepthMip1":
-                obj = "-".join([publishing_name, result[0]["slideCode"], result[0]["gender"],
-                                payload["objective"], tile, payload["alignmentSpace"], "CDM_1.png"])
-            else:
-                obj = "-".join([publishing_name, result[0]["slideCode"], result[0]["gender"],
-                                payload["objective"], tile, payload["alignmentSpace"],
-                                "aligned_stack.h5j"])
-            target = "/".join([TARGET, publishing_name, obj])
-            fdict[file] = target
-            COPY.write("%s\t%s\n" % (files[file], target))
-        payload["files"] = fdict
-        if icounter == INSERT_BATCH:
-            if ARG.WRITE:
-                LOGGER.debug("Writing %d records", len(payload_list))
-                result = coll.insert_many(payload_list)
-                COUNT["insert"] += len(result.inserted_ids)
-            else:
-                COUNT["insert"] += icounter
-            icounter = 0
-            payload_list = list()
-        payload_list.append(payload)
-        icounter += 1
-    if icounter:
-        if ARG.WRITE:
-            LOGGER.debug("Writing %d records", len(payload_list))
-            result = coll.insert_many(payload_list)
-            COUNT["insert"] += len(result.inserted_ids)
-        else:
-            COUNT["insert"] += icounter
-    COPY.close()
-    ERROR.close()
+    process_flew_rows(coll, flew_rows)
     print("Read from publishing:     %d" % (COUNT["publishing"]))
     print("Present in SAGE:          %d" % (COUNT["sage"]))
     print("Present in JACS:          %d" % (COUNT["jacs"]))
