@@ -153,12 +153,11 @@ def delete_existing(coll):
     LOGGER.info("Records deleted from Mongo: %d", result.deleted_count)
 
 
-def get_sage_rows(line, file, rows):
+def get_sage_rows(line, file):
     """ Find representative iages from a publishing database
         Keyword arguments:
           line: fly line
           file: filename
-          rows: SAGE rows
         Returns:
           Rows from SAGE
     """
@@ -393,7 +392,7 @@ def process_flew_rows(coll, flew_rows):
         publishing_name = flew['line']
         file = flew['name'].split('/')[-1]
         line = "_".join(file.split("-")[0].split("_", 4)[0:4])
-        rows = get_sage_rows(line, file, rows)
+        rows = get_sage_rows(line, file)
         if not rows:
             continue
         COUNT["sage"] += 1
