@@ -8,6 +8,7 @@ import colorlog
 import requests
 import MySQLdb
 from pymongo import MongoClient
+from simple_term_menu import TerminalMenu
 
 
 # Configuration
@@ -95,6 +96,32 @@ def call_responder(server, endpoint):
     LOGGER.error('Status: %s', str(req.status_code))
     sys.exit(-1)
 
+def get_parms():
+    choices = ['mbew', 'gen1mcfo']
+    if not ARG.DATABASE:
+        terminal_menu = TerminalMenu(choices, title="Select a publishing database")
+        chosen = terminal_menu.show()
+        if chosen is None:
+            LOGGER.critical("You must select a publishing database")
+            terminate_program(-1)
+        ARG.DATABASE = choices[chosen]
+    choices = ['staging', 'prod', 'dev']
+    if not ARG.MANIFOLD:
+        terminal_menu = TerminalMenu(choices, title="Select a manifold")
+        chosen = terminal_menu.show()
+        if chosen is None:
+            LOGGER.critical("You must select a manifold")
+            terminate_program(-1)
+        ARG.MANIFOLD = choices[chosen]
+    choices = ['dev', 'prod', 'local']
+    if not ARG.MONGO:
+        terminal_menu = TerminalMenu(choices, title="Select a MongoDB instance")
+        chosen = terminal_menu.show()
+        if chosen is None:
+            LOGGER.critical("You must select a MongoDB instance")
+            terminate_program(-1)
+        ARG.MONGO = choices[chosen]
+
 
 def initialize_program():
     """ Initialize
@@ -102,6 +129,8 @@ def initialize_program():
     global CONFIG, DBM  # pylint: disable=W0603
     data = call_responder('config', 'config/rest_services')
     CONFIG = data['config']
+    # Get parms
+    get_parms();
     # Databases
     data = call_responder('config', 'config/db_config')
     if not ARG.QUICK:
@@ -169,12 +198,11 @@ if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
         description="Compare publishedImage counts to MySQL publishing database")
     PARSER.add_argument('--database', dest='DATABASE', action='store',
-                        default='mbew', choices=['mbew', 'gen1mcfo'], help='Database')
+                        choices=['mbew', 'gen1mcfo'], help='Database')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
-                        default='staging', choices=['dev', 'staging', 'prod'],
-                        help='Publishing manifold')
+                        choices=['dev', 'staging', 'prod'], help='Publishing manifold')
     PARSER.add_argument('--mongo', dest='MONGO', action='store',
-                        default='dev', choices=['dev', 'prod', 'local'], help='Mongo manifold')
+                        choices=['dev', 'prod', 'local'], help='Mongo manifold')
     PARSER.add_argument('--quick', dest='QUICK', action='store_true',
                         default=False, help='Do not crosscheck with publishing database')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
