@@ -32,7 +32,8 @@ READ = {"EXT": "SELECT line,name FROM image_data_mv WHERE "
 # General
 JACS_KEYS = dict()
 LAST_UID = None
-COUNT = {"publishing": 0, "sage": 0, "jacs": 0, "missing_cdm": 0, "missing_unisex": 0,
+COUNT = {"publishing": 0, "sage": 0, "jacs": 0, "missing_cdm": 0,
+         "missing_obj": 0, "missing_unisex": 0,
          "jacs_error": 0, "sage_error": 0, "insert": 0}
 # pylint: disable=W0703,E1101
 
@@ -227,9 +228,9 @@ def get_objective(result, sample):
     obj = None
     for obj_dict in result[0]['objectiveSamples']:
         if "20x" in obj_dict["objective"]:
-            return obj
+            return obj_dict
     ERROR.write("No 20x objective in sample %s\n" % (sample))
-    COUNT["jacs_error"] += 1
+    COUNT["missing_obj"] += 1
     return None
 
 
@@ -356,10 +357,8 @@ def get_file_dict(files, publishing_name, result, payload, tile):
                             payload["objective"], tile, payload["alignmentSpace"],
                             "aligned_stack.h5j"])
         target = "/".join([TARGET, publishing_name, obj])
-        fdict[file] = target
         COPY.write("%s\t%s\n" % (files[file], target))
-    print(fdict)
-    sys.exit(0)
+        fdict[file] = target.replace("s3://", "https://s3.amazonaws.com/")
     return fdict
 
 
@@ -423,7 +422,7 @@ def process_flew_rows(coll, flew_rows):
 
 
 def process_imagery():
-    """ Find representative iages from a publishing database
+    """ Find representative images from a publishing database
         Keyword arguments:
           None
         Returns:
@@ -444,6 +443,7 @@ def process_imagery():
     print("Present in JACS:          %d" % (COUNT["jacs"]))
     print("Written to Mongo:         %d" % (COUNT["insert"]))
     print("SAGE errors:              %d" % (COUNT["sage_error"]))
+    print("Missing objectives:       %d" % (COUNT["missing_obj"]))
     print("JACS errors:              %d" % (COUNT["jacs_error"]))
     print("Missing Unisex alignment: %d" % (COUNT["missing_unisex"]))
     print("Missing CDM:              %d" % (COUNT["missing_cdm"]))
@@ -453,7 +453,7 @@ if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
         description="Find representative images in FLEW")
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
-                        default='dev', choices=['dev', 'prod'], help='Publishing manifold')
+                        default='prod', choices=['dev', 'prod'], help='Publishing manifold')
     PARSER.add_argument('--mongo', dest='MONGO', action='store',
                         default='dev', choices=['dev', 'prod', 'local'], help='Mongo manifold')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',
