@@ -358,6 +358,8 @@ def get_file_dict(files, publishing_name, result, payload, tile):
         target = "/".join([TARGET, publishing_name, obj])
         fdict[file] = target
         COPY.write("%s\t%s\n" % (files[file], target))
+    print(fdict)
+    sys.exit(0)
     return fdict
 
 
