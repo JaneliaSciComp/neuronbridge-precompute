@@ -176,11 +176,12 @@ def populate_batch_dict(s3_client, prefix):
         Returns:
           batch dictionary
     """
-    LOGGER.info("Batching keys")
+    LOGGER.info("Batching keys for %s", prefix)
     total_objects = dict()
     key_list = dict()
     max_batch = dict()
     first_batch = dict()
+    skipped_objects = 0;
     for which in DISTRIBUTE_FILES:
         max_batch[which] = 0
         first_batch[which] = 0
@@ -194,8 +195,15 @@ def populate_batch_dict(s3_client, prefix):
         if len(splitkey) >= 4:
             which = splitkey[2]
         if which not in key_list:
+            LOGGER.info("Adding key %s", which)
             key_list[which] = list()
             total_objects[which] = 0
+        # Skip here
+        if which == 'searchable_neurons':
+            fname = obj['Key'].split("/")[-1]
+            if fname in EXCLUSION:
+                skipped_objects += 1
+                continue
         total_objects[which] += 1
         key_list[which].append(obj['Key'])
         if which in DISTRIBUTE_FILES:
@@ -215,6 +223,14 @@ def populate_batch_dict(s3_client, prefix):
                   'keys': key_list,
                   'size': batch_size,
                   'max_batch': max_batch}
+    for which in key_list:
+        print(which)
+        print("  Total objects: %d" % (total_objects[which]))
+        print("  Total keys:    %d" % (len(key_list[which])))
+        if which in batch_size:
+            print("  Batch size:    %d" % (batch_size[which]))
+            print("  Max batch:     %d" % (max_batch[which]))
+    print("Skipped objects: %d" % (skipped_objects))
     return batch_dict
 
 
@@ -249,6 +265,9 @@ def denormalize():
             if which in DISTRIBUTE_FILES:
                 payload['subprefixes'][which]['batch_size'] = batch_dict['size'][which]
                 payload['subprefixes'][which]['num_batches'] = batch_dict['max_batch'][which]
+                print(which)
+                print("  Batch size: %d" % (batch_dict['size'][which]))
+                print("  Batches:    %d" % (batch_dict['max_batch'][which]))
         else:
             payload['count'] = batch_dict['count'][which]
             payload['prefix'] = prefix_template % (ARG.BUCKET, prefix)
@@ -260,6 +279,7 @@ def denormalize():
                                                                  indent=4), prefix))
         upload_to_aws(s3_resource, json.dumps(batch_dict['keys'][which], indent=4), object_name)
         object_name = '/'.join([prefix, COUNTFILE])
+        LOGGER.info("Uploading %s count file (%d)", which, batch_dict['count'][which])
         upload_to_aws(s3_resource, json.dumps({"objectCount": batch_dict['count'][which]},
                                               indent=4), object_name)
     if not ARG.TEST:
@@ -285,6 +305,8 @@ if __name__ == '__main__':
                         default='', help='Library')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         default='dev', help='S3 manifold')
+    PARSER.add_argument('--exclusion', dest='EXCLUSION', action='store',
+                        help='Exclusion file')
     PARSER.add_argument('--test', dest='TEST', action='store_true',
                         default=False, help='Test mode (do not write to bucket)')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
@@ -303,4 +325,11 @@ if __name__ == '__main__':
     HANDLER.setFormatter(colorlog.ColoredFormatter())
     LOGGER.addHandler(HANDLER)
     initialize_program()
+    # Exclusions
+    EXCLUSION = dict()
+    if ARG.EXCLUSION:
+        with open(ARG.EXCLUSION) as inf:
+            lines = inf.read().splitlines()
+        EXCLUSION = {key: True for key in lines}
+        print("Loaded %d exclusions" % (len(EXCLUSION)))
     denormalize()
