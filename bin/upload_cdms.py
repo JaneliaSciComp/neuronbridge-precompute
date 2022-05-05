@@ -918,12 +918,16 @@ def upload_cdms_from_file():
         driver = {}
         published_ids = {}
     print("Loading JSON file")
+    stime = datetime.now();
     jfile = open(ARG.JSON, 'r')
+    etime = datetime.now();
+    time_diff = (etime - stime)
+    LOGGER.info("JSON read in %fsec", time_diff.total_seconds())
     stime = datetime.now();
     data = json.load(jfile)
     etime = datetime.now();
-    time_diff = (end_time - start_time)
-    print("JSON parsed in %fmsec" % (time_diff.total_seconds() * 1000))
+    time_diff = (etime - stime)
+    LOGGER.info("JSON parsed in %fsec", time_diff.total_seconds())
     jfile.close()
     entries = len(data)
     print("Number of entries in JSON: %d" % entries)
