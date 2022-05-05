@@ -919,7 +919,11 @@ def upload_cdms_from_file():
         published_ids = {}
     print("Loading JSON file")
     jfile = open(ARG.JSON, 'r')
+    stime = datetime.now();
     data = json.load(jfile)
+    etime = datetime.now();
+    time_diff = (end_time - start_time)
+    print("JSON parsed in %fmsec" % (time_diff.total_seconds() * 1000))
     jfile.close()
     entries = len(data)
     print("Number of entries in JSON: %d" % entries)
