@@ -170,7 +170,7 @@ def process_mongo():
 
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
-        description="Uopdate janelia-neuronbridge-published-stacks")
+        description="Update janelia-neuronbridge-published-stacks")
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         default='dev', choices=['dev', 'prod'], help='Manifold')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',

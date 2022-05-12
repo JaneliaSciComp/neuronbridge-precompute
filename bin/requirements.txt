@@ -3,8 +3,10 @@ botocore
 colorlog
 dask[delayed]
 inquirer
+mysqlclient
 pillow
 pyjwt
+python-rapidjson
 requests
 simple_term_menu
 tqdm
