@@ -4,6 +4,7 @@
 import argparse
 from datetime import datetime
 from os.path import exists
+import os
 import re
 import sys
 import time
@@ -16,7 +17,7 @@ import neuronbridge_lib as NB
 
 
 # Configuration
-CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
+CONFIG = {'config': {'url': os.environ.get('CONFIG_SERVER_URL')}}
 TARGET = "s3://janelia-flylight-imagery/Gen1/CDM"
 TEMPLATE = "An exception of type %s occurred. Arguments:\n%s"
 # Database
@@ -465,12 +466,13 @@ if __name__ == '__main__':
     ARG = PARSER.parse_args()
 
     LOGGER = colorlog.getLogger()
+    attr = colorlog.colorlog.logging if "colorlog" in dir(colorlog) else colorlog
     if ARG.DEBUG:
-        LOGGER.setLevel(colorlog.colorlog.logging.DEBUG)
+        LOGGER.setLevel(attr.DEBUG)
     elif ARG.VERBOSE:
-        LOGGER.setLevel(colorlog.colorlog.logging.INFO)
+        LOGGER.setLevel(attr.INFO)
     else:
-        LOGGER.setLevel(colorlog.colorlog.logging.WARNING)
+        LOGGER.setLevel(attr.WARNING)
     HANDLER = colorlog.StreamHandler()
     HANDLER.setFormatter(colorlog.ColoredFormatter())
     LOGGER.addHandler(HANDLER)
