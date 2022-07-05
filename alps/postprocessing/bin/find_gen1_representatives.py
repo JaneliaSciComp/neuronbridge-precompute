@@ -466,13 +466,13 @@ if __name__ == '__main__':
     ARG = PARSER.parse_args()
 
     LOGGER = colorlog.getLogger()
-    attr = colorlog.colorlog.logging if "colorlog" in dir(colorlog) else colorlog
+    ATTR = colorlog.colorlog.logging if "colorlog" in dir(colorlog) else colorlog
     if ARG.DEBUG:
-        LOGGER.setLevel(attr.DEBUG)
+        LOGGER.setLevel(ATTR.DEBUG)
     elif ARG.VERBOSE:
-        LOGGER.setLevel(attr.INFO)
+        LOGGER.setLevel(ATTR.INFO)
     else:
-        LOGGER.setLevel(attr.WARNING)
+        LOGGER.setLevel(ATTR.WARNING)
     HANDLER = colorlog.StreamHandler()
     HANDLER.setFormatter(colorlog.ColoredFormatter())
     LOGGER.addHandler(HANDLER)
