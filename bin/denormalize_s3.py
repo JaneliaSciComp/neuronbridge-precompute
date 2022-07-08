@@ -13,6 +13,7 @@
 
 import argparse
 import json
+import os
 import random
 import sys
 import tempfile
@@ -24,7 +25,7 @@ import neuronbridge_lib as NB
 
 __version__ = '1.1.1'
 # Configuration
-CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
+CONFIG = {'config': {'url': os.environ.get('CONFIG_SERVER_URL')}}
 AWS = CDM = dict()
 KEYFILE = "keys_denormalized.json"
 COUNTFILE = "counts_denormalized.json"
@@ -315,12 +316,13 @@ if __name__ == '__main__':
                         default=False, help='Flag, Very chatty')
     ARG = PARSER.parse_args()
     LOGGER = colorlog.getLogger()
+    ATTR = colorlog.colorlog.logging if "colorlog" in dir(colorlog) else colorlog
     if ARG.DEBUG:
-        LOGGER.setLevel(colorlog.colorlog.logging.DEBUG)
+        LOGGER.setLevel(ATTR.DEBUG)
     elif ARG.VERBOSE:
-        LOGGER.setLevel(colorlog.colorlog.logging.INFO)
+        LOGGER.setLevel(ATTR.INFO)
     else:
-        LOGGER.setLevel(colorlog.colorlog.logging.WARNING)
+        LOGGER.setLevel(ATTR.WARNING)
     HANDLER = colorlog.StreamHandler()
     HANDLER.setFormatter(colorlog.ColoredFormatter())
     LOGGER.addHandler(HANDLER)
