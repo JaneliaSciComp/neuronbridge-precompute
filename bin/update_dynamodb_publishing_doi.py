@@ -17,6 +17,7 @@ from tqdm import tqdm
 CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
 CITATION = {}
 DOI = {}
+EMDOI = {}
 MAPPING = {}
 SERVER = {}
 DOI_BASE = "https://doi.org"
@@ -115,6 +116,10 @@ def initialize_program():
     data = call_responder('config', 'config/dois')
     for key in data['config']:
         DOI[key] = data['config'][key]
+    data = call_responder('config', 'config/em_dois')
+    for key in data['config']:
+        EMDOI[key] = data['config'][key]
+    print(EMDOI)
     data = call_responder('config', 'config/db_config')
     (CONN['sage'], CURSOR['sage']) = db_connect(data['config']['sage']['prod'])
     (CONN['mbew'], CURSOR['mbew']) = db_connect(data['config']['mbew']['staging'])
@@ -198,7 +203,7 @@ def process_em_dataset(dataset):
     LOGGER.info("%d Body IDs found in NeuPrint %s", len(results['data']), dataset)
     for row in tqdm(results['data'], desc=dataset):
         bid = "#".join([dsname, str(row[0])])
-        doi = "10.7554/eLife.57685" #PLUG
+        doi = EMDOI[dsname]
         if bid not in MAPPING:
             MAPPING[bid] = doi
             payload = {"name": bid,
@@ -239,8 +244,7 @@ def process_single_lm_image(row):
         MAPPING[row['line']] = row['doi']
         payload = {"name": row['line'],
                    "doi": "/".join([DOI_BASE, row['doi']]),
-                   "citation": get_citation(row['doi']),
-                   "original_lines": row['olines'].split(",")
+                   "citation": get_citation(row['doi'])
                   }
         write_dynamodb(payload)
 
@@ -311,8 +315,6 @@ if __name__ == '__main__':
     LOGGER.addHandler(HANDLER)
     if ARG.RELEASE and not ARG.SOURCE:
         terminate_program("If you specify a release, you must also specify a source")
-    if ARG.SOURCE and not ARG.RELEASE:
-        terminate_program("If you specify a source, you must also specify a release")
     initialize_program()
     perform_mapping()
     terminate_program()
