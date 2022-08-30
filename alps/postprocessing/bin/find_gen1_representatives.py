@@ -25,7 +25,6 @@ CONN = dict()
 CURSOR = dict()
 DBM = PRODUCT = ''
 INSERT_BATCH = 1000
-CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
 READ = {"EXT": "SELECT line,name FROM image_data_mv WHERE "
                + "family IN ('dickson','rubin_chacrm') ORDER BY 1",
         "IMG": "SELECT * FROM image_data_mv WHERE line=%s AND name LIKE %s"
