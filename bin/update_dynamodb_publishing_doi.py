@@ -32,7 +32,7 @@ READ = {"LINES": "SELECT DISTINCT line,value AS doi,GROUP_CONCAT(DISTINCT origin
        }
 READ["LINESREL"] = READ["LINES"].replace("GROUP BY", "AND alps_release=%" + "s GROUP BY")
 # General use
-COUNT = {"dynamodb": 0}
+COUNT = {"dynamodb": 0, "read": 0}
 
 
 def terminate_program(msg=None):
@@ -198,6 +198,7 @@ def process_em_dataset(dataset):
     results = fetch_custom(query, format='json')
     LOGGER.info("%d Body IDs found in NeuPrint %s", len(results['data']), dataset)
     for row in tqdm(results['data'], desc=dataset):
+        COUNT['read'] += 1
         bid = "#".join([dsname, str(row[0])])
         doi = EMDOI[dsname]
         if bid not in MAPPING:
@@ -265,6 +266,7 @@ def process_lm():
         except MySQLdb.Error as err:
             sql_error(err)
         for row in tqdm(rows, desc=database):
+            COUNT['read'] += 1
             process_single_lm_image(row)
 
 
@@ -279,8 +281,9 @@ def perform_mapping():
         process_em()
     if ARG.SOURCE != "em":
         process_lm()
-    print(f"Unique publishing names:     {len(MAPPING)}")
-    print(f"Records written to DynamoDB: {COUNT['dynamodb']}")
+    print(f"Publishing names/body IDs read:   {COUNT['read']}")
+    print(f"Unique publishing names/body IDs: {len(MAPPING)}")
+    print(f"Records written to DynamoDB:      {COUNT['dynamodb']}")
 
 
 # -----------------------------------------------------------------------------
