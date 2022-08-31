@@ -26,7 +26,7 @@ from tqdm.auto import tqdm
 
 __version__ = '0.0.3'
 # Configuration
-CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
+CONFIG = {'config': {'url': os.environ.get('CONFIG_SERVER_URL')}}
 # AWS
 AWS = dict()
 DATABASE = dict()

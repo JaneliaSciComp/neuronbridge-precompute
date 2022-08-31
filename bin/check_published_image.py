@@ -2,6 +2,7 @@
 '''
 
 import argparse
+import os
 import sys
 from colorama import Fore, Style
 import colorlog
@@ -12,7 +13,7 @@ from simple_term_menu import TerminalMenu
 
 
 # Configuration
-CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
+CONFIG = {'config': {'url': os.environ.get('CONFIG_SERVER_URL')}}
 TEMPLATE = "An exception of type %s occurred. Arguments:\n%s"
 # Database
 CONN = dict()

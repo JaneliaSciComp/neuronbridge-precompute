@@ -22,7 +22,7 @@ import neuronbridge_lib as NB
 
 __version__ = '1.0.0'
 # Configuration
-CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
+CONFIG = {'config': {'url': os.environ.get('CONFIG_SERVER_URL')}}
 AWS = dict()
 S3_SECONDS = 60 * 60 * 12
 

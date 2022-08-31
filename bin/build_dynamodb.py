@@ -4,6 +4,7 @@
 import argparse
 from glob import glob
 import json
+import os
 from os.path import exists
 import re
 import sys
@@ -14,7 +15,7 @@ from tqdm import tqdm
 
 # pylint: disable=no-member
 # Configuration
-CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
+CONFIG = {'config': {'url': os.environ.get('CONFIG_SERVER_URL')}}
 NEURONBRIDGE = dict()
 
 def call_responder(server, endpoint):
