@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 # pylint: disable=R1710, W0703
 # Configuration
-CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
+CONFIG = {'config': {'url': os.environ.get('CONFIG_SERVER_URL')}}
 CITATION = {}
 DOI = {}
 EMDOI = {}
