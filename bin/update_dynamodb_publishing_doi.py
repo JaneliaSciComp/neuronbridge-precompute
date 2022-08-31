@@ -193,7 +193,7 @@ def process_em_dataset(dataset):
         Returns:
           None
     """
-    dsname, dsver = setup_dataset(dataset)
+    dsname, _ = setup_dataset(dataset)
     query = """
     MATCH (n: Neuron)
     RETURN n.bodyId as bodyId,n.status as status,n.statusLabel as label,n.type as type,n.instance as instance,n.size as size
@@ -220,11 +220,13 @@ def process_em():
         Returns:
           None
     """
-    if ARG.RELEASE:
-        process_em_dataset(ARG.RELEASE)
-        return
     response = call_responder('neuprint', 'dbmeta/datasets', True)
     datasets = list(response.keys())
+    if ARG.RELEASE:
+        if ARG.RELEASE not in datasets:
+            terminate_program(f"{ARG.RELEASE} is not a valid dataset")
+        process_em_dataset(ARG.RELEASE)
+        return
     datasets.reverse()
     for dataset in datasets:
         process_em_dataset(dataset)
@@ -291,7 +293,7 @@ def perform_mapping():
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
         description='Update DynamoDB table janelia-neuronbridge-publishing-doi')
-    PARSER.add_argument('--release', dest='RELEASE', default='', help='ALPS release')
+    PARSER.add_argument('--release', dest='RELEASE', default='', help='ALPS release or EM dataset')
     PARSER.add_argument('--source', dest='SOURCE', choices=['', 'em', 'lm'], default='',
                         help='Source release (em or lm)')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
