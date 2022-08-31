@@ -28,12 +28,9 @@ CURSOR = {}
 READ = {"LINES": "SELECT DISTINCT line,value AS doi,GROUP_CONCAT(DISTINCT original_line) AS olines "
                  + "FROM image_data_mv mv JOIN line l ON (l.name=mv.line) "
                  + "JOIN line_property lp ON (lp.line_id=l.id AND "
-                 + "type_id=getCvTermId('line','doi',NULL)) GROUP BY 1,2",
-        "LINESREL": "SELECT DISTINCT line,value AS doi,GROUP_CONCAT(DISTINCT original_line) AS "
-                    + "olines FROM image_data_mv mv JOIN line l ON (l.name=mv.line) "
-                    + "JOIN line_property lp ON (lp.line_id=l.id AND "
-                    + "type_id=getCvTermId('line','doi',NULL)) AND alps_release=%s GROUP BY 1,2"
+                 + "type_id=getCvTermId('line','doi',NULL)) GROUP BY 1,2"
        }
+READ["LINESREL"] = READ["LINES"].replace("GROUP BY", "AND alps_release=%" + "s GROUP BY")
 # General use
 COUNT = {"dynamodb": 0}
 
@@ -119,7 +116,6 @@ def initialize_program():
     data = call_responder('config', 'config/em_dois')
     for key in data['config']:
         EMDOI[key] = data['config'][key]
-    print(EMDOI)
     data = call_responder('config', 'config/db_config')
     (CONN['sage'], CURSOR['sage']) = db_connect(data['config']['sage']['prod'])
     (CONN['mbew'], CURSOR['mbew']) = db_connect(data['config']['mbew']['staging'])
