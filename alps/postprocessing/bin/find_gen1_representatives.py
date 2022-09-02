@@ -24,6 +24,7 @@ TEMPLATE = "An exception of type %s occurred. Arguments:\n%s"
 CONN = dict()
 CURSOR = dict()
 DBM = PRODUCT = ''
+MONGODB = 'neuronbridge-mongo'
 INSERT_BATCH = 1000
 READ = {"EXT": "SELECT line,name FROM image_data_mv WHERE "
                + "family IN ('dickson','rubin_chacrm') ORDER BY 1",
@@ -128,16 +129,26 @@ def initialize_program():
     rwp = 'write' if ARG.WRITE else 'read'
     try:
         if ARG.MONGO == 'prod':
-            client = MongoClient(data['config']['jacs-mongo'][ARG.MONGO][rwp]['host'],
-                                 replicaSet='replWorkstation')
+            if MONGODB == 'neuronbridge-mongo':
+                client = MongoClient(data['config'][MONGODB][ARG.MONGO][rwp]['host'],
+                                     replicaSet='rsProd')
+            else:
+                client = MongoClient(data['config'][MONGODB][ARG.MONGO][rwp]['host'],
+                                     replicaSet='replWorkstation')
         elif ARG.MONGO == 'local':
             client = MongoClient()
         else:
-            client = MongoClient(data['config']['jacs-mongo'][ARG.MONGO][rwp]['host'])
-        DBM = client.jacs
-        if ARG.MONGO == 'prod':
-            DBM.authenticate(data['config']['jacs-mongo'][ARG.MONGO][rwp]['user'],
-                             data['config']['jacs-mongo'][ARG.MONGO][rwp]['password'])
+            if MONGODB == 'neuronbridge-mongo':
+                client = MongoClient(data['config'][MONGODB][ARG.MONGO][rwp]['host'],
+                                     replicaSet='rsDev')
+            else:
+                client = MongoClient(data['config'][MONGODB][ARG.MONGO][rwp]['host'])
+        DBM = client.jacs if MONGODB == 'jacs-mongo' else client.admin
+        if ARG.MONGO == 'prod' or MONGODB == 'neuronbridge-mongo':
+            DBM.authenticate(data['config'][MONGODB][ARG.MONGO][rwp]['user'],
+                             data['config'][MONGODB][ARG.MONGO][rwp]['password'])
+        if MONGODB == 'neuronbridge-mongo':
+            DBM = client.neuronbridge
     except Exception as err:
         terminate_program('Could not connect to Mongo: %s' % (err))
 
