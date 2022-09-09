@@ -16,6 +16,7 @@ from botocore.exceptions import ClientError
 import colorlog
 import inquirer
 import jwt
+from pymongo import MongoClient
 import requests
 from simple_term_menu import TerminalMenu
 from tqdm import tqdm
@@ -26,33 +27,38 @@ import neuronbridge_lib as NB
 
 # Configuration
 CONFIG = {'config': {'url': os.environ.get('CONFIG_SERVER_URL')}}
-AWS = dict()
-CLOAD = dict()
-LIBRARY = dict()
+AWS = {} 
+CLOAD = {} 
+LIBRARY = {}
 MANIFOLDS = ['dev', 'prod', 'devpre', 'prodpre']
 VARIANTS = ["gradient", "searchable_neurons", "zgap"]
-WILL_LOAD = list()
+WILL_LOAD = []
 # Database
-CONN = dict()
-CURSOR = dict()
+MONGODB = 'neuronbridge-mongo'
+DBM = ""
+CONN = {} 
+CURSOR = {} 
+DRIVER = {}
+PUBLISHED_IDS = {}
+RELEASE = {}
 # General use
 COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'No Consensus': 0,
          'No sampleRef': 0, 'No publishing name': 0, 'No driver': 0, 'Sample not published': 0,
          'Line not published': 0, 'Skipped': 0, 'Already on S3': 0, 'Already on JACS': 0,
          'Bad driver': 0, 'Duplicate objects': 0, 'Unparsable files': 0, 'Updated on JACS': 0,
-         'FlyEM flips': 0, 'Images': 0}
+         'FlyEM flips': 0, 'Images': 0, 'Skipped release': 0}
 SUBDIVISION = {'prefix': 1, 'counter': 0, 'limit': 100} #PLUG
-TRANSACTIONS = dict()
-PNAME = dict()
+TRANSACTIONS = {}
+PNAME = {}
 REC = {'line': '', 'slide_code': '', 'gender': '', 'objective': '', 'area': ''}
 S3_CLIENT = S3_RESOURCE = ''
 FULL_NAME = ''
 MAX_SIZE = 500
 CREATE_THUMBNAIL = False
 S3_SECONDS = 60 * 60 * 12
-VARIANT_UPLOADS = dict()
-UPLOADED_NAME = dict()
-KEY_LIST = list()
+VARIANT_UPLOADS = {}
+UPLOADED_NAME = {}
+KEY_LIST = []
 
 
 def terminate_program(code):
@@ -187,13 +193,18 @@ def get_parms():
         Returns:
             None
     """
+    coll = DBM.neuronMetadata
     if not ARG.LIBRARY:
+        if ARG.SOURCE == 'mongo':
+            mongo_libs = coll.distinct("libraryName")
         print("Select a library:")
         cdmlist = list()
         liblist = list()
         for cdmlib in LIBRARY:
             if ARG.MANIFOLD not in LIBRARY[cdmlib]:
                 LIBRARY[cdmlib][ARG.MANIFOLD] = {'updated': None}
+            if ARG.SOURCE == 'mongo' and cdmlib not in mongo_libs:
+                continue
             liblist.append(cdmlib)
             text = cdmlib
             if 'updated' in LIBRARY[cdmlib][ARG.MANIFOLD] and \
@@ -209,12 +220,26 @@ def get_parms():
             terminate_program(0)
         ARG.LIBRARY = liblist[chosen].replace(' ', '_')
     if not ARG.NEURONBRIDGE:
-        ARG.NEURONBRIDGE = NB.get_neuronbridge_version()
-        if not ARG.NEURONBRIDGE:
-            LOGGER.error("No NeuronBridge version selected")
-            terminate_program(0)
+        if ARG.SOURCE == 'file':
+            ARG.NEURONBRIDGE = NB.get_neuronbridge_version()
+            if not ARG.NEURONBRIDGE:
+                LOGGER.error("No NeuronBridge version selected")
+                terminate_program(0)
+        else:
+            rows = coll.distinct("tags", {"libraryName": ARG.LIBRARY})
+            vlist = []
+            for row in rows:
+                if row[0].isdigit():
+                    vlist.append("v" + row)
+            vlist.sort()
+            terminal_menu = TerminalMenu(vlist)
+            chosen = terminal_menu.show()
+            if chosen is None:
+                LOGGER.error("No version selected")
+                terminate_program(0)
+            ARG.NEURONBRIDGE = vlist[chosen]
         print(ARG.NEURONBRIDGE)
-    if not ARG.JSON:
+    if not ARG.JSON and ARG.SOURCE == 'file':
         print("Select a JSON file:")
         json_base = CLOAD['json_dir'] + "/%s" % (ARG.NEURONBRIDGE)
         jsonlist = list(map(lambda jfile: jfile.split('/')[-1],
@@ -277,7 +302,7 @@ def select_uploads():
 def initialize_program():
     """ Initialize
     """
-    global AWS, CLOAD, CONFIG, FULL_NAME, LIBRARY # pylint: disable=W0603
+    global AWS, CLOAD, CONFIG, DBM, FULL_NAME, LIBRARY # pylint: disable=W0603
     CONFIG = (call_responder('config', 'config/rest_services'))["config"]
     CLOAD = (call_responder('config', 'config/upload_cdms'))["config"]
     AWS = (call_responder('config', 'config/aws'))["config"]
@@ -300,13 +325,29 @@ def initialize_program():
             LOGGER.critical("You must select a manifold")
             terminate_program(-1)
         ARG.MANIFOLD = MANIFOLDS[chosen]
+    # MySQL
+    data = (call_responder('config', 'config/db_config'))["config"]
+    (CONN['sage'], CURSOR['sage']) = db_connect(data['sage']['prod'])
+    # MongoDB
+    LOGGER.info("Connecting to Mongo on %s", ARG.MONGO)
+    rwp = 'write' if ARG.WRITE else 'read'
+    try:
+        rset = 'rsProd' if ARG.MONGO == 'prod' else 'rsDev'
+        client = MongoClient(data[MONGODB][ARG.MONGO][rwp]['host'],
+                             replicaSet=rset)
+        DBM = client.admin
+        DBM.authenticate(data[MONGODB][ARG.MONGO][rwp]['user'],
+                         data[MONGODB][ARG.MONGO][rwp]['password'])
+        DBM = client.neuronbridge
+    except Exception as err:
+        terminate_program('Could not connect to Mongo: %s' % (err))
+    # Get parms
     get_parms()
     select_uploads()
-    data = call_responder('config', 'config/db_config')
-    (CONN['sage'], CURSOR['sage']) = db_connect(data['config']['sage']['prod'])
     if ARG.LIBRARY not in LIBRARY:
         LOGGER.critical("Unknown library %s", ARG.LIBRARY)
         terminate_program(-1)
+    # AWS S3
     initialize_s3()
 
 
@@ -351,7 +392,6 @@ def upload_aws(bucket, dirpath, fname, newname, force=False):
         Returns:
           url
     '''
-    COUNT['Files to upload'] += 1
     complete_fpath = '/'.join([dirpath, fname])
     bucket, object_name = get_s3_names(bucket, newname)
     LOGGER.debug("Uploading %s to S3 as %s", complete_fpath, object_name)
@@ -366,13 +406,15 @@ def upload_aws(bucket, dirpath, fname, newname, force=False):
         LOGGER.debug("Already uploaded %s", object_name)
         COUNT['Duplicate objects'] += 1
         return 'Skipped'
+    COUNT['Files to upload'] += 1
     UPLOADED_NAME[object_name] = complete_fpath
     url = '/'.join([AWS['base_aws_url'], bucket, object_name])
     url = url.replace(' ', '+')
     if "/searchable_neurons/" in object_name:
         KEY_LIST.append(object_name)
     S3CP.write("%s\t%s\n" % (complete_fpath, '/'.join([bucket, object_name])))
-    LOGGER.info("Upload %s", object_name)
+    if ARG.AWS:
+        LOGGER.info("Upload %s", object_name)
     COUNT['Images'] += 1
     if (not ARG.AWS) and (not force):
         return url
@@ -405,9 +447,8 @@ def get_line_mapping():
         Keyword arguments:
           None
         Returns:
-          driver dictionary
+          None
     '''
-    driver = dict()
     LOGGER.info("Getting line/driver mapping")
     try:
         CURSOR['sage'].execute("SELECT DISTINCT publishing_name,driver FROM image_data_mv " \
@@ -417,21 +458,19 @@ def get_line_mapping():
         sql_error(err)
     for row in rows:
         if row['driver']:
-            driver[row['publishing_name']] = \
+            DRIVER[row['publishing_name']] = \
                 row['driver'].replace("_Collection", "").replace("-", "_")
-    return driver
 
 
 def get_image_mapping():
-    ''' Create a dictionary of published sample IDs
+    ''' Create a dictionary of published sample IDs and releases
         Keyword arguments:
           None
         Returns:
-          sample ID dictionary
+          None
     '''
     LOGGER.info("Getting image mapping")
-    published_ids = dict()
-    stmt = "SELECT DISTINCT workstation_sample_id FROM image_data_mv WHERE " \
+    stmt = "SELECT DISTINCT workstation_sample_id,alps_release FROM image_data_mv WHERE " \
            + "to_publish='Y' AND alps_release IS NOT NULL"
     try:
         CURSOR['sage'].execute(stmt)
@@ -439,8 +478,8 @@ def get_image_mapping():
     except MySQLdb.Error as err:
         sql_error(err)
     for row in rows:
-        published_ids[row['workstation_sample_id']] = 1
-    return published_ids
+        PUBLISHED_IDS[row['workstation_sample_id']] = 1
+        RELEASE[row['workstation_sample_id']] = row['alps_release']
 
 
 def convert_file(sourcepath, newname):
@@ -500,11 +539,10 @@ def translate_slide_code(isc, line0):
     return isc
 
 
-def get_smp_info(smp, published_ids):
+def get_smp_info(smp):
     ''' Return the sample ID and publishing name
         Keyword arguments:
           smp: sample record
-          published_ids: sample dictionary
         Returns:
           Sample ID and publishing name, or None if error
     '''
@@ -517,7 +555,7 @@ def get_smp_info(smp, published_ids):
     sid = (smp['sampleRef'].split('#'))[-1]
     LOGGER.debug(sid)
     if ARG.LIBRARY in ['flylight_splitgal4_drivers']:
-        if sid not in published_ids:
+        if sid not in PUBLISHED_IDS:
             COUNT['Sample not published'] += 1
             err_text = "Sample %s was not published" % (sid)
             LOGGER.error(err_text)
@@ -544,25 +582,30 @@ def get_smp_info(smp, published_ids):
     return sid, publishing_name
 
 
-def process_light(smp, driver, published_ids):
+def process_light(smp):
     ''' Return the file name for a light microscopy sample.
         Keyword arguments:
           smp: sample record
-          driver: driver mapping dictionary
-          published_ids: sample dictionary
         Returns:
           New file name
     '''
-    sid, publishing_name = get_smp_info(smp, published_ids)
+    sid, publishing_name = get_smp_info(smp)
     if not sid:
         return False
     REC['line'] = publishing_name
+    missing = []
+    for check in ['slideCode', 'gender', 'objective', 'anatomicalArea']:
+        if check not in smp or not smp[check]:
+            missing.append(check)
+    if missing:
+        LOGGER.critical(f"Missing columns for sample {smp['sampleRef']}: {', '.join(missing)}")
+        terminate_program(-1)
     REC['slide_code'] = smp['slideCode']
     REC['gender'] = smp['gender']
     REC['objective'] = smp['objective']
     REC['area'] = smp['anatomicalArea'].lower()
-    if publishing_name in driver:
-        if not driver[publishing_name]:
+    if publishing_name in DRIVER:
+        if not DRIVER[publishing_name]:
             COUNT['No driver'] += 1
             err_text = "No driver for sample %s (%s)" % (sid, publishing_name)
             LOGGER.error(err_text)
@@ -570,7 +613,7 @@ def process_light(smp, driver, published_ids):
             if ARG.WRITE:
                 terminate_program(-1)
             return False
-        drv = driver[publishing_name]
+        drv = DRIVER[publishing_name]
         if drv not in CLOAD['drivers']:
             COUNT['Bad driver'] += 1
             err_text = "Bad driver for sample %s (%s)" % (sid, publishing_name)
@@ -775,14 +818,23 @@ def check_image(smp):
         Returns:
           False if error, True otherwise
     '''
-    if 'imageName' not in smp:
-        LOGGER.critical("Missing imageName in sample")
-        print(smp)
-        terminate_program(-1)
-    LOGGER.debug('----- %s', smp['imageName'])
+    if 'flyem_' in ARG.LIBRARY:
+        if 'imageName' not in smp:
+            LOGGER.critical("Missing imageName in sample")
+            print(smp)
+            terminate_program(-1)
+        LOGGER.debug('----- %s', smp['imageName'])
     if 'publicImageUrl' in smp and smp['publicImageUrl'] and not ARG.REWRITE:
         COUNT['Already on JACS'] += 1
         return False
+    if ARG.RELEASE:
+        sid = (smp['sampleRef'].split('#'))[-1]
+        if sid not in RELEASE:
+            LOGGER.warning(f"SID {sid} has no release")
+            return True
+        if ARG.RELEASE != RELEASE[sid]:
+            COUNT['Skipped release'] += 1
+            return False
     return True
 
 
@@ -804,18 +856,16 @@ def upload_primary(smp, newname):
                 if ARG.AWS and ('flyem_' in ARG.LIBRARY):
                     os.remove(smp['filepath'])
                 update_jacs(smp['_id'], url, turl)
-            else:
+            elif ARG.AWS:
                 LOGGER.info("Primary %s", url)
     elif ARG.WRITE:
         LOGGER.error("Did not transfer primary image %s", fname)
 
 
-def handle_primary(smp, driver, published_ids):
+def handle_primary(smp):
     ''' Handle the primary image
         Keyword arguments:
           smp: sample record
-          driver: driver mapping dictionary
-          published_ids: sample dictionary
         Returns:
           New file name
     '''
@@ -839,14 +889,15 @@ def handle_primary(smp, driver, published_ids):
             smp['cdmPath'] = smp['variants'][ARG.GAMMA]
             del smp['variants'][ARG.GAMMA]
         set_name_and_filepath(smp)
-        newname = process_light(smp, driver, published_ids)
+        newname = process_light(smp)
         if not newname:
             err_text = "No publishing name for FlyLight %s" % smp['name']
             LOGGER.error(err_text)
             ERR.write(err_text + "\n")
             return None
-        if 'imageArchivePath' in smp and 'imageName' in smp:
-            smp['searchableNeuronsName'] = '/'.join([smp['imageArchivePath'], smp['imageName']])
+        # PLUG - Dead code?
+        #if 'imageArchivePath' in smp and 'imageName' in smp:
+        #    smp['searchableNeuronsName'] = '/'.join([smp['imageArchivePath'], smp['imageName']])
     if not skip_primary:
         upload_primary(smp, newname)
     return newname
@@ -886,10 +937,12 @@ def confirm_run(alignment_space):
           True or False
     '''
     print("Manifold:             %s" % (ARG.MANIFOLD))
+    print("MongoDB:              %s" % (ARG.MONGO))
     print("Library:              %s" % (ARG.LIBRARY))
     print("Alignment space:      %s" % (alignment_space))
     print("NeuronBridge version: %s" % (ARG.NEURONBRIDGE))
-    print("JSON file:            %s" % (ARG.JSON))
+    if ARG.SOURCE == 'file':
+        print("JSON file:            %s" % (ARG.JSON))
     print("Files to upload:      %s" % (", ".join(WILL_LOAD)))
     print("Upload files to AWS:  %s" % ("Yes" if ARG.AWS else "No"))
     print("Update JACS:          %s" % ("Yes" if ARG.WRITE else "No"))
@@ -902,7 +955,7 @@ def confirm_run(alignment_space):
     return True
 
 
-def upload_cdms_from_file():
+def upload_cdms():
     ''' Upload color depth MIPs and other files to AWS S3.
         The list of color depth MIPs comes from a supplied JSON file.
         Keyword arguments:
@@ -910,27 +963,45 @@ def upload_cdms_from_file():
         Returns:
           None
     '''
+    stime = datetime.now();
+    if ARG.SOURCE == 'file':
+        print("Loading JSON file")
+        jfile = open(ARG.JSON, 'r')
+        time_diff = (datetime.now() - stime)
+        LOGGER.info("JSON read in %fsec", time_diff.total_seconds())
+        stime = datetime.now();
+        data = json.load(jfile)
+        time_diff = (datetime.now() - stime)
+        LOGGER.info("JSON parsed in %fsec", time_diff.total_seconds())
+        jfile.close()
+    else:
+        print(f"Loading JSON from Mongo for {ARG.LIBRARY}")
+        coll = DBM.neuronMetadata
+        payload = {"libraryName": ARG.LIBRARY}
+        rows = coll.find(payload)
+        time_diff = (datetime.now() - stime)
+        LOGGER.info("JSON read in %fsec", time_diff.total_seconds())
+        data = []
+        stime = datetime.now();
+        mrows = 0
+        vsearch = ARG.NEURONBRIDGE.replace("v", "")
+        for row in rows:
+            mrows += 1
+            if vsearch in row['tags']:
+                data.append(row)
+        time_diff = (datetime.now() - stime)
+        LOGGER.info("JSON parsed in %fsec", time_diff.total_seconds())
+        print(f"Documents read from Mongo: {mrows}")
+    entries = len(data)
+    print(f"Number of entries in JSON: {entries}")
+    if not entries:
+        LOGGER.critical("No entries to process")
+        terminate_program(-1)
+    # Get image mapping
     if 'flyem_' not in ARG.LIBRARY:
         print("Getting image mapping")
-        driver = get_line_mapping()
-        published_ids = get_image_mapping()
-    else:
-        driver = {}
-        published_ids = {}
-    print("Loading JSON file")
-    stime = datetime.now();
-    jfile = open(ARG.JSON, 'r')
-    etime = datetime.now();
-    time_diff = (etime - stime)
-    LOGGER.info("JSON read in %fsec", time_diff.total_seconds())
-    stime = datetime.now();
-    data = json.load(jfile)
-    etime = datetime.now();
-    time_diff = (etime - stime)
-    LOGGER.info("JSON parsed in %fsec", time_diff.total_seconds())
-    jfile.close()
-    entries = len(data)
-    print("Number of entries in JSON: %d" % entries)
+        get_line_mapping()
+        get_image_mapping()
     alignment_space = set_searchable_subdivision(data[0])
     if not confirm_run(alignment_space):
         return
@@ -939,7 +1010,24 @@ def upload_cdms_from_file():
         if alignment_space != smp["alignmentSpace"]:
             log_error("JSON file contains multiple alignment spaces")
             terminate_program(-1)
-        smp['_id'] = smp['id']
+        if ARG.SOURCE == 'file':
+            smp['_id'] = smp['id']
+        else:
+            if 'SourceColorDepthImage' not in smp['computeFiles']:
+                log_error(f"Missing SourceColorDepthImage for {smp['sourceRefId']}")
+                terminate_program(-1)
+            smp['cdmPath'] = smp['computeFiles']['SourceColorDepthImage']
+            smp['sampleRef'] = smp['sourceRefId']
+            smp['variants'] = {}
+            if 'ZGapImage' in smp['computeFiles']:
+                smp['variants']['zgap'] = smp['computeFiles']['ZGapImage']
+            if 'InputColorDepthImage' in smp['computeFiles']:
+                full = smp['computeFiles']['InputColorDepthImage']
+                smp['imageArchivePath'] = os.path.dirname(full)
+                smp['imageName'] = os.path.basename(full)
+                smp['variants']['searchable_neurons'] = full
+            if 'GradientImage' in smp['computeFiles']:
+                smp['variants']['gradient'] = smp['computeFiles']['GradientImage']
         if ARG.SAMPLES and COUNT['Samples'] >= ARG.SAMPLES:
             break
         COUNT['Samples'] += 1
@@ -947,7 +1035,7 @@ def upload_cdms_from_file():
             continue
         REC['alignment_space'] = smp['alignmentSpace']
         # Primary image
-        newname = handle_primary(smp, driver, published_ids)
+        newname = handle_primary(smp)
         # Variants
         if newname:
             handle_variants(smp, newname)
@@ -971,7 +1059,7 @@ def update_library_config():
     LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]['updated'] = \
         LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['updated']
     LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['updated_by'] = FULL_NAME
-    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['method'] = 'JSON file'
+    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['method'] = 'JSON file' if ARG.SOURCE == 'file' else 'MongoDB'
     if ARG.WRITE or ARG.CONFIG:
         resp = requests.post(CONFIG['config']['url'] + 'importjson/cdm_library/' + ARG.LIBRARY,
                              {"config": json.dumps(LIBRARY[ARG.LIBRARY])})
@@ -984,8 +1072,13 @@ def update_library_config():
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
         description="Upload Color Depth MIPs to AWS S3")
+    PARSER.add_argument('--source', dest='SOURCE', action='store',
+                        default='mongo', choices=['file', 'mongo'],
+                        help='JSON source [file, mongo]')
     PARSER.add_argument('--library', dest='LIBRARY', action='store',
                         default='', help='color depth library')
+    PARSER.add_argument('--release', dest='RELEASE', action='store',
+                        default='', help='ALPS release')
     PARSER.add_argument('--neuronbridge', dest='NEURONBRIDGE', action='store',
                         help='NeuronBridge version')
     PARSER.add_argument('--json', dest='JSON', action='store',
@@ -1010,6 +1103,9 @@ if __name__ == '__main__':
                         help='Flag, Check for previous AWS upload')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         choices=MANIFOLDS, help='S3 manifold')
+    PARSER.add_argument('--mongo', dest='MONGO', action='store',
+                        default='prod', choices=['dev', 'prod'],
+                        help='MongoDB manifold [dev, prod]')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',
                         default=False,
                         help='Flag, Actually write to JACS (and AWS if flag set)')
@@ -1018,6 +1114,8 @@ if __name__ == '__main__':
     PARSER.add_argument('--debug', dest='DEBUG', action='store_true',
                         default=False, help='Flag, Very chatty')
     ARG = PARSER.parse_args()
+    if ARG.SOURCE == 'mongo':
+        ARG.JSON = 'MongoDB'
 
     LOGGER = colorlog.getLogger()
     ATTR = colorlog.colorlog.logging if "colorlog" in dir(colorlog) else colorlog
@@ -1039,7 +1137,7 @@ if __name__ == '__main__':
     S3CP_FILE = '%s_s3cp_%s.txt' % (ARG.LIBRARY, STAMP)
     S3CP = open(S3CP_FILE, 'w')
     START_TIME = datetime.now()
-    upload_cdms_from_file()
+    upload_cdms()
     STOP_TIME = datetime.now()
     print("Elapsed time: %s" %  (STOP_TIME - START_TIME))
     update_library_config()
