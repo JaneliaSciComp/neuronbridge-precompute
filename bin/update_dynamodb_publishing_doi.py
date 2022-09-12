@@ -48,7 +48,12 @@ def terminate_program(msg=None):
 
 
 def sql_error(err):
-    """ Log a critical SQL error and exit """
+    """ Log a critical SQL error and exit
+        Keyword arguments:
+          err: error text
+        Returns:
+          None
+    """
     try:
         terminate_program(f"MySQL error [{err.args[0]}]: {err.args[1]}")
     except IndexError:
@@ -190,6 +195,9 @@ def process_em_dataset(dataset):
           None
     """
     dsname, _ = setup_dataset(dataset)
+    if (dsname not in EMDOI) or (not EMDOI[dsname]):
+        LOGGER.warning(f"Dataset {dsname} is not associated with a DOI")
+        return
     query = """
     MATCH (n: Neuron)
     RETURN n.bodyId as bodyId,n.status as status,n.statusLabel as label,n.type as type,n.instance as instance,n.size as size
@@ -305,12 +313,13 @@ if __name__ == '__main__':
                         default=False, help='Turn on debug output')
     ARG = PARSER.parse_args()
     LOGGER = colorlog.getLogger()
+    ATTR = colorlog.colorlog.logging if "colorlog" in dir(colorlog) else colorlog
     if ARG.DEBUG:
-        LOGGER.setLevel(colorlog.colorlog.logging.DEBUG)
+        LOGGER.setLevel(ATTR.DEBUG)
     elif ARG.VERBOSE:
-        LOGGER.setLevel(colorlog.colorlog.logging.INFO)
+        LOGGER.setLevel(ATTR.INFO)
     else:
-        LOGGER.setLevel(colorlog.colorlog.logging.WARNING)
+        LOGGER.setLevel(ATTR.WARNING)
     HANDLER = colorlog.StreamHandler()
     HANDLER.setFormatter(colorlog.ColoredFormatter())
     LOGGER.addHandler(HANDLER)
