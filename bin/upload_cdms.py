@@ -1,6 +1,6 @@
 ''' This program will Upload Color Depth MIPs to AWS S3.
 '''
-__version__ = '1.3.3'
+__version__ = '2.0.0'
 
 import argparse
 from datetime import datetime
@@ -27,8 +27,8 @@ import neuronbridge_lib as NB
 
 # Configuration
 CONFIG = {'config': {'url': os.environ.get('CONFIG_SERVER_URL')}}
-AWS = {} 
-CLOAD = {} 
+AWS = {}
+CLOAD = {}
 LIBRARY = {}
 MANIFOLDS = ['dev', 'prod', 'devpre', 'prodpre']
 VARIANTS = ["gradient", "searchable_neurons", "zgap"]
@@ -36,8 +36,8 @@ WILL_LOAD = []
 # Database
 MONGODB = 'neuronbridge-mongo'
 DBM = ""
-CONN = {} 
-CURSOR = {} 
+CONN = {}
+CURSOR = {}
 DRIVER = {}
 PUBLISHED_IDS = {}
 RELEASE = {}
@@ -61,10 +61,10 @@ UPLOADED_NAME = {}
 KEY_LIST = []
 
 
-def terminate_program(code):
+def terminate_program(msg=None):
     ''' Terminate the program gracefully
         Keyword arguments:
-          code: return code
+          msg: error message
         Returns:
           None
     '''
@@ -76,7 +76,9 @@ def terminate_program(code):
         for fpath in [ERR_FILE, S3CP_FILE]:
             if os.path.exists(fpath) and not os.path.getsize(fpath):
                 os.remove(fpath)
-    sys.exit(code)
+    if msg:
+        LOGGER.critical(msg)
+    sys.exit(-1 if msg else 0)
 
 
 def call_responder(server, endpoint, payload='', authenticate=False):
@@ -108,22 +110,19 @@ def call_responder(server, endpoint, payload='', authenticate=False):
             else:
                 req = requests.get(url)
     except requests.exceptions.RequestException as err:
-        LOGGER.critical(err)
-        terminate_program(-1)
+        terminate_program(err)
     if req.status_code == 200:
         return req.json()
-    print("Could not get response from %s: %s" % (url, req.text))
-    terminate_program(-1)
+    terminate_program(f"Could not get response from {url}: {req.text}")
     return False
 
 
 def sql_error(err):
     """ Log a critical SQL error and exit """
     try:
-        LOGGER.critical('MySQL error [%d]: %s', err.args[0], err.args[1])
+        terminate_program(f"MySQL error [{err.args[0]}]: {err.args[1]}")
     except IndexError:
-        LOGGER.critical('MySQL error: %s', err)
-    terminate_program(-1)
+        terminate_program(f"MySQL error: {err}")
 
 
 def db_connect(dbd):
@@ -131,7 +130,7 @@ def db_connect(dbd):
         Keyword arguments:
           dbd: database dictionary
     """
-    LOGGER.info("Connecting to %s on %s", dbd['name'], dbd['host'])
+    LOGGER.info(f"Connecting to {dbd['name']} on {dbd['host']}")
     try:
         conn = MySQLdb.connect(host=dbd['host'], user=dbd['user'],
                                passwd=dbd['password'], db=dbd['name'])
@@ -154,11 +153,9 @@ def decode_token(token):
     try:
         response = jwt.decode(token, verify=False)
     except jwt.exceptions.DecodeError:
-        LOGGER.critical("Token failed validation")
-        terminate_program(-1)
+        terminate_program("Token failed validation")
     except jwt.exceptions.InvalidTokenError:
-        LOGGER.critical("Could not decode token")
-        terminate_program(-1)
+        terminate_program("Could not decode token")
     return response
 
 
@@ -198,8 +195,8 @@ def get_parms():
         if ARG.SOURCE == 'mongo':
             mongo_libs = coll.distinct("libraryName")
         print("Select a library:")
-        cdmlist = list()
-        liblist = list()
+        cdmlist = []
+        liblist = []
         for cdmlib in LIBRARY:
             if ARG.MANIFOLD not in LIBRARY[cdmlib]:
                 LIBRARY[cdmlib][ARG.MANIFOLD] = {'updated': None}
@@ -210,21 +207,19 @@ def get_parms():
             if 'updated' in LIBRARY[cdmlib][ARG.MANIFOLD] and \
                LIBRARY[cdmlib][ARG.MANIFOLD]['updated'] \
                and "0000-00-00" not in LIBRARY[cdmlib][ARG.MANIFOLD]['updated']:
-                text += " (last updated %s on %s)" \
-                        % (LIBRARY[cdmlib][ARG.MANIFOLD]['updated'], ARG.MANIFOLD)
+                text += f" (last updated {LIBRARY[cdmlib][ARG.MANIFOLD]['updated']} " \
+                        + f"on {ARG.MANIFOLD})"
             cdmlist.append(text)
         terminal_menu = TerminalMenu(cdmlist)
         chosen = terminal_menu.show()
         if chosen is None:
-            LOGGER.error("No library selected")
-            terminate_program(0)
+            terminate_program("No library selected")
         ARG.LIBRARY = liblist[chosen].replace(' ', '_')
     if not ARG.NEURONBRIDGE:
         if ARG.SOURCE == 'file':
             ARG.NEURONBRIDGE = NB.get_neuronbridge_version()
             if not ARG.NEURONBRIDGE:
-                LOGGER.error("No NeuronBridge version selected")
-                terminate_program(0)
+                terminate_program("No NeuronBridge version selected")
         else:
             rows = coll.distinct("tags", {"libraryName": ARG.LIBRARY})
             vlist = []
@@ -235,21 +230,19 @@ def get_parms():
             terminal_menu = TerminalMenu(vlist)
             chosen = terminal_menu.show()
             if chosen is None:
-                LOGGER.error("No version selected")
-                terminate_program(0)
+                terminate_program("No version selected")
             ARG.NEURONBRIDGE = vlist[chosen]
         print(ARG.NEURONBRIDGE)
     if not ARG.JSON and ARG.SOURCE == 'file':
         print("Select a JSON file:")
-        json_base = CLOAD['json_dir'] + "/%s" % (ARG.NEURONBRIDGE)
+        json_base = CLOAD['json_dir'] + f"/{ARG.NEURONBRIDGE}"
         jsonlist = list(map(lambda jfile: jfile.split('/')[-1],
                             glob.glob(json_base + "/*.json")))
         jsonlist.sort()
         terminal_menu = TerminalMenu(jsonlist)
         chosen = terminal_menu.show()
         if chosen is None:
-            LOGGER.error("No JSON file selected")
-            terminate_program(0)
+            terminate_program("No JSON file selected")
         ARG.JSON = '/'.join([json_base, jsonlist[chosen]])
 
 
@@ -261,8 +254,7 @@ def set_searchable_subdivision(smp):
             Alignment space
     """
     if "alignmentSpace" not in smp:
-        LOGGER.critical("Could not find alignment space in first sample")
-        terminate_program(-1)
+        terminate_program("Could not find alignment space in first sample")
     bucket = AWS["s3_bucket"]["cdm"]
     if ARG.INTERNAL:
         bucket += '-int'
@@ -280,8 +272,8 @@ def set_searchable_subdivision(smp):
             if num.isdigit() and int(num) > maxnum:
                 maxnum = int(num)
     SUBDIVISION['prefix'] = maxnum + 1
-    LOGGER.warning("Will upload searchable neurons starting with subdivision %d",
-                   SUBDIVISION['prefix'])
+    LOGGER.warning("Will upload searchable neurons starting with subdivision " \
+                   + f"{SUBDIVISION['prefix']}")
     return smp["alignmentSpace"]
 
 
@@ -309,12 +301,10 @@ def initialize_program():
     LIBRARY = (call_responder('config', 'config/cdm_library'))["config"]
     if ARG.WRITE:
         if 'JACS_JWT' not in os.environ:
-            LOGGER.critical("Missing token - set in JACS_JWT environment variable")
-            terminate_program(-1)
+            terminate_program("Missing token - set in JACS_JWT environment variable")
         response = decode_token(os.environ['JACS_JWT'])
         if int(time()) >= response['exp']:
-            LOGGER.critical("Your token is expired")
-            terminate_program(-1)
+            terminate_program("Your token is expired")
         FULL_NAME = response['full_name']
         LOGGER.info("Authenticated as %s", FULL_NAME)
     if not ARG.MANIFOLD:
@@ -322,8 +312,7 @@ def initialize_program():
         terminal_menu = TerminalMenu(MANIFOLDS)
         chosen = terminal_menu.show()
         if chosen is None:
-            LOGGER.critical("You must select a manifold")
-            terminate_program(-1)
+            terminate_program("You must select a manifold")
         ARG.MANIFOLD = MANIFOLDS[chosen]
     # MySQL
     data = (call_responder('config', 'config/db_config'))["config"]
@@ -340,13 +329,12 @@ def initialize_program():
                          data[MONGODB][ARG.MONGO][rwp]['password'])
         DBM = client.neuronbridge
     except Exception as err:
-        terminate_program('Could not connect to Mongo: %s' % (err))
+        terminate_program(f"Could not connect to Mongo: {err}")
     # Get parms
     get_parms()
     select_uploads()
     if ARG.LIBRARY not in LIBRARY:
-        LOGGER.critical("Unknown library %s", ARG.LIBRARY)
-        terminate_program(-1)
+        terminate_program(f"Unknown library {ARG.LIBRARY}")
     # AWS S3
     initialize_s3()
 
@@ -394,11 +382,11 @@ def upload_aws(bucket, dirpath, fname, newname, force=False):
     '''
     complete_fpath = '/'.join([dirpath, fname])
     bucket, object_name = get_s3_names(bucket, newname)
-    LOGGER.debug("Uploading %s to S3 as %s", complete_fpath, object_name)
+    LOGGER.debug(f"Uploading {complete_fpath} to S3 as {object_name}")
     if object_name in UPLOADED_NAME:
         if complete_fpath != UPLOADED_NAME[object_name]:
-            err_text = "%s was already uploaded from %s, but is now being uploaded from %s" \
-                       % (object_name, UPLOADED_NAME[object_name], complete_fpath)
+            err_text = "f{object_name} was already uploaded from {UPLOADED_NAME[object_name]}, " \
+                       + f"but is now being uploaded from {complete_fpath}"
             LOGGER.error(err_text)
             ERR.write(err_text + "\n")
             COUNT['Duplicate objects'] += 1
@@ -412,9 +400,9 @@ def upload_aws(bucket, dirpath, fname, newname, force=False):
     url = url.replace(' ', '+')
     if "/searchable_neurons/" in object_name:
         KEY_LIST.append(object_name)
-    S3CP.write("%s\t%s\n" % (complete_fpath, '/'.join([bucket, object_name])))
+    S3CP.write(f"{complete_fpath}\t{'/'.join([bucket, object_name])}\n")
     if ARG.AWS:
-        LOGGER.info("Upload %s", object_name)
+        LOGGER.info(f"Upload {object_name}")
     COUNT['Images'] += 1
     if (not ARG.AWS) and (not force):
         return url
@@ -511,8 +499,7 @@ def process_flyem(smp, convert=True):
     #status = field[1]
     #if bodyid.endswith('-'):
     #    return False
-    newname = '%s-%s-CDM.png' \
-    % (bodyid, REC['alignment_space'])
+    newname = f"{bodyid}-{REC['alignment_space']}-CDM.png"
     if convert:
         smp['filepath'] = convert_file(smp['filepath'], newname)
     else:
@@ -548,7 +535,7 @@ def get_smp_info(smp):
     '''
     if 'sampleRef' not in smp or not smp['sampleRef']:
         COUNT['No sampleRef'] += 1
-        err_text = "No sampleRef for %s (%s)" % (smp['_id'], smp['name'])
+        err_text = f"No sampleRef for {smp['_id']} ({smp['name']})"
         LOGGER.warning(err_text)
         ERR.write(err_text + "\n")
         return None, None
@@ -557,20 +544,20 @@ def get_smp_info(smp):
     if ARG.LIBRARY in ['flylight_splitgal4_drivers']:
         if sid not in PUBLISHED_IDS:
             COUNT['Sample not published'] += 1
-            err_text = "Sample %s was not published" % (sid)
+            err_text = f"Sample {sid} was not published"
             LOGGER.error(err_text)
             ERR.write(err_text + "\n")
             return None, None
     if 'publishedName' not in smp or not smp['publishedName']:
         COUNT['No publishing name'] += 1
-        err_text = "No publishing name for sample %s" % (sid)
+        err_text = f"No publishing name for sample {sid}"
         LOGGER.error(err_text)
         ERR.write(err_text + "\n")
         return None, None
     publishing_name = smp['publishedName']
     if publishing_name == 'No Consensus':
         COUNT['No Consensus'] += 1
-        err_text = "No consensus line for sample %s (%s)" % (sid, publishing_name)
+        err_text = f"No consensus line for sample {sid} ({publishing_name})"
         LOGGER.error(err_text)
         ERR.write(err_text + "\n")
         if ARG.WRITE:
@@ -598,8 +585,7 @@ def process_light(smp):
         if check not in smp or not smp[check]:
             missing.append(check)
     if missing:
-        LOGGER.critical(f"Missing columns for sample {smp['sampleRef']}: {', '.join(missing)}")
-        terminate_program(-1)
+        terminate_program(f"Missing columns for sample {smp['sampleRef']}: {', '.join(missing)}")
     REC['slide_code'] = smp['slideCode']
     REC['gender'] = smp['gender']
     REC['objective'] = smp['objective']
@@ -607,28 +593,26 @@ def process_light(smp):
     if publishing_name in DRIVER:
         if not DRIVER[publishing_name]:
             COUNT['No driver'] += 1
-            err_text = "No driver for sample %s (%s)" % (sid, publishing_name)
-            LOGGER.error(err_text)
+            err_text = f"No driver for sample {sid} ({publishing_name})"
             ERR.write(err_text + "\n")
             if ARG.WRITE:
-                terminate_program(-1)
+                terminate_program(err_text)
             return False
         drv = DRIVER[publishing_name]
         if drv not in CLOAD['drivers']:
             COUNT['Bad driver'] += 1
-            err_text = "Bad driver for sample %s (%s)" % (sid, publishing_name)
-            LOGGER.error(err_text)
+            err_text = f"Bad driver for sample {sid} ({publishing_name})"
             ERR.write(err_text + "\n")
             if ARG.WRITE:
-                terminate_program(-1)
+                terminate_program(err_text)
             return False
     else:
         COUNT['Line not published'] += 1
-        err_text = "Sample %s (%s) is not published in SAGE" % (sid, publishing_name)
+        err_text = f"Sample {sid} ({publishing_name}) is not published in SAGE"
         LOGGER.error(err_text)
         ERR.write(err_text + "\n")
         if ARG.WRITE:
-            terminate_program(-1)
+            terminate_program(err_text)
         return False
     fname = os.path.basename(smp['filepath'])
     if 'gamma' in fname:
@@ -637,11 +621,9 @@ def process_light(smp):
         chan = fname.split('-')[-1]
     chan = chan.split('_')[0].replace('CH', '')
     if chan not in ['1', '2', '3', '4']:
-        LOGGER.critical("Could not find channel for %s (%s)", fname, chan)
-        terminate_program(-1)
-    newname = '%s-%s-%s-%s-%s-%s-%s-CDM_%s.png' \
-        % (REC['line'], REC['slide_code'], drv, REC['gender'],
-           REC['objective'], REC['area'], REC['alignment_space'], chan)
+        terminate_program(f"Could not find channel for {fname} ({chan})")
+    newname = f"{REC['line']}-{REC['slide_code']}-{drv}-{REC['gender']}-" \
+              + f"{REC['objective']}-{REC['area']}-{REC['alignment_space']}-CDM_{chan}.png"
     return newname
 
 
@@ -738,8 +720,7 @@ def upload_flyem_variants(smp, newname):
     fbase = newname.split('.')[0]
     for variant in smp['variants']:
         if variant not in VARIANTS:
-            LOGGER.error("Unknown variant %s", variant)
-            terminate_program(-1)
+            terminate_program(f"Unknown variant {variant}")
         if variant not in WILL_LOAD:
             continue
         fname, ext = os.path.basename(smp['variants'][variant]).split('.')
@@ -752,7 +733,7 @@ def upload_flyem_variants(smp, newname):
                 SUBDIVISION['prefix'] += 1
                 SUBDIVISION['counter'] = 0
             ancname = ancname.replace('searchable_neurons/',
-                                      'searchable_neurons/%s/' % str(SUBDIVISION['prefix']))
+                                      f"searchable_neurons/{str(SUBDIVISION['prefix'])}/")
             SUBDIVISION['counter'] += 1
         _ = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, ancname)
         if variant not in VARIANT_UPLOADS:
@@ -775,8 +756,7 @@ def upload_flylight_variants(smp, newname):
     fbase = newname.split('.')[0]
     for variant in smp['variants']:
         if variant not in VARIANTS:
-            LOGGER.error("Unknown variant %s", variant)
-            terminate_program(-1)
+            terminate_program(f"Unknown variant {variant}")
         if variant not in WILL_LOAD:
             continue
         if '.' not in smp['variants'][variant]:
@@ -802,7 +782,7 @@ def upload_flylight_variants(smp, newname):
                 SUBDIVISION['prefix'] += 1
                 SUBDIVISION['counter'] = 0
             ancname = ancname.replace('searchable_neurons/',
-                                      'searchable_neurons/%s/' % str(SUBDIVISION['prefix']))
+                                      f"searchable_neurons/{str(SUBDIVISION['prefix'])}/")
             SUBDIVISION['counter'] += 1
         _ = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, ancname)
         if variant not in VARIANT_UPLOADS:
@@ -820,9 +800,8 @@ def check_image(smp):
     '''
     if 'flyem_' in ARG.LIBRARY:
         if 'imageName' not in smp:
-            LOGGER.critical("Missing imageName in sample")
             print(smp)
-            terminate_program(-1)
+            terminate_program("Missing imageName in sample")
         LOGGER.debug('----- %s', smp['imageName'])
     if 'publicImageUrl' in smp and smp['publicImageUrl'] and not ARG.REWRITE:
         COUNT['Already on JACS'] += 1
@@ -879,7 +858,7 @@ def handle_primary(smp):
             set_name_and_filepath(smp)
             newname = process_flyem(smp)
             if not newname:
-                err_text = "No publishing name for FlyEM %s" % smp['name']
+                err_text = f"No publishing name for FlyEM {smp['name']}"
                 LOGGER.error(err_text)
                 ERR.write(err_text + "\n")
                 COUNT['No publishing name'] += 1
@@ -891,7 +870,7 @@ def handle_primary(smp):
         set_name_and_filepath(smp)
         newname = process_light(smp)
         if not newname:
-            err_text = "No publishing name for FlyLight %s" % smp['name']
+            err_text = f"No publishing name for FlyLight {smp['name']}"
             LOGGER.error(err_text)
             ERR.write(err_text + "\n")
             return None
@@ -918,8 +897,7 @@ def handle_variants(smp, newname):
         if not newname:
             return
         if newname.count('.') > 1:
-            LOGGER.critical("Internal error for newname computation")
-            terminate_program(-1)
+            terminate_program("Internal error for newname computation")
         upload_flyem_variants(smp, newname)
         #newname = 'searchable_neurons/' + newname
         #dirpath = os.path.dirname(smp['filepath'])
@@ -936,16 +914,16 @@ def confirm_run(alignment_space):
         Returns:
           True or False
     '''
-    print("Manifold:             %s" % (ARG.MANIFOLD))
-    print("MongoDB:              %s" % (ARG.MONGO))
-    print("Library:              %s" % (ARG.LIBRARY))
-    print("Alignment space:      %s" % (alignment_space))
-    print("NeuronBridge version: %s" % (ARG.NEURONBRIDGE))
+    print(f"Manifold:             {ARG.MANIFOLD}")
+    print(f"MongoDB:              {ARG.MONGO}")
+    print(f"Library:              {ARG.LIBRARY}")
+    print(f"Alignment space:      {alignment_space}")
+    print(f"NeuronBridge version: {ARG.NEURONBRIDGE}")
     if ARG.SOURCE == 'file':
-        print("JSON file:            %s" % (ARG.JSON))
-    print("Files to upload:      %s" % (", ".join(WILL_LOAD)))
-    print("Upload files to AWS:  %s" % ("Yes" if ARG.AWS else "No"))
-    print("Update JACS:          %s" % ("Yes" if ARG.WRITE else "No"))
+        print(f"JSON file:            {ARG.JSON}")
+    print(f"Files to upload:      {', '.join(WILL_LOAD)}")
+    print(f"Upload files to AWS:  {'Yes' if ARG.AWS else 'No'}")
+    print(f"Update JACS:          {'Yes' if ARG.WRITE else 'No'}")
     print("Do you want to proceed?")
     allowed = ['No', 'Yes']
     terminal_menu = TerminalMenu(allowed)
@@ -955,21 +933,20 @@ def confirm_run(alignment_space):
     return True
 
 
-def upload_cdms():
-    ''' Upload color depth MIPs and other files to AWS S3.
-        The list of color depth MIPs comes from a supplied JSON file.
+def read_json():
+    ''' Read in JSON from a text file or from MongoDB.
         Keyword arguments:
           None
         Returns:
-          None
+          JSON
     '''
-    stime = datetime.now();
+    stime = datetime.now()
     if ARG.SOURCE == 'file':
         print("Loading JSON file")
-        jfile = open(ARG.JSON, 'r')
+        jfile = open(ARG.JSON, 'r', encoding='ascii')
         time_diff = (datetime.now() - stime)
         LOGGER.info("JSON read in %fsec", time_diff.total_seconds())
-        stime = datetime.now();
+        stime = datetime.now()
         data = json.load(jfile)
         time_diff = (datetime.now() - stime)
         LOGGER.info("JSON parsed in %fsec", time_diff.total_seconds())
@@ -982,7 +959,7 @@ def upload_cdms():
         time_diff = (datetime.now() - stime)
         LOGGER.info("JSON read in %fsec", time_diff.total_seconds())
         data = []
-        stime = datetime.now();
+        stime = datetime.now()
         mrows = 0
         vsearch = ARG.NEURONBRIDGE.replace("v", "")
         for row in rows:
@@ -992,11 +969,22 @@ def upload_cdms():
         time_diff = (datetime.now() - stime)
         LOGGER.info("JSON parsed in %fsec", time_diff.total_seconds())
         print(f"Documents read from Mongo: {mrows}")
+    return data
+
+
+def upload_cdms():
+    ''' Upload color depth MIPs and other files to AWS S3.
+        The list of color depth MIPs comes from a supplied JSON file.
+        Keyword arguments:
+          None
+        Returns:
+          None
+    '''
+    data = read_json()
     entries = len(data)
     print(f"Number of entries in JSON: {entries}")
     if not entries:
-        LOGGER.critical("No entries to process")
-        terminate_program(-1)
+        terminate_program("No entries to process")
     # Get image mapping
     if 'flyem_' not in ARG.LIBRARY:
         print("Getting image mapping")
@@ -1005,17 +993,15 @@ def upload_cdms():
     alignment_space = set_searchable_subdivision(data[0])
     if not confirm_run(alignment_space):
         return
-    print("Processing %s on %s manifold" % (ARG.LIBRARY, ARG.MANIFOLD))
+    print(f"Processing {ARG.LIBRARY} on {ARG.MANIFOLD} manifold")
     for smp in tqdm(data):
         if alignment_space != smp["alignmentSpace"]:
-            log_error("JSON file contains multiple alignment spaces")
-            terminate_program(-1)
+            terminate_program("JSON contains multiple alignment spaces")
         if ARG.SOURCE == 'file':
             smp['_id'] = smp['id']
         else:
             if 'SourceColorDepthImage' not in smp['computeFiles']:
-                log_error(f"Missing SourceColorDepthImage for {smp['sourceRefId']}")
-                terminate_program(-1)
+                terminate_program(f"Missing SourceColorDepthImage for {smp['sourceRefId']}")
             smp['cdmPath'] = smp['computeFiles']['SourceColorDepthImage']
             smp['sampleRef'] = smp['sourceRefId']
             smp['variants'] = {}
@@ -1049,9 +1035,9 @@ def update_library_config():
           None
     '''
     if ARG.MANIFOLD not in LIBRARY[ARG.LIBRARY]:
-        LIBRARY[ARG.LIBRARY][ARG.MANIFOLD] = dict()
+        LIBRARY[ARG.LIBRARY][ARG.MANIFOLD] = {}
     if ARG.JSON not in LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]:
-        LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON] = dict()
+        LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON] = {}
     LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['samples'] = COUNT['Samples']
     LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['images'] = COUNT['Images']
     LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['updated'] = re.sub(r"\..*", '',
@@ -1059,7 +1045,8 @@ def update_library_config():
     LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]['updated'] = \
         LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['updated']
     LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['updated_by'] = FULL_NAME
-    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['method'] = 'JSON file' if ARG.SOURCE == 'file' else 'MongoDB'
+    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['method'] = 'JSON file' \
+        if ARG.SOURCE == 'file' else 'MongoDB'
     if ARG.WRITE or ARG.CONFIG:
         resp = requests.post(CONFIG['config']['url'] + 'importjson/cdm_library/' + ARG.LIBRARY,
                              {"config": json.dumps(LIBRARY[ARG.LIBRARY])})
@@ -1132,26 +1119,26 @@ if __name__ == '__main__':
     S3CP = ERR = ''
     initialize_program()
     STAMP = strftime("%Y%m%dT%H%M%S")
-    ERR_FILE = '%s_errors_%s.txt' % (ARG.LIBRARY, STAMP)
-    ERR = open(ERR_FILE, 'w')
-    S3CP_FILE = '%s_s3cp_%s.txt' % (ARG.LIBRARY, STAMP)
-    S3CP = open(S3CP_FILE, 'w')
+    ERR_FILE = f"{ARG.LIBRARY}_errors_{STAMP}.txt"
+    ERR = open(ERR_FILE, 'w', encoding='ascii')
+    S3CP_FILE = f"{ARG.LIBRARY}_s3cp_{STAMP}.txt"
+    S3CP = open(S3CP_FILE, 'w', encoding='ascii')
     START_TIME = datetime.now()
     upload_cdms()
     STOP_TIME = datetime.now()
-    print("Elapsed time: %s" %  (STOP_TIME - START_TIME))
+    print(f"Elapsed time: {STOP_TIME - START_TIME}")
     update_library_config()
     if KEY_LIST:
-        KEY_FILE = '%s_keys_%s.txt' % (ARG.LIBRARY, STAMP)
-        KEY = open(KEY_FILE, 'w')
-        KEY.write("%s\n" % json.dumps(KEY_LIST))
+        KEY_FILE = f"{ARG.LIBRARY}_keys_{STAMP}.txt"
+        KEY = open(KEY_FILE, 'w', encoding='ascii')
+        KEY.write(f"{json.dumps(KEY_LIST)}\n")
         KEY.close()
     for key in sorted(COUNT):
-        print("%-20s %d" % (key + ':', COUNT[key]))
+        print(f"{key + ':' : <20} {COUNT[key]}")
     if VARIANT_UPLOADS:
         print('Uploaded variants:')
         for key in sorted(VARIANT_UPLOADS):
-            print("  %-20s %d" % (key + ':', VARIANT_UPLOADS[key]))
+            print(f"  {key + ':' : <20} {VARIANT_UPLOADS[key]}")
     print("Server calls (excluding AWS)")
     print(TRANSACTIONS)
-    terminate_program(0)
+    terminate_program()
