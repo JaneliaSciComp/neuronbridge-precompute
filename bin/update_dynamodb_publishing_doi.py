@@ -173,18 +173,15 @@ def setup_dataset(dataset):
           dataset: data set
         Returns:
           name: data set name
-          version: data set version
     """
     LOGGER.info("Initializing Client for %s %s", SERVER["neuprint"]["address"], dataset)
     npc = Client(SERVER["neuprint"]["address"], dataset=dataset)
     set_default_client(npc)
     if ':' in dataset:
-        name, version = dataset.split(':')
-        version = version.replace('v', '')
+        name, _ = dataset.split(':')
     else:
         name = dataset
-        version = ''
-    return name, version
+    return name
 
 
 def process_em_dataset(dataset):
@@ -194,7 +191,7 @@ def process_em_dataset(dataset):
         Returns:
           None
     """
-    dsname, _ = setup_dataset(dataset)
+    dsname = setup_dataset(dataset)
     if (dsname not in EMDOI) or (not EMDOI[dsname]):
         LOGGER.warning(f"Dataset {dsname} is not associated with a DOI")
         return
@@ -229,7 +226,7 @@ def process_em():
     datasets = list(response.keys())
     if ARG.RELEASE:
         if ARG.RELEASE not in datasets:
-            terminate_program(f"{ARG.RELEASE} is not a valid dataset")
+            terminate_program(f"{ARG.RELEASE} is not a valid dataset for FlyEM")
         process_em_dataset(ARG.RELEASE)
         return
     datasets.reverse()
@@ -271,6 +268,8 @@ def process_lm():
             else:
                 CURSOR[database].execute(READ["LINES"])
             rows = CURSOR[database].fetchall()
+            if ARG.RELEASE and not rows:
+                terminate_program(f"{ARG.RELEASE} is not a valid release for FlyLight")
         except MySQLdb.Error as err:
             sql_error(err)
         for row in tqdm(rows, desc=database):
