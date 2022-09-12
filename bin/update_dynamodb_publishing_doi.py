@@ -1,5 +1,8 @@
 ''' This program will update the janelia-neuronbridge-publishing-doi table on DynamoDB.
     Data is pulled from the Split-GAL4 and Gen1MCFO prod databases and [production] NeuPrint.
+    For EM data, Body IDs (in the form dataset#bodyid) are written. FOr LM data, publishing
+    names are written.
+    Note that Gen1 GAL4/LexAs are not yet supported (these are not yet in NeuronBridge).
 '''
 
 import argparse
@@ -20,8 +23,8 @@ DOI = {}
 EMDOI = {}
 MAPPING = {}
 SERVER = {}
-DOI_BASE = "https://doi.org"
 # Database
+PUBLISHING_DATABASE = ["mbew", "gen1mcfo"]
 DATABASE = {}
 CONN = {}
 CURSOR = {}
@@ -55,7 +58,7 @@ def sql_error(err):
           None
     """
     try:
-        terminate_program(f"MySQL error [{err.args[0]}]: {err.args[1]}")
+        terminate_program(f"MySQL error {err.args[0]}: {err.args[1]}")
     except IndexError:
         terminate_program(f"MySQL error: {err}")
 
@@ -109,30 +112,27 @@ def initialize_program():
         Returns:
           None
     """
-    data = call_responder('config', 'config/rest_services')
-    for key in data['config']:
-        CONFIG[key] = data['config'][key]
-    data = call_responder('config', 'config/servers')
-    for key in data['config']:
-        SERVER[key] = data['config'][key]
-    data = call_responder('config', 'config/dois')
-    for key in data['config']:
-        DOI[key] = data['config'][key]
-    data = call_responder('config', 'config/em_dois')
-    for key in data['config']:
-        EMDOI[key] = data['config'][key]
+    for key, val in call_responder('config', 'config/rest_services')['config'].items():
+        CONFIG[key] = val
+    for key, val in call_responder('config', 'config/servers')['config'].items():
+        SERVER[key] = val
+    for key, val in call_responder('config', 'config/dois')['config'].items():
+        DOI[key] = val
+    for key, val in call_responder('config', 'config/em_dois')['config'].items():
+        EMDOI[key] = val
+    # MySQL
     data = call_responder('config', 'config/db_config')
-    (CONN['sage'], CURSOR['sage']) = db_connect(data['config']['sage']['prod'])
-    (CONN['mbew'], CURSOR['mbew']) = db_connect(data['config']['mbew']['staging'])
-    (CONN['gen1mcfo'], CURSOR['gen1mcfo']) = db_connect(data['config']['gen1mcfo']['staging'])
-    #(CONN['flew'], CURSOR['flew']) = db_connect(data['config']['flew']['prod'])
+    for pdb in PUBLISHING_DATABASE:
+        (CONN[pdb], CURSOR[pdb]) = db_connect(data['config'][pdb][ARG.MANIFOLD])
     # DynamoDB
     dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
     DATABASE["DOI"] = dynamodb.Table('janelia-neuronbridge-publishing-doi')
 
 
 def get_citation(doi):
-    """ Return the citation for a DOI
+    """ Return the citation for a DOI.
+        The citation will be the first author(s)
+        followed by "et al." and the publication date.
         Keyword arguments:
           doi: DOI
         Returns:
@@ -153,7 +153,7 @@ def get_citation(doi):
 
 
 def write_dynamodb(payload):
-    """ Write a record to DynamoDB
+    """ Write a record to DynamoDB. This will create a new record or update an existing one.
         Keyword arguments:
           doi: payload
         Returns:
@@ -168,12 +168,12 @@ def write_dynamodb(payload):
 
 
 def setup_dataset(dataset):
-    """ Insert or update a data set in Mongo
+    """ Set up a NeuPrint data set for use
         Keyword arguments:
           dataset: data set
         Returns:
-          last_uid: last UID assigned
-          action: what to do with bodies in this data set (ignore, insert, or update)
+          name: data set name
+          version: data set version
     """
     LOGGER.info("Initializing Client for %s %s", SERVER["neuprint"]["address"], dataset)
     npc = Client(SERVER["neuprint"]["address"], dataset=dataset)
@@ -212,7 +212,7 @@ def process_em_dataset(dataset):
         if bid not in MAPPING:
             MAPPING[bid] = doi
             payload = {"name": bid,
-                       "doi": "/".join([DOI_BASE, doi]),
+                       "doi": "/".join([SERVER["doi"]["address"], doi]),
                        "citation": get_citation(doi)
                       }
             write_dynamodb(payload)
@@ -250,7 +250,7 @@ def process_single_lm_image(row):
     else:
         MAPPING[row['line']] = row['doi']
         payload = {"name": row['line'],
-                   "doi": "/".join([DOI_BASE, row['doi']]),
+                   "doi": "/".join([SERVER["doi"]["address"], row['doi']]),
                    "citation": get_citation(row['doi'])
                   }
         write_dynamodb(payload)
@@ -263,7 +263,7 @@ def process_lm():
         Returns:
           None
     """
-    for database in ["mbew", "gen1mcfo"]:
+    for database in PUBLISHING_DATABASE:
         LOGGER.info("Fetching lines from %s", database)
         try:
             if ARG.RELEASE:
