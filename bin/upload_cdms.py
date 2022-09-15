@@ -3,6 +3,7 @@
 __version__ = '2.0.0'
 
 import argparse
+from copy import deepcopy
 from datetime import datetime
 import glob
 import json
@@ -31,6 +32,8 @@ AWS = {}
 CLOAD = {}
 LIBRARY = {}
 MANIFOLDS = ['dev', 'prod', 'devpre', 'prodpre']
+PUBLISHED_COL = ["_id", "tags", "mipId", "alignmentSpace", "libraryName", "publishedName",
+                 "sampleRef", "slideCode", "anatomicalArea", "gender", "objective", "name", "uploaded"]
 VARIANTS = ["gradient", "searchable_neurons", "zgap"]
 WILL_LOAD = []
 # Database
@@ -38,27 +41,38 @@ MONGODB = 'neuronbridge-mongo'
 DBM = ""
 CONN = {}
 CURSOR = {}
-DRIVER = {}
-PUBLISHED_IDS = {}
-RELEASE = {}
-# General use
-COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'No Consensus': 0,
+# AWS
+S3_CLIENT = S3_RESOURCE = ''
+S3_SECONDS = 60 * 60 * 12
+# Thumbnails
+CREATE_THUMBNAIL = False # Let a Lambda function create it
+MAX_SIZE = 500
+# Counters
+COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'Missing consensus': 0,
          'No sampleRef': 0, 'No publishing name': 0, 'No driver': 0, 'Sample not published': 0,
          'Line not published': 0, 'Skipped': 0, 'Already on S3': 0, 'Already on JACS': 0,
+         'Already in Mongo': 0,
          'Bad driver': 0, 'Duplicate objects': 0, 'Unparsable files': 0, 'Updated on JACS': 0,
-         'FlyEM flips': 0, 'Images': 0, 'Skipped release': 0}
-SUBDIVISION = {'prefix': 1, 'counter': 0, 'limit': 100} #PLUG
+         'Mongo insertions': 0,
+         'FlyEM flips': 0, 'Images processed': 0, 'Missing release': 0, 'Skipped release': 0}
 TRANSACTIONS = {}
-PNAME = {}
+# Searchable neurons
+SUBDIVISION = {'prefix': 1, 'counter': 0, 'limit': 100}
+# File naming
 REC = {'line': '', 'slide_code': '', 'gender': '', 'objective': '', 'area': ''}
-S3_CLIENT = S3_RESOURCE = ''
-FULL_NAME = ''
-MAX_SIZE = 500
-CREATE_THUMBNAIL = False
-S3_SECONDS = 60 * 60 * 12
-VARIANT_UPLOADS = {}
-UPLOADED_NAME = {}
+# Consistency checks
+CHECK_SOURCE = True
+# General use
+ALIGNMENT_SPACE = ""
+DRIVER = {}
 KEY_LIST = []
+NO_RELEASE = {}
+PNAME = {}
+PUBLISHED_IDS = {}
+RELEASE = {}
+FULL_NAME = ''
+UPLOADED_NAME = {}
+VARIANT_UPLOADS = {}
 
 
 def terminate_program(msg=None):
@@ -71,9 +85,9 @@ def terminate_program(msg=None):
     if S3CP:
         ERR.close()
         S3CP.close()
-        if not os.path.getsize(S3CP_FILE):
-            os.remove(S3CP_FILE)
-        for fpath in [ERR_FILE, S3CP_FILE]:
+        JSONO.close()
+        NAMES.close()
+        for fpath in [ERR_FILE, S3CP_FILE, JSONO_FILE, NAMES_FILE]:
             if os.path.exists(fpath) and not os.path.getsize(fpath):
                 os.remove(fpath)
     if msg:
@@ -253,6 +267,7 @@ def set_searchable_subdivision(smp):
         Returns:
             Alignment space
     """
+    global ALIGNMENT_SPACE
     if "alignmentSpace" not in smp:
         terminate_program("Could not find alignment space in first sample")
     bucket = AWS["s3_bucket"]["cdm"]
@@ -274,7 +289,7 @@ def set_searchable_subdivision(smp):
     SUBDIVISION['prefix'] = maxnum + 1
     LOGGER.warning("Will upload searchable neurons starting with subdivision " \
                    + f"{SUBDIVISION['prefix']}")
-    return smp["alignmentSpace"]
+    ALIGNMENT_SPACE = smp["alignmentSpace"]
 
 
 def select_uploads():
@@ -299,7 +314,7 @@ def initialize_program():
     CLOAD = (call_responder('config', 'config/upload_cdms'))["config"]
     AWS = (call_responder('config', 'config/aws'))["config"]
     LIBRARY = (call_responder('config', 'config/cdm_library'))["config"]
-    if ARG.WRITE:
+    if ARG.WRITE and False:
         if 'JACS_JWT' not in os.environ:
             terminate_program("Missing token - set in JACS_JWT environment variable")
         response = decode_token(os.environ['JACS_JWT'])
@@ -378,11 +393,13 @@ def upload_aws(bucket, dirpath, fname, newname, force=False):
           newname: new file name
           force: force upload (regardless of AWS parm)
         Returns:
-          url
+          url: intended URL
+          skip: do not write or perform postprocessing
     '''
     complete_fpath = '/'.join([dirpath, fname])
     bucket, object_name = get_s3_names(bucket, newname)
-    LOGGER.debug(f"Uploading {complete_fpath} to S3 as {object_name}")
+    url = '/'.join([AWS['base_aws_url'], bucket, object_name])
+    url = url.replace(' ', '+')
     if object_name in UPLOADED_NAME:
         if complete_fpath != UPLOADED_NAME[object_name]:
             err_text = "f{object_name} was already uploaded from {UPLOADED_NAME[object_name]}, " \
@@ -393,22 +410,23 @@ def upload_aws(bucket, dirpath, fname, newname, force=False):
             return False
         LOGGER.debug("Already uploaded %s", object_name)
         COUNT['Duplicate objects'] += 1
-        return 'Skipped'
+        return url, True
     COUNT['Files to upload'] += 1
     UPLOADED_NAME[object_name] = complete_fpath
-    url = '/'.join([AWS['base_aws_url'], bucket, object_name])
-    url = url.replace(' ', '+')
     if "/searchable_neurons/" in object_name:
         KEY_LIST.append(object_name)
+    if CHECK_SOURCE and not os.path.exists(complete_fpath):
+        terminate_program(f"File {complete_fpath} does not exist")
+    LOGGER.debug(f"Uploading {complete_fpath} to S3 as {object_name}")
     S3CP.write(f"{complete_fpath}\t{'/'.join([bucket, object_name])}\n")
     if ARG.AWS:
         LOGGER.info(f"Upload {object_name}")
-    COUNT['Images'] += 1
+    COUNT['Images processed'] += 1
     if (not ARG.AWS) and (not force):
-        return url
-    if not ARG.WRITE:
+        return url, False
+    if not ARG.AWS:
         COUNT['Amazon S3 uploads'] += 1
-        return url
+        return url, False
     if newname.endswith('.png'):
         mimetype = 'image/png'
     elif newname.endswith('.jpg'):
@@ -426,7 +444,7 @@ def upload_aws(bucket, dirpath, fname, newname, force=False):
         LOGGER.critical(err)
         return False
     COUNT['Amazon S3 uploads'] += 1
-    return url
+    return url, False
 
 
 def get_line_mapping():
@@ -457,7 +475,7 @@ def get_image_mapping():
         Returns:
           None
     '''
-    LOGGER.info("Getting image mapping")
+    LOGGER.info("Getting image mapping (sample -> release)")
     stmt = "SELECT DISTINCT workstation_sample_id,alps_release FROM image_data_mv WHERE " \
            + "to_publish='Y' AND alps_release IS NOT NULL"
     try:
@@ -555,8 +573,8 @@ def get_smp_info(smp):
         ERR.write(err_text + "\n")
         return None, None
     publishing_name = smp['publishedName']
-    if publishing_name == 'No Consensus':
-        COUNT['No Consensus'] += 1
+    if publishing_name == 'Missing consensus':
+        COUNT['Missing consensus'] += 1
         err_text = f"No consensus line for sample {sid} ({publishing_name})"
         LOGGER.error(err_text)
         ERR.write(err_text + "\n")
@@ -674,7 +692,7 @@ def produce_thumbnail(dirpath, fname, newname, url):
         tname = newname.replace('.png', '.jpg')
         complete_fpath = '/'.join([dirpath, fname])
         resize_image(complete_fpath, '/tmp/' + tname)
-        turl = upload_aws(AWS['s3_bucket']['cdm-thumbnail'], '/tmp', tname, tname)
+        turl, _ = upload_aws(AWS['s3_bucket']['cdm-thumbnail'], '/tmp', tname, tname)
     return turl
 
 
@@ -706,6 +724,25 @@ def set_name_and_filepath(smp):
     smp['name'] = os.path.basename(smp['filepath'])
 
 
+def add_searchable_neuron(smp, url):
+    ''' Add an uploaded searchable_neurons/pngs path for a sample
+        Keyword arguments:
+          smp: sample record
+          url: searchable_neurons TIFF URL
+        Returns:
+          None
+    '''
+    if "uploaded" not in smp:
+        smp['uploaded'] = {}
+    if "searchable_neurons" in smp['uploaded']:
+        terminate_program(f"Duplicate searchable_neurons for {smp['_id']}")
+    prefix = url.split("/")
+    prefix[-2] = "pngs"
+    prefix[-1] = prefix[-1].replace(".tif", ".png")
+    new_url = "/".join(prefix)
+    smp['uploaded']['searchable_neurons'] = new_url
+
+
 def upload_flyem_variants(smp, newname):
     ''' Upload variant files for FlyEM
         Keyword arguments:
@@ -735,7 +772,8 @@ def upload_flyem_variants(smp, newname):
             ancname = ancname.replace('searchable_neurons/',
                                       f"searchable_neurons/{str(SUBDIVISION['prefix'])}/")
             SUBDIVISION['counter'] += 1
-        _ = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, ancname)
+        url, _ = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, ancname)
+        add_searchable_neuron(smp, url)
         if variant not in VARIANT_UPLOADS:
             VARIANT_UPLOADS[variant] = 1
         else:
@@ -784,7 +822,8 @@ def upload_flylight_variants(smp, newname):
             ancname = ancname.replace('searchable_neurons/',
                                       f"searchable_neurons/{str(SUBDIVISION['prefix'])}/")
             SUBDIVISION['counter'] += 1
-        _ = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, ancname)
+        url, _ = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, ancname)
+        add_searchable_neuron(smp,url)
         if variant not in VARIANT_UPLOADS:
             VARIANT_UPLOADS[variant] = 1
         else:
@@ -803,17 +842,29 @@ def check_image(smp):
             print(smp)
             terminate_program("Missing imageName in sample")
         LOGGER.debug('----- %s', smp['imageName'])
+    else:
+        # We need to have a release for this sample ID
+        sid = (smp['sampleRef'].split('#'))[-1]
+        if sid not in RELEASE:
+            if sid not in NO_RELEASE:
+                LOGGER.warning(f"SID {sid} has no release")
+                NO_RELEASE[sid] = True
+            COUNT['Missing release'] += 1
+            return False
+        if ARG.RELEASE and (ARG.RELEASE != RELEASE[sid]):
+                COUNT['Skipped release'] += 1
+                return False
+        smp['alpsRelease'] = RELEASE[sid]
+    # Check JACS
     if 'publicImageUrl' in smp and smp['publicImageUrl'] and not ARG.REWRITE:
         COUNT['Already on JACS'] += 1
         return False
-    if ARG.RELEASE:
-        sid = (smp['sampleRef'].split('#'))[-1]
-        if sid not in RELEASE:
-            LOGGER.warning(f"SID {sid} has no release")
-            return True
-        if ARG.RELEASE != RELEASE[sid]:
-            COUNT['Skipped release'] += 1
-            return False
+    # Check Mongo
+    coll = DBM.publishedURL
+    result = coll.find_one({'_id': int(smp['_id'])})
+    if result:
+        COUNT['Already in Mongo'] += 1
+        return False
     return True
 
 
@@ -827,14 +878,19 @@ def upload_primary(smp, newname):
     '''
     dirpath = os.path.dirname(smp['filepath'])
     fname = os.path.basename(smp['filepath'])
-    url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
+    url, skipped = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
     if url:
-        if url != 'Skipped':
-            turl = produce_thumbnail(dirpath, fname, newname, url)
+        # Always write CDM URLs to smp[uploaded]
+        if "uploaded" not in smp:
+            smp['uploaded'] = {}
+        smp['uploaded']['cdm'] =  url
+        turl = produce_thumbnail(dirpath, fname, newname, url)
+        smp['uploaded']['cdm_thumbnail'] =  turl
+        if not skipped:
             if ARG.WRITE:
                 if ARG.AWS and ('flyem_' in ARG.LIBRARY):
                     os.remove(smp['filepath'])
-                update_jacs(smp['_id'], url, turl)
+                #update_jacs(smp['_id'], url, turl)
             elif ARG.AWS:
                 LOGGER.info("Primary %s", url)
     elif ARG.WRITE:
@@ -853,16 +909,14 @@ def handle_primary(smp):
     if 'flyem_' in ARG.LIBRARY:
         if '_FL' in smp['imageName']:
             COUNT['FlyEM flips'] += 1
-            skip_primary = True
-        else:
-            set_name_and_filepath(smp)
-            newname = process_flyem(smp)
-            if not newname:
-                err_text = f"No publishing name for FlyEM {smp['name']}"
-                LOGGER.error(err_text)
-                ERR.write(err_text + "\n")
-                COUNT['No publishing name'] += 1
-                return None
+        set_name_and_filepath(smp)
+        newname = process_flyem(smp)
+        if not newname:
+            err_text = f"No publishing name for FlyEM {smp['name']}"
+            LOGGER.error(err_text)
+            ERR.write(err_text + "\n")
+            COUNT['No publishing name'] += 1
+            return None
     else:
         if 'variants' in smp and ARG.GAMMA in smp['variants']:
             smp['cdmPath'] = smp['variants'][ARG.GAMMA]
@@ -907,23 +961,23 @@ def handle_variants(smp, newname):
         upload_flylight_variants(smp, newname)
 
 
-def confirm_run(alignment_space):
+def confirm_run():
     ''' Display parms and confirm run
         Keyword arguments:
-          alignment_space: alignment space
+          None
         Returns:
           True or False
     '''
     print(f"Manifold:             {ARG.MANIFOLD}")
     print(f"MongoDB:              {ARG.MONGO}")
     print(f"Library:              {ARG.LIBRARY}")
-    print(f"Alignment space:      {alignment_space}")
+    print(f"Alignment space:      {ALIGNMENT_SPACE}")
     print(f"NeuronBridge version: {ARG.NEURONBRIDGE}")
     if ARG.SOURCE == 'file':
         print(f"JSON file:            {ARG.JSON}")
     print(f"Files to upload:      {', '.join(WILL_LOAD)}")
     print(f"Upload files to AWS:  {'Yes' if ARG.AWS else 'No'}")
-    print(f"Update JACS:          {'Yes' if ARG.WRITE else 'No'}")
+    print(f"Update MongoDB:       {'Yes' if ARG.WRITE else 'No'}")
     print("Do you want to proceed?")
     allowed = ['No', 'Yes']
     terminal_menu = TerminalMenu(allowed)
@@ -955,6 +1009,7 @@ def read_json():
         print(f"Loading JSON from Mongo for {ARG.LIBRARY}")
         coll = DBM.neuronMetadata
         payload = {"libraryName": ARG.LIBRARY}
+        #payload['mipId'] = "2945073171637825547" #PLUG
         rows = coll.find(payload)
         time_diff = (datetime.now() - stime)
         LOGGER.info("JSON read in %fsec", time_diff.total_seconds())
@@ -970,6 +1025,22 @@ def read_json():
         LOGGER.info("JSON parsed in %fsec", time_diff.total_seconds())
         print(f"Documents read from Mongo: {mrows}")
     return data
+
+
+def add_image_to_mongo(smp):
+    coll = DBM.publishedURL
+    payload = {}
+    for key in PUBLISHED_COL:
+        if key in smp:
+            payload[key] = deepcopy(smp[key])
+    if "alpsRelease" in smp:
+        payload['alpsRelease'] = smp['alpsRelease']
+    payload["updateDate"] = datetime.now()
+    result = coll.insert_one(payload)
+    if result.inserted_id == smp['_id']:
+        COUNT["Mongo insertions"] += 1
+    else:
+        LOGGER.error(f"Could not insert {smp['_id']} into Mongo")
 
 
 def upload_cdms():
@@ -990,12 +1061,14 @@ def upload_cdms():
         print("Getting image mapping")
         get_line_mapping()
         get_image_mapping()
-    alignment_space = set_searchable_subdivision(data[0])
-    if not confirm_run(alignment_space):
+    set_searchable_subdivision(data[0])
+    if not confirm_run():
         return
     print(f"Processing {ARG.LIBRARY} on {ARG.MANIFOLD} manifold")
+    json_out = []
+    names_out = {}
     for smp in tqdm(data):
-        if alignment_space != smp["alignmentSpace"]:
+        if smp["alignmentSpace"] != ALIGNMENT_SPACE:
             terminate_program("JSON contains multiple alignment spaces")
         if ARG.SOURCE == 'file':
             smp['_id'] = smp['id']
@@ -1022,9 +1095,22 @@ def upload_cdms():
         REC['alignment_space'] = smp['alignmentSpace']
         # Primary image
         newname = handle_primary(smp)
-        # Variants
         if newname:
+            # Publishing name
+            names_out[smp['publishedName']] = True
+            # Variants
             handle_variants(smp, newname)
+            json_out.append(smp)
+            if ARG.WRITE:
+                add_image_to_mongo(smp)
+    data = None
+    if ARG.SOURCE == 'mongo' and json_out:
+        LOGGER.info("Writing JSON file")
+        JSONO.write(json.dumps(json_out, indent=4, default=str))
+    if names_out:
+        LOGGER.info("Writing names file")
+        for pname in names_out:
+            NAMES.write(f"{pname}\n")
 
 
 def update_library_config():
@@ -1039,7 +1125,7 @@ def update_library_config():
     if ARG.JSON not in LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]:
         LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON] = {}
     LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['samples'] = COUNT['Samples']
-    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['images'] = COUNT['Images']
+    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['images'] = COUNT['Images processed']
     LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['updated'] = re.sub(r"\..*", '',
                                                                      str(datetime.now()))
     LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]['updated'] = \
@@ -1118,27 +1204,38 @@ if __name__ == '__main__':
 
     S3CP = ERR = ''
     initialize_program()
+    if ARG.WRITE:
+        CHECK_SOURCE = False
     STAMP = strftime("%Y%m%dT%H%M%S")
     ERR_FILE = f"{ARG.LIBRARY}_errors_{STAMP}.txt"
     ERR = open(ERR_FILE, 'w', encoding='ascii')
     S3CP_FILE = f"{ARG.LIBRARY}_s3cp_{STAMP}.txt"
     S3CP = open(S3CP_FILE, 'w', encoding='ascii')
+    NAMES_FILE = f"{ARG.LIBRARY}_{STAMP}.names"
+    NAMES = open(NAMES_FILE, 'w', encoding='ascii')
+    if ARG.SOURCE == 'mongo':
+        if ARG.RELEASE:
+            JSONO_FILE = f"{ARG.LIBRARY}_{ARG.RELEASE}_{STAMP}.json"
+        else:
+            JSONO_FILE = f"{ARG.LIBRARY}_{STAMP}.json"
+        JSONO = open(JSONO_FILE, 'w', encoding='ascii')
     START_TIME = datetime.now()
     upload_cdms()
     STOP_TIME = datetime.now()
-    print(f"Elapsed time: {STOP_TIME - START_TIME}")
     update_library_config()
     if KEY_LIST:
+        LOGGER.info("Writing key file")
         KEY_FILE = f"{ARG.LIBRARY}_keys_{STAMP}.txt"
         KEY = open(KEY_FILE, 'w', encoding='ascii')
         KEY.write(f"{json.dumps(KEY_LIST)}\n")
         KEY.close()
+    print(f"Elapsed time: {STOP_TIME - START_TIME}")
     for key in sorted(COUNT):
-        print(f"{key + ':' : <20} {COUNT[key]}")
+        print(f"{key + ':' : <19} {COUNT[key]}")
     if VARIANT_UPLOADS:
         print('Uploaded variants:')
         for key in sorted(VARIANT_UPLOADS):
-            print(f"  {key + ':' : <20} {VARIANT_UPLOADS[key]}")
+            print(f"  {key + ':' : <21} {VARIANT_UPLOADS[key]}")
     print("Server calls (excluding AWS)")
     print(TRANSACTIONS)
     terminate_program()
