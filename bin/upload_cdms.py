@@ -33,7 +33,8 @@ CLOAD = {}
 LIBRARY = {}
 MANIFOLDS = ['dev', 'prod', 'devpre', 'prodpre']
 PUBLISHED_COL = ["_id", "tags", "mipId", "alignmentSpace", "libraryName", "publishedName",
-                 "sampleRef", "slideCode", "anatomicalArea", "gender", "objective", "name", "uploaded"]
+                 "sampleRef", "slideCode", "anatomicalArea", "gender", "objective", "name",
+                 "uploaded"]
 VARIANTS = ["gradient", "searchable_neurons", "zgap"]
 WILL_LOAD = []
 # Database
@@ -85,8 +86,6 @@ def terminate_program(msg=None):
     if S3CP:
         ERR.close()
         S3CP.close()
-        JSONO.close()
-        NAMES.close()
         for fpath in [ERR_FILE, S3CP_FILE, JSONO_FILE, NAMES_FILE]:
             if os.path.exists(fpath) and not os.path.getsize(fpath):
                 os.remove(fpath)
@@ -314,7 +313,7 @@ def initialize_program():
     CLOAD = (call_responder('config', 'config/upload_cdms'))["config"]
     AWS = (call_responder('config', 'config/aws'))["config"]
     LIBRARY = (call_responder('config', 'config/cdm_library'))["config"]
-    if ARG.WRITE and False:
+    if ARG.WRITE:
         if 'JACS_JWT' not in os.environ:
             terminate_program("Missing token - set in JACS_JWT environment variable")
         response = decode_token(os.environ['JACS_JWT'])
@@ -852,8 +851,8 @@ def check_image(smp):
             COUNT['Missing release'] += 1
             return False
         if ARG.RELEASE and (ARG.RELEASE != RELEASE[sid]):
-                COUNT['Skipped release'] += 1
-                return False
+            COUNT['Skipped release'] += 1
+            return False
         smp['alpsRelease'] = RELEASE[sid]
     # Check JACS
     if 'publicImageUrl' in smp and smp['publicImageUrl'] and not ARG.REWRITE:
@@ -997,14 +996,13 @@ def read_json():
     stime = datetime.now()
     if ARG.SOURCE == 'file':
         print("Loading JSON file")
-        jfile = open(ARG.JSON, 'r', encoding='ascii')
         time_diff = (datetime.now() - stime)
         LOGGER.info("JSON read in %fsec", time_diff.total_seconds())
         stime = datetime.now()
-        data = json.load(jfile)
+        with open(ARG.JSON, 'r', encoding='ascii') as jfile:
+            data = json.load(jfile)
         time_diff = (datetime.now() - stime)
         LOGGER.info("JSON parsed in %fsec", time_diff.total_seconds())
-        jfile.close()
     else:
         print(f"Loading JSON from Mongo for {ARG.LIBRARY}")
         coll = DBM.neuronMetadata
@@ -1028,11 +1026,17 @@ def read_json():
 
 
 def add_image_to_mongo(smp):
+    ''' Add an image to the publishedURL collection
+        Keyword arguments:
+          smp: sample record
+        Returns:
+          None
+    '''
     coll = DBM.publishedURL
     payload = {}
-    for key in PUBLISHED_COL:
-        if key in smp:
-            payload[key] = deepcopy(smp[key])
+    for col in PUBLISHED_COL:
+        if col in smp:
+            payload[key] = deepcopy(smp[col])
     if "alpsRelease" in smp:
         payload['alpsRelease'] = smp['alpsRelease']
     payload["updateDate"] = datetime.now()
@@ -1106,11 +1110,13 @@ def upload_cdms():
     data = None
     if ARG.SOURCE == 'mongo' and json_out:
         LOGGER.info("Writing JSON file")
-        JSONO.write(json.dumps(json_out, indent=4, default=str))
+        with open(JSONO_FILE, 'w', encoding='ascii') as jsonfile:
+            jsonfile.write(json.dumps(json_out, indent=4, default=str))
     if names_out:
         LOGGER.info("Writing names file")
-        for pname in names_out:
-            NAMES.write(f"{pname}\n")
+        with open(NAMES_FILE, 'w', encoding='ascii') as namefile:
+            for pname in names_out:
+                namefile.write(f"{pname}\n")
 
 
 def update_library_config():
@@ -1212,13 +1218,11 @@ if __name__ == '__main__':
     S3CP_FILE = f"{ARG.LIBRARY}_s3cp_{STAMP}.txt"
     S3CP = open(S3CP_FILE, 'w', encoding='ascii')
     NAMES_FILE = f"{ARG.LIBRARY}_{STAMP}.names"
-    NAMES = open(NAMES_FILE, 'w', encoding='ascii')
     if ARG.SOURCE == 'mongo':
         if ARG.RELEASE:
             JSONO_FILE = f"{ARG.LIBRARY}_{ARG.RELEASE}_{STAMP}.json"
         else:
             JSONO_FILE = f"{ARG.LIBRARY}_{STAMP}.json"
-        JSONO = open(JSONO_FILE, 'w', encoding='ascii')
     START_TIME = datetime.now()
     upload_cdms()
     STOP_TIME = datetime.now()
@@ -1226,9 +1230,8 @@ if __name__ == '__main__':
     if KEY_LIST:
         LOGGER.info("Writing key file")
         KEY_FILE = f"{ARG.LIBRARY}_keys_{STAMP}.txt"
-        KEY = open(KEY_FILE, 'w', encoding='ascii')
-        KEY.write(f"{json.dumps(KEY_LIST)}\n")
-        KEY.close()
+        with open(KEY_FILE, 'w', encoding='ascii') as keyfile:
+            keyfile.write(f"{json.dumps(KEY_LIST)}\n")
     print(f"Elapsed time: {STOP_TIME - START_TIME}")
     for key in sorted(COUNT):
         print(f"{key + ':' : <19} {COUNT[key]}")
