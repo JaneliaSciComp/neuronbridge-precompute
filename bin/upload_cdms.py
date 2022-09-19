@@ -35,7 +35,9 @@ MANIFOLDS = ['dev', 'prod', 'devpre', 'prodpre']
 PUBLISHED_COL = ["_id", "tags", "mipId", "alignmentSpace", "libraryName", "publishedName",
                  "sampleRef", "slideCode", "anatomicalArea", "gender", "objective", "name",
                  "uploaded"]
+SKELETONS = ['SkeletonOBJ', 'SkeletonSWC']
 VARIANTS = ["gradient", "searchable_neurons", "zgap"]
+REQUIRED_PRODUCTS = ['cdm', 'cdm_thumbnail']
 WILL_LOAD = []
 # Database
 MONGODB = 'neuronbridge-mongo'
@@ -61,15 +63,12 @@ TRANSACTIONS = {}
 SUBDIVISION = {'prefix': 1, 'counter': 0, 'limit': 100}
 # File naming
 REC = {'line': '', 'slide_code': '', 'gender': '', 'objective': '', 'area': ''}
-# Consistency checks
-CHECK_SOURCE = True
 # General use
 ALIGNMENT_SPACE = ""
 DRIVER = {}
 KEY_LIST = []
 NO_RELEASE = {}
 PNAME = {}
-PUBLISHED_IDS = {}
 RELEASE = {}
 FULL_NAME = ''
 UPLOADED_NAME = {}
@@ -298,11 +297,14 @@ def select_uploads():
         Returns:
             None
     """
-    global WILL_LOAD # pylint: disable=W0603
+    global WILL_LOAD, REQUIRED_PRODUCTS # pylint: disable=W0603
     quest = [inquirer.Checkbox('checklist',
                                message='Select image types to upload',
-                               choices=VARIANTS, default=VARIANTS)]
+                               choices=VARIANTS, default=["searchable_neurons"])]
     WILL_LOAD = inquirer.prompt(quest)['checklist']
+    for var in VARIANTS:
+        if var in WILL_LOAD:
+            REQUIRED_PRODUCTS.append(var)
 
 
 def initialize_program():
@@ -328,10 +330,8 @@ def initialize_program():
         if chosen is None:
             terminate_program("You must select a manifold")
         ARG.MANIFOLD = MANIFOLDS[chosen]
-    # MySQL
-    data = (call_responder('config', 'config/db_config'))["config"]
-    (CONN['sage'], CURSOR['sage']) = db_connect(data['sage']['prod'])
     # MongoDB
+    data = (call_responder('config', 'config/db_config'))["config"]
     LOGGER.info("Connecting to Mongo on %s", ARG.MONGO)
     rwp = 'write' if ARG.WRITE else 'read'
     try:
@@ -414,7 +414,7 @@ def upload_aws(bucket, dirpath, fname, newname, force=False):
     UPLOADED_NAME[object_name] = complete_fpath
     if "/searchable_neurons/" in object_name:
         KEY_LIST.append(object_name)
-    if CHECK_SOURCE and not os.path.exists(complete_fpath):
+    if (not ARG.WRITE) and (not os.path.exists(complete_fpath)):
         terminate_program(f"File {complete_fpath} does not exist")
     LOGGER.debug(f"Uploading {complete_fpath} to S3 as {object_name}")
     S3CP.write(f"{complete_fpath}\t{'/'.join([bucket, object_name])}\n")
@@ -446,45 +446,67 @@ def upload_aws(bucket, dirpath, fname, newname, force=False):
     return url, False
 
 
-def get_line_mapping():
+def get_line_mapping(publishing_db):
     ''' Create a mapping of publishing names to drivers. Note that "GAL4-Collection"
         is remapped to "GAL4".
         Keyword arguments:
-          None
+          publishing_db: publishing database
         Returns:
           None
     '''
     LOGGER.info("Getting line/driver mapping")
+    stmt = "SELECT DISTINCT line,driver FROM image_data_mv " \
+           + "WHERE publishing_name IS NOT NULL"
+    if ARG.RELEASE and ARG.BACKCHECK:
+        stmt += f" AND alps_release='{ARG.RELEASE}'"
     try:
-        CURSOR['sage'].execute("SELECT DISTINCT publishing_name,driver FROM image_data_mv " \
-                               + "WHERE publishing_name IS NOT NULL")
-        rows = CURSOR['sage'].fetchall()
+        CURSOR[publishing_db].execute(stmt)
+        rows = CURSOR[publishing_db].fetchall()
     except MySQLdb.Error as err:
         sql_error(err)
     for row in rows:
         if row['driver']:
-            DRIVER[row['publishing_name']] = \
+            DRIVER[row['line']] = \
                 row['driver'].replace("_Collection", "").replace("-", "_")
 
 
-def get_image_mapping():
+def get_image_mapping(publishing_db):
     ''' Create a dictionary of published sample IDs and releases
         Keyword arguments:
-          None
+          publishing_db: publishing database
         Returns:
           None
     '''
     LOGGER.info("Getting image mapping (sample -> release)")
     stmt = "SELECT DISTINCT workstation_sample_id,alps_release FROM image_data_mv WHERE " \
-           + "to_publish='Y' AND alps_release IS NOT NULL"
+           + "alps_release IS NOT NULL"
+    if ARG.RELEASE and ARG.BACKCHECK:
+        stmt = stmt.replace(" IS NOT NULL", f"='{ARG.RELEASE}'")
     try:
-        CURSOR['sage'].execute(stmt)
-        rows = CURSOR['sage'].fetchall()
+        CURSOR[publishing_db].execute(stmt)
+        rows = CURSOR[publishing_db].fetchall()
     except MySQLdb.Error as err:
         sql_error(err)
     for row in rows:
-        PUBLISHED_IDS[row['workstation_sample_id']] = 1
         RELEASE[row['workstation_sample_id']] = row['alps_release']
+
+
+def backcheck(data):
+    ''' Backcheck publishing database contents versus JSON data
+        Keyword arguments:
+          data: JSON data
+        Returns:
+          None
+    '''
+    print("Performing backcheck")
+    jacs = {}
+    for smp in data:
+        jacs[smp['sourceRefId'].split("#")[-1]] = True
+    missing = []
+    for sid in RELEASE:
+        if sid not in jacs:
+            LOGGER.error(f"Sample {sid} ({RELEASE[sid]}) is not in {ARG.LIBRARY}")
+    terminate_program("Backcheck performed")
 
 
 def convert_file(sourcepath, newname):
@@ -559,7 +581,7 @@ def get_smp_info(smp):
     sid = (smp['sampleRef'].split('#'))[-1]
     LOGGER.debug(sid)
     if ARG.LIBRARY in ['flylight_splitgal4_drivers']:
-        if sid not in PUBLISHED_IDS:
+        if sid not in RELEASE:
             COUNT['Sample not published'] += 1
             err_text = f"Sample {sid} was not published"
             LOGGER.error(err_text)
@@ -625,11 +647,11 @@ def process_light(smp):
             return False
     else:
         COUNT['Line not published'] += 1
-        err_text = f"Sample {sid} ({publishing_name}) is not published in SAGE"
+        err_text = f"Sample {sid} ({publishing_name}) is not published"
         LOGGER.error(err_text)
         ERR.write(err_text + "\n")
-        if ARG.WRITE:
-            terminate_program(err_text)
+        #if ARG.WRITE: PLUG
+        #    terminate_program(err_text)
         return False
     fname = os.path.basename(smp['filepath'])
     if 'gamma' in fname:
@@ -777,6 +799,24 @@ def upload_flyem_variants(smp, newname):
             VARIANT_UPLOADS[variant] = 1
         else:
             VARIANT_UPLOADS[variant] += 1
+
+
+def upload_flyem_skeletons(smp):
+    ''' Upload skeleton files for FlyEM
+        Keyword arguments:
+          smp: sample record
+        Returns:
+          None
+    '''
+    for stype in {"SkeletonOBJ"}:
+        if stype not in smp['computeFiles']:
+            continue
+        dirpath = os.path.dirname(smp['computeFiles'][stype])
+        fname = os.path.basename(smp['computeFiles'][stype])
+        s3type = stype.replace("Skeleton", "").lower()
+        newname = "/".join([s3type.upper(), smp['publishedName'] + "." + s3type])
+        url, _ = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
+        smp['uploaded'][stype.lower()] = url
 
 
 def upload_flylight_variants(smp, newname):
@@ -952,6 +992,7 @@ def handle_variants(smp, newname):
         if newname.count('.') > 1:
             terminate_program("Internal error for newname computation")
         upload_flyem_variants(smp, newname)
+        upload_flyem_skeletons(smp)
         #newname = 'searchable_neurons/' + newname
         #dirpath = os.path.dirname(smp['filepath'])
         #fname = os.path.basename(smp['filepath'])
@@ -975,6 +1016,7 @@ def confirm_run():
     if ARG.SOURCE == 'file':
         print(f"JSON file:            {ARG.JSON}")
     print(f"Files to upload:      {', '.join(WILL_LOAD)}")
+    print(f"Required products:    {', '.join(REQUIRED_PRODUCTS)}")
     print(f"Upload files to AWS:  {'Yes' if ARG.AWS else 'No'}")
     print(f"Update MongoDB:       {'Yes' if ARG.WRITE else 'No'}")
     print("Do you want to proceed?")
@@ -1007,7 +1049,8 @@ def read_json():
         print(f"Loading JSON from Mongo for {ARG.LIBRARY}")
         coll = DBM.neuronMetadata
         payload = {"libraryName": ARG.LIBRARY}
-        #payload['mipId'] = "2945073171637825547" #PLUG
+        #payload['mipId'] = "2945073171637825547" #hemibrain PLUG
+        #payload['mipId'] = "2711777222196199435" #flylight_gen1_mcfo_published PLUG
         rows = coll.find(payload)
         time_diff = (datetime.now() - stime)
         LOGGER.info("JSON read in %fsec", time_diff.total_seconds())
@@ -1036,7 +1079,7 @@ def add_image_to_mongo(smp):
     payload = {}
     for col in PUBLISHED_COL:
         if col in smp:
-            payload[key] = deepcopy(smp[col])
+            payload[col] = deepcopy(smp[col])
     if "alpsRelease" in smp:
         payload['alpsRelease'] = smp['alpsRelease']
     payload["updateDate"] = datetime.now()
@@ -1062,9 +1105,14 @@ def upload_cdms():
         terminate_program("No entries to process")
     # Get image mapping
     if 'flyem_' not in ARG.LIBRARY:
+        dbdata = (call_responder('config', 'config/db_config'))["config"]
+        publishing_db = 'gen1mcfo' if 'gen1_mcfo' in ARG.LIBRARY else 'mbew'
+        (CONN[publishing_db], CURSOR[publishing_db]) = db_connect(dbdata[publishing_db][ARG.MYSQL])
         print("Getting image mapping")
-        get_line_mapping()
-        get_image_mapping()
+        get_line_mapping(publishing_db)
+        get_image_mapping(publishing_db)
+        if ARG.BACKCHECK:
+            backcheck(data)
     set_searchable_subdivision(data[0])
     if not confirm_run():
         return
@@ -1104,6 +1152,9 @@ def upload_cdms():
             names_out[smp['publishedName']] = True
             # Variants
             handle_variants(smp, newname)
+            for product in REQUIRED_PRODUCTS:
+                if product not in smp['uploaded']:
+                    LOGGER.error(f"Missing {product} for {smp['_id']}")
             json_out.append(smp)
             if ARG.WRITE:
                 add_image_to_mongo(smp)
@@ -1162,6 +1213,8 @@ if __name__ == '__main__':
                         help='NeuronBridge version')
     PARSER.add_argument('--json', dest='JSON', action='store',
                         help='JSON file')
+    PARSER.add_argument('--backcheck', dest='BACKCHECK', action='store_true',
+                        default=False, help='Perform publishing database backcheck and exit')
     PARSER.add_argument('--internal', dest='INTERNAL', action='store_true',
                         default=False, help='Upload to internal bucket')
     PARSER.add_argument('--gamma', dest='GAMMA', action='store',
@@ -1177,14 +1230,14 @@ if __name__ == '__main__':
                         default=0, help='Number of samples to transfer')
     PARSER.add_argument('--version', dest='VERSION', action='store',
                         default='1.0', help='EM Version')
-    PARSER.add_argument('--check', dest='CHECK', action='store_true',
-                        default=False,
-                        help='Flag, Check for previous AWS upload')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         choices=MANIFOLDS, help='S3 manifold')
     PARSER.add_argument('--mongo', dest='MONGO', action='store',
                         default='prod', choices=['dev', 'prod'],
                         help='MongoDB manifold [dev, prod]')
+    PARSER.add_argument('--mysql', dest='MYSQL', action='store',
+                        default='prod', choices=['staging', 'prod'],
+                        help='MySQL manifold [staging, prod]')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',
                         default=False,
                         help='Flag, Actually write to JACS (and AWS if flag set)')
@@ -1210,8 +1263,6 @@ if __name__ == '__main__':
 
     S3CP = ERR = ''
     initialize_program()
-    if ARG.WRITE:
-        CHECK_SOURCE = False
     STAMP = strftime("%Y%m%dT%H%M%S")
     ERR_FILE = f"{ARG.LIBRARY}_errors_{STAMP}.txt"
     ERR = open(ERR_FILE, 'w', encoding='ascii')
