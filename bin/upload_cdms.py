@@ -1,6 +1,6 @@
 ''' This program will Upload Color Depth MIPs to AWS S3.
 '''
-__version__ = '2.0.0'
+__version__ = '2.0.1'
 
 import argparse
 from copy import deepcopy
@@ -501,7 +501,6 @@ def backcheck(data):
     jacs = {}
     for smp in data:
         jacs[smp['sourceRefId'].split("#")[-1]] = True
-    missing = []
     for sid in RELEASE:
         if sid not in jacs:
             LOGGER.error(f"Sample {sid} ({RELEASE[sid]}) is not in {ARG.LIBRARY}")
@@ -1108,11 +1107,14 @@ def upload_cdms():
         terminate_program("No entries to process")
     if 'flyem_' in ARG.LIBRARY:
         # Get dataset and version
-        response = call_responder('neuprint', 'dbmeta/datasets', {}, True)
-        datasets = list(response.keys())
-        for dset in datasets:
-            if ARG.LIBRARY.endswith(dset.replace(":v", "_").replace(".", "_")):
-                CONF['DATASET'] = dset
+        if ARG.NEUPRINT:
+            CONF['DATASET'] = ARG.NEUPRINT
+        else:
+            response = call_responder('neuprint', 'dbmeta/datasets', {}, True)
+            datasets = list(response.keys())
+            for dset in datasets:
+                if ARG.LIBRARY.endswith(dset.replace(":v", "_").replace(".", "_")):
+                    CONF['DATASET'] = dset
         if 'DATASET' not in CONF:
             terminate_program(f"Could not find NeuPrint dataset for {ARG.LIBRARY}")
     else:
@@ -1224,6 +1226,8 @@ if __name__ == '__main__':
                         default='', help='ALPS release')
     PARSER.add_argument('--neuronbridge', dest='NEURONBRIDGE', action='store',
                         help='NeuronBridge version')
+    PARSER.add_argument('--neuprint', dest='NEUPRINT', action='store',
+                        help='NeuPrint version')
     PARSER.add_argument('--json', dest='JSON', action='store',
                         help='JSON file')
     PARSER.add_argument('--backcheck', dest='BACKCHECK', action='store_true',
