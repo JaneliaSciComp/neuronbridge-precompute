@@ -1,7 +1,8 @@
-''' This program will update the janelia-neuronbridge-publishing-doi table on DynamoDB.
-    Data is pulled from the Split-GAL4 and Gen1MCFO prod databases and [production] NeuPrint.
-    For EM data, Body IDs (in the form dataset#bodyid) are written. FOr LM data, publishing
-    names are written.
+''' This program will update the janelia-neuronbridge-publishing-doi table on
+    DynamoDB. Data is pulled from the Split-GAL4 and Gen1MCFO prod databases
+    and [production] NeuPrint. For EM data, Body IDs (in the form
+    dataset:version:bodyid) are written. For LM data, publishing names are
+    written.
     Note that Gen1 GAL4/LexAs are not yet supported (these are not yet in NeuronBridge).
 '''
 
@@ -171,17 +172,19 @@ def setup_dataset(dataset):
     """ Set up a NeuPrint data set for use
         Keyword arguments:
           dataset: data set
+          version: version
         Returns:
           name: data set name
     """
     LOGGER.info("Initializing Client for %s %s", SERVER["neuprint"]["address"], dataset)
     npc = Client(SERVER["neuprint"]["address"], dataset=dataset)
     set_default_client(npc)
+    version= ''
     if ':' in dataset:
-        name, _ = dataset.split(':')
+        name, version = dataset.split(':')
     else:
         name = dataset
-    return name
+    return name, version
 
 
 def process_em_dataset(dataset):
@@ -191,7 +194,7 @@ def process_em_dataset(dataset):
         Returns:
           None
     """
-    dsname = setup_dataset(dataset)
+    dsname, version = setup_dataset(dataset)
     if (dsname not in EMDOI) or (not EMDOI[dsname]):
         LOGGER.warning(f"Dataset {dsname} is not associated with a DOI")
         return
@@ -204,10 +207,11 @@ def process_em_dataset(dataset):
     LOGGER.info("%d Body IDs found in NeuPrint %s", len(results['data']), dataset)
     for row in tqdm(results['data'], desc=dataset):
         COUNT['read'] += 1
-        bid = "#".join([dsname, str(row[0])])
+        bid = ":".join([dsname, version, str(row[0])])
         doi = EMDOI[dsname]
         if bid not in MAPPING:
             MAPPING[bid] = doi
+            print(get_citation(doi))
             payload = {"name": bid,
                        "doi": "/".join([SERVER["doi"]["address"], doi]),
                        "citation": get_citation(doi)
