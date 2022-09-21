@@ -64,13 +64,12 @@ SUBDIVISION = {'prefix': 1, 'counter': 0, 'limit': 100}
 # File naming
 REC = {'line': '', 'slide_code': '', 'gender': '', 'objective': '', 'area': ''}
 # General use
-ALIGNMENT_SPACE = ""
+CONF = {}
 DRIVER = {}
 KEY_LIST = []
 NO_RELEASE = {}
 PNAME = {}
 RELEASE = {}
-FULL_NAME = ''
 UPLOADED_NAME = {}
 VARIANT_UPLOADS = {}
 
@@ -111,7 +110,7 @@ def call_responder(server, endpoint, payload='', authenticate=False):
     try:
         if payload or authenticate:
             headers = {"Content-Type": "application/json",
-                       "Authorization": "Bearer " + os.environ['JACS_JWT']}
+                       "Authorization": "Bearer " + os.environ['NEUPRINT_JWT']}
         if payload:
             headers['Accept'] = 'application/json'
             headers['host'] = socket.gethostname()
@@ -265,7 +264,6 @@ def set_searchable_subdivision(smp):
         Returns:
             Alignment space
     """
-    global ALIGNMENT_SPACE
     if "alignmentSpace" not in smp:
         terminate_program("Could not find alignment space in first sample")
     bucket = AWS["s3_bucket"]["cdm"]
@@ -287,7 +285,7 @@ def set_searchable_subdivision(smp):
     SUBDIVISION['prefix'] = maxnum + 1
     LOGGER.warning("Will upload searchable neurons starting with subdivision " \
                    + f"{SUBDIVISION['prefix']}")
-    ALIGNMENT_SPACE = smp["alignmentSpace"]
+    CONF['ALIGNMENT_SPACE'] = smp["alignmentSpace"]
 
 
 def select_uploads():
@@ -310,19 +308,20 @@ def select_uploads():
 def initialize_program():
     """ Initialize
     """
-    global AWS, CLOAD, CONFIG, DBM, FULL_NAME, LIBRARY # pylint: disable=W0603
+    global AWS, CLOAD, CONFIG, DBM, LIBRARY # pylint: disable=W0603
     CONFIG = (call_responder('config', 'config/rest_services'))["config"]
     CLOAD = (call_responder('config', 'config/upload_cdms'))["config"]
     AWS = (call_responder('config', 'config/aws'))["config"]
     LIBRARY = (call_responder('config', 'config/cdm_library'))["config"]
-    if ARG.WRITE:
-        if 'JACS_JWT' not in os.environ:
-            terminate_program("Missing token - set in JACS_JWT environment variable")
-        response = decode_token(os.environ['JACS_JWT'])
+    for tok in ['JACS_JWT', 'NEUPRINT_JWT']:
+        if tok not in os.environ:
+            terminate_program(f"Missing token - set in {tok} environment variable")
+        response = decode_token(os.environ[tok])
         if int(time()) >= response['exp']:
             terminate_program("Your token is expired")
-        FULL_NAME = response['full_name']
-        LOGGER.info("Authenticated as %s", FULL_NAME)
+        if tok == "JACS_JWT":
+            CONF['FULL_NAME'] = response['full_name']
+            LOGGER.info("Authenticated as %s", CONF['FULL_NAME'])
     if not ARG.MANIFOLD:
         print("Select a manifold")
         terminal_menu = TerminalMenu(MANIFOLDS)
@@ -808,7 +807,7 @@ def upload_flyem_skeletons(smp):
         Returns:
           None
     '''
-    for stype in {"SkeletonOBJ"}:
+    for stype in SKELETONS:
         if stype not in smp['computeFiles']:
             continue
         dirpath = os.path.dirname(smp['computeFiles'][stype])
@@ -1011,7 +1010,9 @@ def confirm_run():
     print(f"Manifold:             {ARG.MANIFOLD}")
     print(f"MongoDB:              {ARG.MONGO}")
     print(f"Library:              {ARG.LIBRARY}")
-    print(f"Alignment space:      {ALIGNMENT_SPACE}")
+    if "flyem_" in ARG.LIBRARY:
+        print(f"NeuPrint dataset:     {CONF['DATASET']}")
+    print(f"Alignment space:      {CONF['ALIGNMENT_SPACE']}")
     print(f"NeuronBridge version: {ARG.NEURONBRIDGE}")
     if ARG.SOURCE == 'file':
         print(f"JSON file:            {ARG.JSON}")
@@ -1082,6 +1083,8 @@ def add_image_to_mongo(smp):
             payload[col] = deepcopy(smp[col])
     if "alpsRelease" in smp:
         payload['alpsRelease'] = smp['alpsRelease']
+    if "DATASET" in CONF:
+        payload['publishedName'] = ":".join([CONF['DATASET'], payload['publishedName']])
     payload["updateDate"] = datetime.now()
     result = coll.insert_one(payload)
     if result.inserted_id == smp['_id']:
@@ -1103,8 +1106,17 @@ def upload_cdms():
     print(f"Number of entries in JSON: {entries}")
     if not entries:
         terminate_program("No entries to process")
-    # Get image mapping
-    if 'flyem_' not in ARG.LIBRARY:
+    if 'flyem_' in ARG.LIBRARY:
+        # Get dataset and version
+        response = call_responder('neuprint', 'dbmeta/datasets', {}, True)
+        datasets = list(response.keys())
+        for dset in datasets:
+            if ARG.LIBRARY.endswith(dset.replace(":v", "_").replace(".", "_")):
+                CONF['DATASET'] = dset
+        if 'DATASET' not in CONF:
+            terminate_program(f"Could not find NeuPrint dataset for {ARG.LIBRARY}")
+    else:
+        # Get image mapping
         dbdata = (call_responder('config', 'config/db_config'))["config"]
         publishing_db = 'gen1mcfo' if 'gen1_mcfo' in ARG.LIBRARY else 'mbew'
         (CONN[publishing_db], CURSOR[publishing_db]) = db_connect(dbdata[publishing_db][ARG.MYSQL])
@@ -1116,11 +1128,12 @@ def upload_cdms():
     set_searchable_subdivision(data[0])
     if not confirm_run():
         return
+
     print(f"Processing {ARG.LIBRARY} on {ARG.MANIFOLD} manifold")
     json_out = []
     names_out = {}
     for smp in tqdm(data):
-        if smp["alignmentSpace"] != ALIGNMENT_SPACE:
+        if smp["alignmentSpace"] != CONF['ALIGNMENT_SPACE']:
             terminate_program("JSON contains multiple alignment spaces")
         if ARG.SOURCE == 'file':
             smp['_id'] = smp['id']
@@ -1187,7 +1200,7 @@ def update_library_config():
                                                                      str(datetime.now()))
     LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]['updated'] = \
         LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['updated']
-    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['updated_by'] = FULL_NAME
+    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['updated_by'] = CONF['FULL_NAME']
     LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['method'] = 'JSON file' \
         if ARG.SOURCE == 'file' else 'MongoDB'
     if ARG.WRITE or ARG.CONFIG:
