@@ -18,6 +18,7 @@ from tqdm import tqdm
 
 # pylint: disable=R1710, W0703
 # Configuration
+GEN1_MCFO_DOI = "10.1101/2020.05.29.080473"
 CONFIG = {'config': {'url': os.environ.get('CONFIG_SERVER_URL')}}
 CITATION = {}
 DOI = {}
@@ -211,10 +212,9 @@ def process_em_dataset(dataset):
         doi = EMDOI[dsname]
         if bid not in MAPPING:
             MAPPING[bid] = doi
-            print(get_citation(doi))
             payload = {"name": bid,
-                       "doi": "/".join([SERVER["doi"]["address"], doi]),
-                       "citation": get_citation(doi)
+                       "doi": [{"link": "/".join([SERVER["doi"]["address"], doi]),
+                                "citation": get_citation(doi)}]
                       }
             write_dynamodb(payload)
 
@@ -238,10 +238,11 @@ def process_em():
         process_em_dataset(dataset)
 
 
-def process_single_lm_image(row):
+def process_single_lm_image(row, database):
     """ Process a single LM image
         Keyword arguments:
-          row: image row
+          row:      image row
+          database: database name
         Returns:
           None
     """
@@ -249,11 +250,16 @@ def process_single_lm_image(row):
         LOGGER.error("DOI %s does not match previous %s for publishing name %s",
                      row['doi'], MAPPING[row['line']], row['line'])
     else:
-        MAPPING[row['line']] = row['doi']
+        doi = row['doi']
+        MAPPING[row['line']] = doi
+        citation = get_citation(doi)
         payload = {"name": row['line'],
-                   "doi": "/".join([SERVER["doi"]["address"], row['doi']]),
-                   "citation": get_citation(row['doi'])
+                   "doi": [{"link": "/".join([SERVER["doi"]["address"], doi]),
+                            "citation": citation}]
                   }
+        if database == 'gen1mcfo' and doi != GEN1_MCFO_DOI:
+            payload["doi"].append({"link": "/".join([SERVER["doi"]["address"], GEN1_MCFO_DOI]),
+                                  "citation": get_citation(GEN1_MCFO_DOI)})
         write_dynamodb(payload)
 
 
@@ -278,7 +284,7 @@ def process_lm():
             sql_error(err)
         for row in tqdm(rows, desc=database):
             COUNT['read'] += 1
-            process_single_lm_image(row)
+            process_single_lm_image(row, database)
 
 
 def perform_mapping():
