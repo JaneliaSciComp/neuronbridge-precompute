@@ -20,6 +20,7 @@ KEY = "searchString"
 INSERTED = {}
 SLIDE_CODE = {}
 # Database
+MONGODB = 'neuronbridge-mongo'
 DBM = ''
 TABLE = ''
 # General
@@ -87,21 +88,20 @@ def initialize_program():
     data = call_responder('config', 'config/rest_services')
     CONFIG = data['config']
     data = call_responder('config', 'config/db_config')
-    # Connect to Mongo
+    # MongoDB
+    data = (call_responder('config', 'config/db_config'))["config"]
     LOGGER.info("Connecting to Mongo on %s", ARG.MANIFOLD)
-    rwp = 'read'
+    rwp = 'write' if ARG.WRITE else 'read'
     try:
-        if ARG.MANIFOLD == 'prod':
-            client = MongoClient(data['config']['jacs-mongo'][ARG.MANIFOLD][rwp]['host'],
-                                 replicaSet='replWorkstation')
-        else:
-            client = MongoClient(data['config']['jacs-mongo'][ARG.MANIFOLD][rwp]['host'])
-        DBM = client.jacs
-        if ARG.MANIFOLD == 'prod':
-            DBM.authenticate(data['config']['jacs-mongo'][ARG.MANIFOLD][rwp]['user'],
-                             data['config']['jacs-mongo'][ARG.MANIFOLD][rwp]['password'])
+        rset = 'rsProd' if ARG.MANIFOLD == 'prod' else 'rsDev'
+        client = MongoClient(data[MONGODB][ARG.MANIFOLD][rwp]['host'],
+                             replicaSet=rset)
+        DBM = client.admin
+        DBM.authenticate(data[MONGODB][ARG.MANIFOLD][rwp]['user'],
+                         data[MONGODB][ARG.MANIFOLD][rwp]['password'])
+        DBM = client.neuronbridge
     except Exception as err:
-        terminate_program('Could not connect to Mongo: %s' % (err))
+        terminate_program(f"Could not connect to Mongo: {err}")
     # DynamoDB
     dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
     ddt = "janelia-neuronbridge-published-stacks"
@@ -112,7 +112,7 @@ def initialize_program():
 def set_payload(row):
     """ Set a DynamoDB item payload
         Keyword arguments:
-          row: row from MongoDB publishedImage collection
+          row: row from MongoDB publishedLMImage collection
         Returns:
           payload
     """
@@ -155,10 +155,10 @@ def process_mongo():
         Returns:
           None
     """
-    coll = DBM.publishedImage
+    coll = DBM.publishedLMImage
     rows = coll.find({}).sort("slideCode")
     record_cnt = coll.count_documents({})
-    LOGGER.info("Records in Mongo publishedImage: %d", record_cnt)
+    LOGGER.info("Records in Mongo publishedLMImage: %d", record_cnt)
     for row in tqdm(rows, total=record_cnt):
         payload = set_payload(row)
         write_payload(payload)
