@@ -1,4 +1,5 @@
-''' This program will Upload Color Depth MIPs to AWS S3.
+''' This program will use JSON data to update neuronbridge.publishedURL and create
+    an order file to upload imagery to AWS S3.
 '''
 __version__ = '2.0.1'
 
@@ -53,8 +54,7 @@ MAX_SIZE = 500
 # Counters
 COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'Missing consensus': 0,
          'No sampleRef': 0, 'No publishing name': 0, 'No driver': 0, 'Sample not published': 0,
-         'Line not published': 0, 'Skipped': 0, 'Already on S3': 0, 'Already on JACS': 0,
-         'Already in Mongo': 0,
+         'Line not published': 0, 'Already in Mongo': 0,
          'Bad driver': 0, 'Duplicate objects': 0, 'Unparsable files': 0, 'Updated on JACS': 0,
          'Mongo insertions': 0,
          'FlyEM flips': 0, 'Images processed': 0, 'Missing release': 0, 'Skipped release': 0}
@@ -893,9 +893,9 @@ def check_image(smp):
             return False
         smp['alpsRelease'] = RELEASE[sid]
     # Check JACS
-    if 'publicImageUrl' in smp and smp['publicImageUrl'] and not ARG.REWRITE:
-        COUNT['Already on JACS'] += 1
-        return False
+    #if 'publicImageUrl' in smp and smp['publicImageUrl'] and not ARG.REWRITE:
+    #    COUNT['Already on JACS'] += 1
+    #    return False
     # Check Mongo
     coll = DBM.publishedURL
     result = coll.find_one({'_id': int(smp['_id'])})
@@ -1015,7 +1015,8 @@ def confirm_run():
     print(f"NeuronBridge version: {ARG.NEURONBRIDGE}")
     if ARG.SOURCE == 'file':
         print(f"JSON file:            {ARG.JSON}")
-    print(f"Files to upload:      {', '.join(WILL_LOAD)}")
+    if WILL_LOAD:
+        print(f"Files to upload:      {', '.join(WILL_LOAD)}")
     print(f"Required products:    {', '.join(REQUIRED_PRODUCTS)}")
     print(f"Upload files to AWS:  {'Yes' if ARG.AWS else 'No'}")
     print(f"Update MongoDB:       {'Yes' if ARG.WRITE else 'No'}")
@@ -1049,8 +1050,6 @@ def read_json():
         print(f"Loading JSON from Mongo for {ARG.LIBRARY}")
         coll = DBM.neuronMetadata
         payload = {"libraryName": ARG.LIBRARY}
-        #payload['mipId'] = "2945073171637825547" #hemibrain PLUG
-        #payload['mipId'] = "2711777222196199435" #flylight_gen1_mcfo_published PLUG
         rows = coll.find(payload)
         time_diff = (datetime.now() - stime)
         LOGGER.info("JSON read in %fsec", time_diff.total_seconds())
@@ -1090,6 +1089,34 @@ def add_image_to_mongo(smp):
         COUNT["Mongo insertions"] += 1
     else:
         LOGGER.error(f"Could not insert {smp['_id']} into Mongo")
+
+
+def remap_sample(smp):
+    ''' Perform needed file/Mongo remapping
+        Keyword arguments:
+          smp: sample record
+        Returns:
+          None
+    '''
+    if smp["alignmentSpace"] != CONF['ALIGNMENT_SPACE']:
+        terminate_program("JSON contains multiple alignment spaces")
+    if ARG.SOURCE == 'file':
+        smp['_id'] = smp['id']
+    else:
+        if 'SourceColorDepthImage' not in smp['computeFiles']:
+            terminate_program(f"Missing SourceColorDepthImage for {smp['sourceRefId']}")
+        smp['cdmPath'] = smp['computeFiles']['SourceColorDepthImage']
+        smp['sampleRef'] = smp['sourceRefId']
+        smp['variants'] = {}
+        if 'ZGapImage' in smp['computeFiles']:
+            smp['variants']['zgap'] = smp['computeFiles']['ZGapImage']
+        if 'InputColorDepthImage' in smp['computeFiles']:
+            full = smp['computeFiles']['InputColorDepthImage']
+            smp['imageArchivePath'] = os.path.dirname(full)
+            smp['imageName'] = os.path.basename(full)
+            smp['variants']['searchable_neurons'] = full
+        if 'GradientImage' in smp['computeFiles']:
+            smp['variants']['gradient'] = smp['computeFiles']['GradientImage']
 
 
 def upload_cdms():
@@ -1135,25 +1162,7 @@ def upload_cdms():
     json_out = []
     names_out = {}
     for smp in tqdm(data):
-        if smp["alignmentSpace"] != CONF['ALIGNMENT_SPACE']:
-            terminate_program("JSON contains multiple alignment spaces")
-        if ARG.SOURCE == 'file':
-            smp['_id'] = smp['id']
-        else:
-            if 'SourceColorDepthImage' not in smp['computeFiles']:
-                terminate_program(f"Missing SourceColorDepthImage for {smp['sourceRefId']}")
-            smp['cdmPath'] = smp['computeFiles']['SourceColorDepthImage']
-            smp['sampleRef'] = smp['sourceRefId']
-            smp['variants'] = {}
-            if 'ZGapImage' in smp['computeFiles']:
-                smp['variants']['zgap'] = smp['computeFiles']['ZGapImage']
-            if 'InputColorDepthImage' in smp['computeFiles']:
-                full = smp['computeFiles']['InputColorDepthImage']
-                smp['imageArchivePath'] = os.path.dirname(full)
-                smp['imageName'] = os.path.basename(full)
-                smp['variants']['searchable_neurons'] = full
-            if 'GradientImage' in smp['computeFiles']:
-                smp['variants']['gradient'] = smp['computeFiles']['GradientImage']
+        remap_sample(smp)
         if ARG.SAMPLES and COUNT['Samples'] >= ARG.SAMPLES:
             break
         COUNT['Samples'] += 1
