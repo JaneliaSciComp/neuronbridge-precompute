@@ -238,6 +238,7 @@ def get_parms():
                 if row[0].isdigit():
                     vlist.append("v" + row)
             vlist.sort()
+            print("Select a version:")
             terminal_menu = TerminalMenu(vlist)
             chosen = terminal_menu.show()
             if chosen is None:
@@ -1049,21 +1050,11 @@ def read_json():
     else:
         print(f"Loading JSON from Mongo for {ARG.LIBRARY}")
         coll = DBM.neuronMetadata
-        payload = {"libraryName": ARG.LIBRARY}
-        rows = coll.find(payload)
+        payload = {"libraryName": ARG.LIBRARY, "tags": ARG.NEURONBRIDGE.replace("v", "")}
+        data = list(coll.find(payload))
         time_diff = (datetime.now() - stime)
         LOGGER.info("JSON read in %fsec", time_diff.total_seconds())
-        data = []
-        stime = datetime.now()
-        mrows = 0
-        vsearch = ARG.NEURONBRIDGE.replace("v", "")
-        for row in rows:
-            mrows += 1
-            if vsearch in row['tags']:
-                data.append(row)
-        time_diff = (datetime.now() - stime)
-        LOGGER.info("JSON parsed in %fsec", time_diff.total_seconds())
-        print(f"Documents read from Mongo: {mrows}")
+        print(f"Documents read from Mongo: {len(data)}")
     return data
 
 
@@ -1311,7 +1302,7 @@ if __name__ == '__main__':
             keyfile.write(f"{json.dumps(KEY_LIST)}\n")
     print(f"Elapsed time: {STOP_TIME - START_TIME}")
     for key in sorted(COUNT):
-        print(f"{key + ':' : <19} {COUNT[key]}")
+        print(f"{key + ':' : <21} {COUNT[key]}")
     if VARIANT_UPLOADS:
         print('Uploaded variants:')
         for key in sorted(VARIANT_UPLOADS):
