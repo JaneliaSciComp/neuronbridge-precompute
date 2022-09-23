@@ -180,7 +180,7 @@ def setup_dataset(dataset):
     LOGGER.info("Initializing Client for %s %s", SERVER["neuprint"]["address"], dataset)
     npc = Client(SERVER["neuprint"]["address"], dataset=dataset)
     set_default_client(npc)
-    version= ''
+    version = ''
     if ':' in dataset:
         name, version = dataset.split(':')
     else:
@@ -197,7 +197,7 @@ def process_em_dataset(dataset):
     """
     dsname, version = setup_dataset(dataset)
     if (dsname not in EMDOI) or (not EMDOI[dsname]):
-        LOGGER.warning(f"Dataset {dsname} is not associated with a DOI")
+        LOGGER.warning("Dataset %s is not associated with a DOI", dsname)
         return
     query = """
     MATCH (n: Neuron)
@@ -259,7 +259,7 @@ def process_single_lm_image(row, database):
                   }
         if database == 'gen1mcfo' and doi != GEN1_MCFO_DOI:
             payload["doi"].append({"link": "/".join([SERVER["doi"]["address"], GEN1_MCFO_DOI]),
-                                  "citation": get_citation(GEN1_MCFO_DOI)})
+                                   "citation": get_citation(GEN1_MCFO_DOI)})
         write_dynamodb(payload)
 
 
