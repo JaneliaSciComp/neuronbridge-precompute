@@ -287,6 +287,7 @@ def set_searchable_subdivision(smp):
     LOGGER.warning("Will upload searchable neurons starting with subdivision " \
                    + f"{SUBDIVISION['prefix']}")
     CONF['ALIGNMENT_SPACE'] = smp["alignmentSpace"]
+    LOGGER.info(f"Alignment space set to {CONF['ALIGNMENT_SPACE']}")
 
 
 def select_uploads():
@@ -297,12 +298,17 @@ def select_uploads():
             None
     """
     global WILL_LOAD, REQUIRED_PRODUCTS # pylint: disable=W0603
+    choices = VARIANTS
+    defaults = ["searchable_neurons"]
+    if "flyem_" in ARG.LIBRARY:
+        choices.append("skeletons")
+        defaults.append("skeletons")
     quest = [inquirer.Checkbox('checklist',
                                message='Select image types to upload',
-                               choices=VARIANTS, default=["searchable_neurons"])]
+                               choices=choices, default=defaults)]
     WILL_LOAD = inquirer.prompt(quest)['checklist']
     for var in VARIANTS:
-        if var in WILL_LOAD:
+        if var in WILL_LOAD and var != "skeletons":
             REQUIRED_PRODUCTS.append(var)
 
 
@@ -991,7 +997,8 @@ def handle_variants(smp, newname):
         if newname.count('.') > 1:
             terminate_program("Internal error for newname computation")
         upload_flyem_variants(smp, newname)
-        upload_flyem_skeletons(smp)
+        if "skeletons" in WILL_LOAD:
+            upload_flyem_skeletons(smp)
         #newname = 'searchable_neurons/' + newname
         #dirpath = os.path.dirname(smp['filepath'])
         #fname = os.path.basename(smp['filepath'])
@@ -1128,8 +1135,11 @@ def upload_cdms():
         if ARG.NEUPRINT:
             CONF['DATASET'] = ARG.NEUPRINT
         else:
+            if "pre" in ARG.MANIFOLD:
+                CONFIG['neuprint']['url'] = CONFIG['neuprint']['url'].replace("neuprint", "neuprint-pre")
             response = call_responder('neuprint', 'dbmeta/datasets', {}, True)
             datasets = list(response.keys())
+            print(datasets)
             for dset in datasets:
                 if ARG.LIBRARY.endswith(dset.replace(":v", "_").replace(".", "_")):
                     CONF['DATASET'] = dset
@@ -1227,7 +1237,7 @@ if __name__ == '__main__':
     PARSER.add_argument('--neuronbridge', dest='NEURONBRIDGE', action='store',
                         help='NeuronBridge version')
     PARSER.add_argument('--neuprint', dest='NEUPRINT', action='store',
-                        help='NeuPrint version')
+                        help='NeuPrint version, e.g. vnc:v0.6')
     PARSER.add_argument('--json', dest='JSON', action='store',
                         help='JSON file')
     PARSER.add_argument('--backcheck', dest='BACKCHECK', action='store_true',
