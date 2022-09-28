@@ -127,8 +127,20 @@ def initialize_program():
     for pdb in PUBLISHING_DATABASE:
         (CONN[pdb], CURSOR[pdb]) = db_connect(data['config'][pdb][ARG.MANIFOLD])
     # DynamoDB
-    dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
-    DATABASE["DOI"] = dynamodb.Table('janelia-neuronbridge-publishing-doi')
+    table = "janelia-neuronbridge-publishing-doi"
+    try:
+        dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
+        dynamodb_client = boto3.client('dynamodb', region_name='us-east-1')
+    except Exception as err:
+        terminate_program(err)
+    try:
+        _ = dynamodb_client.describe_table(TableName=table)
+    except dynamodb_client.exceptions.ResourceNotFoundException:
+        LOGGER.error("Table %s doesn't exist", table)
+        print("You can create it using " \
+              + "neuronbridge-utilities/dynamodb/create_janelia-neuronbridge-publishing-doi.sh")
+        sys.exit(-1)
+    DATABASE["DOI"] = dynamodb.Table(table)
 
 
 def get_citation(doi):
