@@ -37,6 +37,8 @@ def call_responder(server, endpoint):
         Returns:
           JSON response
     '''
+    if server == "config" and endpoint:
+        endpoint = f"config/{endpoint}"
     url = (CONFIG[server]['url'] if server else '') + endpoint
     try:
         req = requests.get(url)
@@ -55,19 +57,17 @@ def initialize_program():
         Returns:
           None
     '''
-    for key, val in call_responder('config', 'config/rest_services')['config'].items():
+    for key, val in call_responder('config', 'rest_services')['config'].items():
         CONFIG[key] = val
     # MongoDB
-    data = (call_responder('config', 'config/db_config'))["config"]
+    data = (call_responder('config', 'db_config'))["config"]
     LOGGER.info("Connecting to Mongo on %s", ARG.MANIFOLD)
-    rwp = "read"
     try:
         rset = 'rsProd' if ARG.MANIFOLD == 'prod' else 'rsDev'
-        client = MongoClient(data[MONGODB][ARG.MANIFOLD][rwp]['host'],
-                             replicaSet=rset)
+        mongo = data[MONGODB][ARG.MANIFOLD]["read"]
+        client = MongoClient(mongo['host'], replicaSet=rset)
         DATABASE["MONGO"] = client.admin
-        DATABASE["MONGO"].authenticate(data[MONGODB][ARG.MANIFOLD][rwp]['user'],
-                                       data[MONGODB][ARG.MANIFOLD][rwp]['password'])
+        DATABASE["MONGO"].authenticate(mongo['user'], mongo['password'])
         DATABASE["MONGO"] = client.neuronbridge
     except errors.ConnectionFailure as err:
         terminate_program(f"Could not connect to Mongo: {err}")
@@ -198,3 +198,4 @@ if __name__ == '__main__':
     initialize_program()
     mongo_check()
     terminate_program()
+
