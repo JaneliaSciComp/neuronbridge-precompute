@@ -1,6 +1,6 @@
 ''' This program will update the janelia-neuronbridge-publishing-doi table on
     DynamoDB. Data is pulled from the Split-GAL4 and Gen1MCFO prod databases
-    and [production] NeuPrint. For EM data, Body IDs (in the form
+    and NeuronBeidge MongoDB. For EM data, Body IDs (in the form
     dataset:version:bodyid) are written. For LM data, publishing names are
     written.
     Note that Gen1 GAL4/LexAs are not yet supported (these are not yet in NeuronBridge).
@@ -8,11 +8,13 @@
 
 import argparse
 import os
+import re
 import sys
 import boto3
 import colorlog
 import MySQLdb
 from neuprint import Client, fetch_custom, set_default_client
+from pymongo import MongoClient
 import requests
 from tqdm import tqdm
 
@@ -36,6 +38,7 @@ READ = {"LINES": "SELECT DISTINCT line,value AS doi,GROUP_CONCAT(DISTINCT origin
                  + "type_id=getCvTermId('line','doi',NULL)) GROUP BY 1,2"
        }
 READ["LINESREL"] = READ["LINES"].replace("GROUP BY", "AND alps_release=%" + "s GROUP BY")
+MONGODB = 'neuronbridge-mongo'
 # General use
 COUNT = {"dynamodb": 0, "read": 0}
 
@@ -123,9 +126,22 @@ def initialize_program():
     for key, val in call_responder('config', 'config/em_dois')['config'].items():
         EMDOI[key] = val
     # MySQL
-    data = call_responder('config', 'config/db_config')
+    data = call_responder('config', 'config/db_config')["config"]
     for pdb in PUBLISHING_DATABASE:
-        (CONN[pdb], CURSOR[pdb]) = db_connect(data['config'][pdb][ARG.MANIFOLD])
+        (CONN[pdb], CURSOR[pdb]) = db_connect(data[pdb][ARG.MANIFOLD])
+    # MongoDB
+    LOGGER.info("Connecting to Mongo on %s", ARG.MONGO)
+    rwp = 'write' if ARG.WRITE else 'read'
+    try:
+        rset = 'rsProd' if ARG.MONGO == 'prod' else 'rsDev'
+        client = MongoClient(data[MONGODB][ARG.MONGO][rwp]['host'],
+                             replicaSet=rset)
+        dbm = client.admin
+        dbm.authenticate(data[MONGODB][ARG.MONGO][rwp]['user'],
+                         data[MONGODB][ARG.MONGO][rwp]['password'])
+        DATABASE["NB"] = client.neuronbridge
+    except Exception as err:
+        terminate_program(f"Could not connect to Mongo: {err}")
     # DynamoDB
     table = "janelia-neuronbridge-publishing-doi"
     try:
@@ -231,7 +247,7 @@ def process_em_dataset(dataset):
             write_dynamodb(payload)
 
 
-def process_em():
+def process_em_neuprint():
     """ Process specified EM datasets
         Keyword arguments:
           None
@@ -248,6 +264,57 @@ def process_em():
     datasets.reverse()
     for dataset in datasets:
         process_em_dataset(dataset)
+
+
+def process_em_library(coll, library, count):
+    """ Process a single EM library
+        Keyword arguments:
+          coll: MongoDB collection
+          library: EM library
+          count: number of body IDs
+        Returns:
+          None
+    """
+    result = re.search(r"flyem_([^_]*)((_\d)+)", library)
+    lib = result[1]
+    version = result[2][1:].replace("_", ".")
+    prefix = ":".join([lib, version])
+    results = coll.find({"libraryName": library})
+    if (lib not in EMDOI) or (not EMDOI[lib]):
+        LOGGER.warning("Dataset %s is not associated with a DOI", prefix)
+        return
+    doi = EMDOI[lib]
+    payload = {"name": "",
+               "doi": [{"link": "/".join([SERVER["doi"]["address"], doi]),
+                        "citation": get_citation(doi)}]
+              }
+    for row in tqdm(results, desc=prefix, total=count):
+        COUNT['read'] += 1
+        bid = ":".join([prefix, str(row["publishedName"])])
+        if bid not in MAPPING:
+            MAPPING[bid] = doi
+            payload["name"] = bid
+            write_dynamodb(payload)
+
+
+def process_em():
+    """ Process EM libraries
+        Keyword arguments:
+          None
+        Returns:
+          None
+    """
+    payload = [{"$unwind": "$tags"},
+               {"$project": {"_id": 0, "libraryName": 1, "tags": 1}},
+               {"$group": {"_id": {"lib": "$libraryName", "tag": "$tags"},
+                           "count":{"$sum": 1}}}]
+    coll = DATABASE["NB"]["neuronMetadata"]
+    results = coll.aggregate(payload)
+    for row in results:
+        library = row["_id"]["lib"]
+        if not library.startswith("flyem"):
+            continue
+        process_em_library(coll, library, row["count"])
 
 
 def process_single_lm_image(row, database):
@@ -325,7 +392,9 @@ if __name__ == '__main__':
     PARSER.add_argument('--source', dest='SOURCE', choices=['', 'em', 'lm'], default='',
                         help='Source release (em or lm)')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
-                        choices=['staging', 'prod'], default='staging', help='Manifold')
+                        choices=['staging', 'prod'], default='staging', help='MySQL manifold')
+    PARSER.add_argument('--mongo', dest='MONGO', action='store',
+                        default='prod', choices=['dev', 'prod'], help='MongoDB manifold')
     PARSER.add_argument('--write', action='store_true', dest='WRITE',
                         default=False, help='Write to DynamoDB')
     PARSER.add_argument('--verbose', action='store_true', dest='VERBOSE',
