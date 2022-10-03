@@ -235,7 +235,6 @@ def get_parms():
                 ARG.NEURONBRIDGE = "v" + ARG.NEURONBRIDGE
         if not ARG.NEURONBRIDGE:
             terminate_program("No NeuronBridge version selected")
-        print(ARG.NEURONBRIDGE)
     if not ARG.JSON and ARG.SOURCE == 'file':
         print("Select a JSON file:")
         json_base = CLOAD['json_dir'] + f"/{ARG.NEURONBRIDGE}"
