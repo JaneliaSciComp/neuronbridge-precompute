@@ -228,22 +228,13 @@ def get_parms():
         ARG.LIBRARY = liblist[chosen].replace(' ', '_')
     if not ARG.NEURONBRIDGE:
         if ARG.SOURCE == 'file':
-            ARG.NEURONBRIDGE = NB.get_neuronbridge_version()
-            if not ARG.NEURONBRIDGE:
-                terminate_program("No NeuronBridge version selected")
+            ARG.NEURONBRIDGE = NB.get_neuronbridge_version_from_file()
         else:
-            rows = coll.distinct("tags", {"libraryName": ARG.LIBRARY})
-            vlist = []
-            for row in rows:
-                if row[0].isdigit():
-                    vlist.append("v" + row)
-            vlist.sort()
-            print("Select a version:")
-            terminal_menu = TerminalMenu(vlist)
-            chosen = terminal_menu.show()
-            if chosen is None:
-                terminate_program("No version selected")
-            ARG.NEURONBRIDGE = vlist[chosen]
+            ARG.NEURONBRIDGE =  NB.get_neuronbridge_version(coll, ARG.LIBRARY)
+            if ARG.NEURONBRIDGE:
+                ARG.NEURONBRIDGE = "v" + ARG.NEURONBRIDGE
+        if not ARG.NEURONBRIDGE:
+            terminate_program("No NeuronBridge version selected")
         print(ARG.NEURONBRIDGE)
     if not ARG.JSON and ARG.SOURCE == 'file':
         print("Select a JSON file:")

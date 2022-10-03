@@ -30,7 +30,7 @@ def get_all_s3_objects(s3c, **base_kwargs):
         continuation_token = response.get('NextContinuationToken')
 
 
-def get_library(*args):
+def get_library_from_aws(*args):
     """ Get a NeuronBridge library from provided configuration JSON
         Keyword arguments:
           cdm_bucket: "cdm_library" configuration JSON -or- bucket
@@ -57,7 +57,7 @@ def get_library(*args):
     return cdmlist[chosen].replace(' ', '_') if chosen is not None else None
 
 
-def get_neuronbridge_version():
+def get_neuronbridge_version_from_file():
     """ Get a NeuronBridge version from the release directory
         Keyword arguments:
           None
@@ -73,6 +73,32 @@ def get_neuronbridge_version():
     terminal_menu = TerminalMenu(version)
     chosen = terminal_menu.show()
     return version[chosen] if chosen is not None else None
+
+
+def get_neuronbridge_version(coll, library=None):
+    ''' Allow the user to select a NeuronBridge version
+        Keyword arguments:
+          coll: MongoDB collection
+        Returns:
+          NeuronBridge version or None
+    '''
+    versions = {}
+    find = {"libraryName": library} if library else {}
+    results = coll.distinct("processedTags", find)
+    for row in results:
+        for match in ["ColorDepthSearch", "PPPMatch"]:
+            if match in row:
+                for ver in row[match]:
+                    versions[ver] = True
+    versions = list(versions.keys())
+    versions.sort()
+    print("Select a NeuronBridge data version:")
+    terminal_menu = TerminalMenu(versions)
+    chosen = terminal_menu.show()
+    if chosen is None:
+        print("No NeuronBridge data version selected")
+        return None
+    return versions[chosen]
 
 
 def get_template(s3_client, bucket):
