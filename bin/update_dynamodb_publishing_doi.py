@@ -28,6 +28,7 @@ EMDOI = {}
 MAPPING = {}
 SERVER = {}
 # Database
+ITEMS = []
 PUBLISHING_DATABASE = ["mbew", "gen1mcfo"]
 DATABASE = {}
 CONN = {}
@@ -182,19 +183,18 @@ def get_citation(doi):
     return CITATION[doi]
 
 
-def write_dynamodb(payload):
-    """ Write a record to DynamoDB. This will create a new record or update an existing one.
+def write_dynamodb():
+    ''' Write rows from ITEMS to DynamoDB in batch
         Keyword arguments:
-          doi: payload
+          None
         Returns:
           None
-    """
-    if ARG.WRITE:
-        response = DATABASE["DOI"].put_item(Item=payload)
-        if 'ResponseMetadata' in response and response['ResponseMetadata']['HTTPStatusCode'] == 200:
-            COUNT['dynamodb'] += 1
-    else:
-        COUNT['dynamodb'] += 1
+    '''
+    LOGGER.info("Batch writing items to DynamoDB")
+    with DATABASE["DOI"].batch_writer() as writer:
+        for item in tqdm(ITEMS, desc="DynamoDB"):
+            writer.put_item(Item=item)
+            COUNT["dynamodb"] += 1
 
 
 def setup_dataset(dataset):
@@ -244,7 +244,7 @@ def process_em_dataset(dataset):
                        "doi": [{"link": "/".join([SERVER["doi"]["address"], doi]),
                                 "citation": get_citation(doi)}]
                       }
-            write_dynamodb(payload)
+            ITEMS.append(payload)
 
 
 def process_em_neuprint():
@@ -294,7 +294,7 @@ def process_em_library(coll, library, count):
         if bid not in MAPPING:
             MAPPING[bid] = doi
             payload["name"] = bid
-            write_dynamodb(payload)
+            ITEMS.append(payload)
 
 
 def process_em():
@@ -339,7 +339,7 @@ def process_single_lm_image(row, database):
         if database == 'gen1mcfo' and doi != GEN1_MCFO_DOI:
             payload["doi"].append({"link": "/".join([SERVER["doi"]["address"], GEN1_MCFO_DOI]),
                                    "citation": get_citation(GEN1_MCFO_DOI)})
-        write_dynamodb(payload)
+        ITEMS.append(payload)
 
 
 def process_lm():
@@ -377,6 +377,8 @@ def perform_mapping():
         process_em()
     if ARG.SOURCE != "em":
         process_lm()
+    if ARG.WRITE and ITEMS:
+        write_dynamodb()
     print(f"Publishing names/body IDs read:   {COUNT['read']}")
     print(f"Unique publishing names/body IDs: {len(MAPPING)}")
     print(f"Records written to DynamoDB:      {COUNT['dynamodb']}")
