@@ -190,7 +190,7 @@ def write_dynamodb():
         Returns:
           None
     '''
-    LOGGER.info(f"Batch writing {len(ITEMS)} items to DynamoDB")
+    LOGGER.info("Batch writing %s items to DynamoDB", len(ITEMS))
     with DATABASE["DOI"].batch_writer() as writer:
         for item in tqdm(ITEMS, desc="DynamoDB"):
             writer.put_item(Item=item)
