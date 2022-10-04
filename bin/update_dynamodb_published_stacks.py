@@ -23,8 +23,9 @@ SLIDE_CODE = {}
 MONGODB = 'neuronbridge-mongo'
 DBM = ''
 TABLE = ''
+ITEMS = []
 # General
-COUNT = {"error":  0, "write": 0}
+COUNT = {"write": 0}
 
 # pylint: disable=W0703,E1101
 
@@ -104,7 +105,7 @@ def initialize_program():
         terminate_program(f"Could not connect to Mongo: {err}")
     # DynamoDB
     dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
-    ddt = "janelia-neuronbridge-published-stacks"
+    ddt = "janelia-neuronbridge-published-stacks2"
     LOGGER.info("Connecting to %s", ddt)
     TABLE = dynamodb.Table(ddt)
 
@@ -131,21 +132,18 @@ def set_payload(row):
     return payload
 
 
-def write_payload(payload):
-    """ Write an item payload to DynamoDB
+def write_dynamodb():
+    ''' Write rows from ITEMS to DynamoDB in batch
         Keyword arguments:
-          payload: payload to write
+          None
         Returns:
           None
-    """
-    if ARG.WRITE:
-        response = TABLE.put_item(Item=payload)
-        if 'ResponseMetadata' in response and response['ResponseMetadata']['HTTPStatusCode'] == 200:
-            COUNT['write'] += 1
-        else:
-            COUNT['error'] += 1
-    else:
-        COUNT['write'] += 1
+    '''
+    LOGGER.info("Batch writing %s items to DynamoDB", len(ITEMS))
+    with TABLE.batch_writer() as writer:
+        for item in tqdm(ITEMS, desc="DynamoDB"):
+            writer.put_item(Item=item)
+            COUNT["write"] += 1
 
 
 def process_mongo():
@@ -156,24 +154,27 @@ def process_mongo():
           None
     """
     coll = DBM.publishedLMImage
-    rows = coll.find({}).sort("slideCode")
-    record_cnt = coll.count_documents({})
-    LOGGER.info("Records in Mongo publishedLMImage: %d", record_cnt)
-    for row in tqdm(rows, total=record_cnt):
+    rows = coll.find().sort("slideCode")
+    count = coll.count_documents({})
+    LOGGER.info("Records in Mongo publishedLMImage: %d", count)
+    for row in tqdm(rows, total=count):
         payload = set_payload(row)
-        write_payload(payload)
-    tcolor = Fore.GREEN if record_cnt == COUNT["write"] else Fore.RED
-    print("Items read:    %s" % (tcolor + str(record_cnt) + Style.RESET_ALL))
+        ITEMS.append(payload)
+    if ARG.WRITE:
+        write_dynamodb()
+    else:
+        COUNT["write"] = count
+    tcolor = Fore.GREEN if count == COUNT["write"] else Fore.RED
+    print("Items read:    %s" % (tcolor + str(count) + Style.RESET_ALL))
     print("Slide codes:   %d" % (len(SLIDE_CODE)))
     print("Items written: %s" % (tcolor + str(COUNT["write"]) + Style.RESET_ALL))
-    print("Write errors:  %d" % (COUNT["error"]))
 
 
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
         description="Update janelia-neuronbridge-published-stacks")
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
-                        default='dev', choices=['dev', 'prod'], help='Manifold')
+                        default='prod', choices=['dev', 'prod'], help='Manifold')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',
                         default=False, help='Actually write to databases')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
