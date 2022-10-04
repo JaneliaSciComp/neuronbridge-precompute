@@ -190,7 +190,7 @@ def write_dynamodb():
         Returns:
           None
     '''
-    LOGGER.info("Batch writing items to DynamoDB")
+    LOGGER.info(f"Batch writing {len(ITEMS)} items to DynamoDB")
     with DATABASE["DOI"].batch_writer() as writer:
         for item in tqdm(ITEMS, desc="DynamoDB"):
             writer.put_item(Item=item)
@@ -284,16 +284,15 @@ def process_em_library(coll, library, count):
         LOGGER.warning("Dataset %s is not associated with a DOI", prefix)
         return
     doi = EMDOI[lib]
-    payload = {"name": "",
-               "doi": [{"link": "/".join([SERVER["doi"]["address"], doi]),
-                        "citation": get_citation(doi)}]
-              }
     for row in tqdm(results, desc=prefix, total=count):
         COUNT['read'] += 1
         bid = ":".join([prefix, str(row["publishedName"])])
         if bid not in MAPPING:
             MAPPING[bid] = doi
-            payload["name"] = bid
+            payload = {"name": bid,
+                       "doi": [{"link": "/".join([SERVER["doi"]["address"], doi]),
+                                "citation": get_citation(doi)}]
+                      }
             ITEMS.append(payload)
 
 
