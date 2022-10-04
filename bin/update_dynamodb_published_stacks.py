@@ -105,7 +105,7 @@ def initialize_program():
         terminate_program(f"Could not connect to Mongo: {err}")
     # DynamoDB
     dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
-    ddt = "janelia-neuronbridge-published-stacks2"
+    ddt = "janelia-neuronbridge-published-stacks"
     LOGGER.info("Connecting to %s", ddt)
     TABLE = dynamodb.Table(ddt)
 
@@ -154,7 +154,7 @@ def process_mongo():
           None
     """
     coll = DBM.publishedLMImage
-    rows = coll.find().sort("slideCode")
+    rows = coll.find()
     count = coll.count_documents({})
     LOGGER.info("Records in Mongo publishedLMImage: %d", count)
     for row in tqdm(rows, total=count):
