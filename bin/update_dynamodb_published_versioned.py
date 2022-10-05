@@ -13,14 +13,16 @@ from pymongo import MongoClient
 import requests
 from simple_term_menu import TerminalMenu
 from tqdm import tqdm
+import neuronbridge_lib as NB
 
+# pylint: disable=W0703, E1101
 # Configuration
 CONFIG = {'config': {'url': os.environ.get('CONFIG_SERVER_URL')}}
 # Database
 DATABASE = {}
 ITEMS = []
 # Counters
-COUNT = {"bodyID": 0, "publishingName": 0,
+COUNT = {"bodyID": 0, "publishingName": 0, "neuronInstance": 0, "neuronType": 0,
          "images": 0, "missing": 0, "consensus": 0,
          "insertions": 0}
 
@@ -68,30 +70,6 @@ def create_config_object(config):
     return json.loads(json.dumps(data), object_hook=lambda dat: SimpleNamespace(**dat))
 
 
-def get_version(coll):
-    ''' Allow the user to select a NeuronBridge version
-        Keyword arguments:
-          coll: MongoDB collection
-        Returns:
-          None
-    '''
-    versions = {}
-    results = coll.distinct("processedTags")
-    for row in results:
-        for match in ["ColorDepthSearch", "PPPMatch"]:
-            if match in row:
-                for ver in row[match]:
-                    versions[ver] = True
-    versions = list(versions.keys())
-    versions.sort()
-    print("Select a NeuronBridge data version:")
-    terminal_menu = TerminalMenu(versions)
-    chosen = terminal_menu.show()
-    if chosen is None:
-        terminate_program("No NeuronBridge data version selected")
-    ARG.VERSION = versions[chosen]
-
-
 def initialize_program():
     """ Initialize the program
         Keyword arguments:
@@ -101,7 +79,7 @@ def initialize_program():
     """
     dbconfig = create_config_object("db_config")
     # MongoDB
-    LOGGER.info("Connecting to Mongo on %s", ARG.MONGO)
+    LOGGER.info("Connecting to neuronbridge MongoDB on %s", ARG.MONGO)
     try:
         dbc = getattr(getattr(dbconfig, "neuronbridge-mongo"), ARG.MONGO)
         rset = 'rsProd' if ARG.MONGO == 'prod' else 'rsDev'
@@ -113,8 +91,10 @@ def initialize_program():
         terminate_program(f"Could not connect to Mongo: {err}")
     # DynamoDB
     if not ARG.VERSION:
-        get_version(DATABASE["NB"]["neuronMetadata"])
-    table = "janelia-neuronbridge-published-test"
+        ARG.VERSION = NB.get_neuronbridge_version(DATABASE["NB"]["neuronMetadata"])
+        if not ARG.VERSION:
+            terminate_program("No NeuronBridge version selected")
+    table = "janelia-neuronbridge-published-test" #PLUG
     try:
         dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
         dynamodb_client = boto3.client('dynamodb', region_name='us-east-1')
@@ -130,16 +110,16 @@ def initialize_program():
     DATABASE["DYN"] = dynamodb.Table(table)
 
 
-def batch_row(row, keytype, matches):
+def batch_row(name, keytype, matches, bodyids=None):
     ''' Create and save a payload for a single row
         Keyword arguments:
-          row: row from neuronMetadata
+          name: publishedName
           keytype: key type for DynamoDB
           matches: CDM/PPP match dict
+          bodyids: list of body IDs [optional]
         Returns:
           None
     '''
-    name = row["publishedName"]
     payload = {"itemType": "searchString",
                "searchKey": name.lower(),
                "filterKey": name.lower(),
@@ -147,6 +127,8 @@ def batch_row(row, keytype, matches):
                "keyType": keytype,
                "cdm": matches["cdm"],
                "ppp": matches["ppp"]}
+    if bodyids:
+        payload["bodyIDs"] = bodyids
     ITEMS.append(payload)
     COUNT[keytype] += 1
 
@@ -160,12 +142,82 @@ def primary_update(rlist, matches):
           None
     '''
     for row in tqdm(rlist, desc="Primary update"):
-        if "publishedName" not in row or not row["publishedName"]:
-            continue
         keytype = "publishingName"
         if row["libraryName"].startswith("flyem"):
             keytype = "bodyID"
-        batch_row(row, keytype, matches[row["publishedName"]])
+        batch_row(row["publishedName"], keytype, matches[row["publishedName"]])
+
+
+def add_neuron(ntype, row):
+    ''' Add a single neuron (Instance or Type) to the list of items to be stored in DynamoDB
+        Keyword arguments:
+          ntype: neuronInstance or neuronType
+          row: neuronMetadata row
+        Returns:
+          None
+    '''
+    nmatch = {"cdm": False, "ppp": False}
+    coll = DATABASE["NB"]["neuronMetadata"]
+    # Note that we don't use the version here
+    payload = {ntype: row[ntype], "libraryName": row["libraryName"]}
+    results = coll.find(payload, {"publishedName": 1, "processedTags": 1})
+    bids = {}
+    for brow in results:
+        if brow["publishedName"] in bids or "processedTags" not in brow:
+            continue
+        bids[brow["publishedName"]] = True
+        if "ColorDepthSearch" in brow["processedTags"] \
+           and brow["processedTags"]["ColorDepthSearch"]:
+            nmatch["cdm"] = True
+        if "PPPMatch" in brow["processedTags"] \
+           and brow["processedTags"]["PPPMatch"]:
+            nmatch["ppp"] = True
+    batch_row(row[ntype], ntype, nmatch, list(bids.keys()))
+
+
+def match_count(matches):
+    ''' Display ststs on found matches
+        Keyword arguments:
+          matches: match dict
+        Returns:
+          None
+    '''
+    mcount = {"em": 0, "lm": 0, "bcdm": 0, "bppp": 0, "pcdm": 0, "pppp": 0}
+    for pname in matches:
+        if pname.isdigit():
+            mcount["em"] += 1
+            for mtype in ["cdm", "ppp"]:
+                if matches[pname][mtype]:
+                    mcount["b" + mtype] += 1
+        else:
+            mcount["lm"] += 1
+            for mtype in ["cdm", "ppp"]:
+                if matches[pname][mtype]:
+                    mcount["p" + mtype] += 1
+    print(f"Matches:            {len(matches)}")
+    print(f"  Body IDs:         {mcount['em']}")
+    print(f"    CDM matches:    {mcount['bcdm']}")
+    print(f"    PPP matches:    {mcount['bppp']}")
+    print(f"  Publishing names: {mcount['lm']}")
+    print(f"    CDM matches:    {mcount['pcdm']}")
+    print(f"    PPP matches:    {mcount['pppp']}")
+
+
+def update_neuron_matches(results):
+    ''' Add neuronInstance and neuronType matches
+        Keyword arguments:
+          results: list of distinct publishedName records
+        Returns:
+          None
+    '''
+    processed = {}
+    for row in tqdm(results, desc="Neuron search"):
+        if not row["publishedName"].isdigit():
+            continue
+        for ntype in ["neuronInstance", "neuronType"]:
+            if ntype in row and row[ntype] and row[ntype] not in processed:
+                add_neuron(ntype, row)
+                processed[row[ntype]] = True
 
 
 def write_dynamodb():
@@ -175,7 +227,7 @@ def write_dynamodb():
         Returns:
           None
     '''
-    LOGGER.info("Batch writing items to DynamoDB")
+    LOGGER.info("Batch writing %s items to DynamoDB", len(ITEMS))
     with DATABASE["DYN"].batch_writer() as writer:
         for item in tqdm(ITEMS, desc="DynamoDB"):
             writer.put_item(Item=item)
@@ -192,12 +244,15 @@ def update_dynamo():
     coll = DATABASE["NB"]["neuronMetadata"]
     payload = {"$or": [{"processedTags.ColorDepthSearch": ARG.VERSION},
                        {"processedTags.PPPMatch": ARG.VERSION}]}
-    project = {"libraryName": 1, "publishedName": 1, "processedTags": 1}
+    project = {"libraryName": 1, "publishedName": 1, "processedTags": 1,
+               "neuronInstance": 1, "neuronType": 1}
     results = coll.find(payload, project)
     count = coll.count_documents(payload)
     matches = {}
     rlist = []
+    library = {}
     for row in tqdm(results, desc="publishedName", total=count):
+        library[row["libraryName"]] = True
         COUNT["images"] += 1
         if "publishedName" not in row or not row["publishedName"]:
             LOGGER.error("Missing publishedName for %s", row['_id'])
@@ -216,7 +271,12 @@ def update_dynamo():
         if "PPPMatch" in row["processedTags"] \
            and ARG.VERSION in row["processedTags"]["PPPMatch"]:
             matches[pname]["ppp"] = True
+    if len(rlist) != len(matches):
+        terminate_program(f"Unique primary list ({len(rlist)}) != match list({len(matches)})")
+    print(f"Libraries:          {', '.join(library)}")
+    match_count(matches)
     primary_update(rlist, matches)
+    update_neuron_matches(rlist)
     if ARG.WRITE:
         write_dynamodb()
     else:
@@ -228,6 +288,8 @@ def update_dynamo():
         print(f"No consensus:              {COUNT['consensus']}")
     print(f"Items written to DynamoDB: {COUNT['insertions']}")
     print(f"  bodyID:                  {COUNT['bodyID']}")
+    print(f"  neuronInstance:          {COUNT['neuronInstance']}")
+    print(f"  neuronType:              {COUNT['neuronType']}")
     print(f"  publishingName:          {COUNT['publishingName']}")
 
 
