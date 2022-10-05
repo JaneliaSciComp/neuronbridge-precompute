@@ -1,7 +1,7 @@
 ''' This program will use JSON data to update neuronbridge.publishedURL and create
     an order file to upload imagery to AWS S3.
 '''
-__version__ = '2.0.1'
+__version__ = '2.1.0'
 
 import argparse
 from copy import deepcopy
@@ -13,6 +13,7 @@ import re
 import socket
 import sys
 from time import strftime, time
+from types import SimpleNamespace
 import boto3
 from botocore.exceptions import ClientError
 import colorlog
@@ -28,16 +29,8 @@ import neuronbridge_lib as NB
 
 
 # Configuration
-CONFIG = {'config': {'url': os.environ.get('CONFIG_SERVER_URL')}}
-AWS = {}
-CLOAD = {}
 LIBRARY = {}
 MANIFOLDS = ['dev', 'prod', 'devpre', 'prodpre']
-PUBLISHED_COL = ["_id", "tags", "mipId", "alignmentSpace", "libraryName", "publishedName",
-                 "sampleRef", "slideCode", "anatomicalArea", "gender", "objective", "name",
-                 "uploaded"]
-SKELETONS = ['SkeletonOBJ', 'SkeletonSWC']
-VARIANTS = ["gradient", "searchable_neurons", "zgap"]
 REQUIRED_PRODUCTS = ['cdm', 'cdm_thumbnail']
 WILL_LOAD = []
 # Database
@@ -102,11 +95,12 @@ def call_responder(server, endpoint, payload='', authenticate=False):
         Returns:
           JSON response
     '''
+    url = ((getattr(getattr(REST, server), "url") if server else "") if "REST" in globals() \
+           else (os.environ.get('CONFIG_SERVER_URL') if server else "")) + endpoint
     if not server in TRANSACTIONS:
         TRANSACTIONS[server] = 1
     else:
         TRANSACTIONS[server] += 1
-    url = (CONFIG[server]['url'] if server else '') + endpoint
     try:
         if payload or authenticate:
             headers = {"Content-Type": "application/json",
@@ -141,7 +135,7 @@ def db_connect(dbd):
         Keyword arguments:
           dbd: database dictionary
     """
-    LOGGER.info(f"Connecting to {dbd['name']} on {dbd['host']}")
+    LOGGER.info("Connecting to %s on %s ", dbd['name'], dbd['host'])
     try:
         conn = MySQLdb.connect(host=dbd['host'], user=dbd['user'],
                                passwd=dbd['password'], db=dbd['name'])
@@ -180,7 +174,7 @@ def initialize_s3():
         S3_RESOURCE = boto3.resource('s3')
     else:
         sts_client = boto3.client('sts')
-        aro = sts_client.assume_role(RoleArn=AWS['role_arn'],
+        aro = sts_client.assume_role(RoleArn=AWS.role_arn,
                                      RoleSessionName="AssumeRoleSession1",
                                      DurationSeconds=S3_SECONDS)
         credentials = aro['Credentials']
@@ -230,14 +224,14 @@ def get_parms():
         if ARG.SOURCE == 'file':
             ARG.NEURONBRIDGE = NB.get_neuronbridge_version_from_file()
         else:
-            ARG.NEURONBRIDGE =  NB.get_neuronbridge_version(coll, ARG.LIBRARY)
+            ARG.NEURONBRIDGE = NB.get_neuronbridge_version(coll, ARG.LIBRARY)
             if ARG.NEURONBRIDGE:
                 ARG.NEURONBRIDGE = "v" + ARG.NEURONBRIDGE
         if not ARG.NEURONBRIDGE:
             terminate_program("No NeuronBridge version selected")
     if not ARG.JSON and ARG.SOURCE == 'file':
         print("Select a JSON file:")
-        json_base = CLOAD['json_dir'] + f"/{ARG.NEURONBRIDGE}"
+        json_base = CLOAD.json_dir + f"/{ARG.NEURONBRIDGE}"
         jsonlist = list(map(lambda jfile: jfile.split('/')[-1],
                             glob.glob(json_base + "/*.json")))
         jsonlist.sort()
@@ -257,7 +251,7 @@ def set_searchable_subdivision(smp):
     """
     if "alignmentSpace" not in smp:
         terminate_program("Could not find alignment space in first sample")
-    bucket = AWS["s3_bucket"]["cdm"]
+    bucket = AWS.s3_bucket.cdm
     if ARG.INTERNAL:
         bucket += '-int'
     elif ARG.MANIFOLD != 'prod':
@@ -274,10 +268,10 @@ def set_searchable_subdivision(smp):
             if num.isdigit() and int(num) > maxnum:
                 maxnum = int(num)
     SUBDIVISION['prefix'] = maxnum + 1
-    LOGGER.warning("Will upload searchable neurons starting with subdivision " \
-                   + f"{SUBDIVISION['prefix']}")
+    LOGGER.warning("Will upload searchable neurons starting with subdivision %s",
+                   SUBDIVISION['prefix'])
     CONF['ALIGNMENT_SPACE'] = smp["alignmentSpace"]
-    LOGGER.info(f"Alignment space set to {CONF['ALIGNMENT_SPACE']}")
+    LOGGER.info("Alignment space set to %s", CONF['ALIGNMENT_SPACE'])
 
 
 def select_uploads():
@@ -288,7 +282,7 @@ def select_uploads():
             None
     """
     global WILL_LOAD, REQUIRED_PRODUCTS # pylint: disable=W0603
-    choices = VARIANTS
+    choices = CLOAD.variants
     defaults = ["searchable_neurons"]
     if "flyem_" in ARG.LIBRARY:
         choices.append("skeletons")
@@ -297,18 +291,26 @@ def select_uploads():
                                message='Select image types to upload',
                                choices=choices, default=defaults)]
     WILL_LOAD = inquirer.prompt(quest)['checklist']
-    for var in VARIANTS:
+    for var in CLOAD.variants:
         if var in WILL_LOAD and var != "skeletons":
             REQUIRED_PRODUCTS.append(var)
+
+
+def create_config_object(config):
+    """ Convert the JSON received from a configuration to an object
+        Keyword arguments:
+          config: configuration name
+        Returns:
+          Configuration object
+    """
+    data = (call_responder("config", f"config/{config}"))["config"]
+    return json.loads(json.dumps(data), object_hook=lambda dat: SimpleNamespace(**dat))
 
 
 def initialize_program():
     """ Initialize
     """
-    global AWS, CLOAD, CONFIG, DBM, LIBRARY # pylint: disable=W0603
-    CONFIG = (call_responder('config', 'config/rest_services'))["config"]
-    CLOAD = (call_responder('config', 'config/upload_cdms'))["config"]
-    AWS = (call_responder('config', 'config/aws'))["config"]
+    global DBM, LIBRARY # pylint: disable=W0603
     LIBRARY = (call_responder('config', 'config/cdm_library'))["config"]
     for tok in ['JACS_JWT', 'NEUPRINT_JWT']:
         if tok not in os.environ:
@@ -373,7 +375,7 @@ def get_s3_names(bucket, newname):
     elif ARG.MANIFOLD != 'prod':
         bucket += '-' + ARG.MANIFOLD
     library = LIBRARY[ARG.LIBRARY]['name'].replace(' ', '_')
-    if ARG.LIBRARY in CLOAD['version_required']:
+    if ARG.LIBRARY in CLOAD.version_required:
         library += '_v' + ARG.VERSION
     object_name = '/'.join([REC['alignment_space'], library, newname])
     return bucket, object_name
@@ -393,7 +395,7 @@ def upload_aws(bucket, dirpath, fname, newname, force=False):
     '''
     complete_fpath = '/'.join([dirpath, fname])
     bucket, object_name = get_s3_names(bucket, newname)
-    url = '/'.join([AWS['base_aws_url'], bucket, object_name])
+    url = '/'.join([AWS.base_aws_url, bucket, object_name])
     url = url.replace(' ', '+')
     if object_name in UPLOADED_NAME:
         if complete_fpath != UPLOADED_NAME[object_name]:
@@ -412,10 +414,10 @@ def upload_aws(bucket, dirpath, fname, newname, force=False):
         KEY_LIST.append(object_name)
     if (not ARG.WRITE) and (not os.path.exists(complete_fpath)):
         terminate_program(f"File {complete_fpath} does not exist")
-    LOGGER.debug(f"Uploading {complete_fpath} to S3 as {object_name}")
+    LOGGER.debug("Uploading %s to S3 as %s", complete_fpath, object_name)
     S3CP.write(f"{complete_fpath}\t{'/'.join([bucket, object_name])}\n")
     if ARG.AWS:
-        LOGGER.info(f"Upload {object_name}")
+        LOGGER.info("Upload %s", object_name)
     COUNT['Images processed'] += 1
     if (not ARG.AWS) and (not force):
         return url, False
@@ -500,7 +502,7 @@ def backcheck(data):
         jacs[smp['sourceRefId'].split("#")[-1]] = True
     for sid in RELEASE:
         if sid not in jacs:
-            LOGGER.error(f"Sample {sid} ({RELEASE[sid]}) is not in {ARG.LIBRARY}")
+            LOGGER.error("Sample %s (%s) is not in %s", sid, RELEASE[sid], ARG.LIBRARY)
     terminate_program("Backcheck performed")
 
 
@@ -513,7 +515,7 @@ def convert_file(sourcepath, newname):
           New filepath
     '''
     LOGGER.debug("Converting %s to %s", sourcepath, newname)
-    newpath = CLOAD['temp_dir']+ newname
+    newpath = CLOAD.temp_dir + newname
     with Image.open(sourcepath) as image:
         image.save(newpath, 'PNG')
     return newpath
@@ -633,7 +635,7 @@ def process_light(smp):
                 terminate_program(err_text)
             return False
         drv = DRIVER[publishing_name]
-        if drv not in CLOAD['drivers']:
+        if drv not in CLOAD.drivers:
             COUNT['Bad driver'] += 1
             err_text = f"Bad driver for sample {sid} ({publishing_name})"
             ERR.write(err_text + "\n")
@@ -703,12 +705,12 @@ def produce_thumbnail(dirpath, fname, newname, url):
           thumbnail url
     '''
     turl = url.replace('.png', '.jpg')
-    turl = turl.replace(AWS['s3_bucket']['cdm'], AWS['s3_bucket']['cdm-thumbnail'])
+    turl = turl.replace(AWS.s3_bucket.cdm, getattr(AWS.s3_bucket, "cdm-thumbnail"))
     if CREATE_THUMBNAIL:
         tname = newname.replace('.png', '.jpg')
         complete_fpath = '/'.join([dirpath, fname])
         resize_image(complete_fpath, '/tmp/' + tname)
-        turl, _ = upload_aws(AWS['s3_bucket']['cdm-thumbnail'], '/tmp', tname, tname)
+        turl, _ = upload_aws(getattr(AWS.s3_bucket, "cdm-thumbnail"), '/tmp', tname, tname)
     return turl
 
 
@@ -772,7 +774,7 @@ def upload_flyem_variants(smp, newname):
         return
     fbase = newname.split('.')[0]
     for variant in smp['variants']:
-        if variant not in VARIANTS:
+        if variant not in CLOAD.variants:
             terminate_program(f"Unknown variant {variant}")
         if variant not in WILL_LOAD:
             continue
@@ -788,7 +790,7 @@ def upload_flyem_variants(smp, newname):
             ancname = ancname.replace('searchable_neurons/',
                                       f"searchable_neurons/{str(SUBDIVISION['prefix'])}/")
             SUBDIVISION['counter'] += 1
-        url, _ = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, ancname)
+        url, _ = upload_aws(AWS.s3_bucket.cdm, dirpath, fname, ancname)
         add_searchable_neuron(smp, url)
         if variant not in VARIANT_UPLOADS:
             VARIANT_UPLOADS[variant] = 1
@@ -803,14 +805,14 @@ def upload_flyem_skeletons(smp):
         Returns:
           None
     '''
-    for stype in SKELETONS:
+    for stype in CLOAD.skeletons:
         if stype not in smp['computeFiles']:
             continue
         dirpath = os.path.dirname(smp['computeFiles'][stype])
         fname = os.path.basename(smp['computeFiles'][stype])
         s3type = stype.replace("Skeleton", "").lower()
         newname = "/".join([s3type.upper(), smp['publishedName'] + "." + s3type])
-        url, _ = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
+        url, _ = upload_aws(AWS.s3_bucket.cdm, dirpath, fname, newname)
         smp['uploaded'][stype.lower()] = url
 
 
@@ -827,7 +829,7 @@ def upload_flylight_variants(smp, newname):
         return
     fbase = newname.split('.')[0]
     for variant in smp['variants']:
-        if variant not in VARIANTS:
+        if variant not in CLOAD.variants:
             terminate_program(f"Unknown variant {variant}")
         if variant not in WILL_LOAD:
             continue
@@ -856,8 +858,8 @@ def upload_flylight_variants(smp, newname):
             ancname = ancname.replace('searchable_neurons/',
                                       f"searchable_neurons/{str(SUBDIVISION['prefix'])}/")
             SUBDIVISION['counter'] += 1
-        url, _ = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, ancname)
-        add_searchable_neuron(smp,url)
+        url, _ = upload_aws(AWS.s3_bucket.cdm, dirpath, fname, ancname)
+        add_searchable_neuron(smp, url)
         if variant not in VARIANT_UPLOADS:
             VARIANT_UPLOADS[variant] = 1
         else:
@@ -881,7 +883,7 @@ def check_image(smp):
         sid = (smp['sampleRef'].split('#'))[-1]
         if sid not in RELEASE:
             if sid not in NO_RELEASE:
-                LOGGER.warning(f"SID {sid} has no release")
+                LOGGER.warning("SID %s has no release", sid)
                 NO_RELEASE[sid] = True
             COUNT['Missing release'] += 1
             return False
@@ -912,14 +914,14 @@ def upload_primary(smp, newname):
     '''
     dirpath = os.path.dirname(smp['filepath'])
     fname = os.path.basename(smp['filepath'])
-    url, skipped = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
+    url, skipped = upload_aws(AWS.s3_bucket.cdm, dirpath, fname, newname)
     if url:
         # Always write CDM URLs to smp[uploaded]
         if "uploaded" not in smp:
             smp['uploaded'] = {}
-        smp['uploaded']['cdm'] =  url
+        smp['uploaded']['cdm'] = url
         turl = produce_thumbnail(dirpath, fname, newname, url)
-        smp['uploaded']['cdm_thumbnail'] =  turl
+        smp['uploaded']['cdm_thumbnail'] = turl
         if not skipped:
             if ARG.WRITE:
                 if ARG.AWS and ('flyem_' in ARG.LIBRARY):
@@ -992,7 +994,7 @@ def handle_variants(smp, newname):
         #newname = 'searchable_neurons/' + newname
         #dirpath = os.path.dirname(smp['filepath'])
         #fname = os.path.basename(smp['filepath'])
-        #url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
+        #url = upload_aws(AWS.s3_bucket.cdm, dirpath, fname, newname)
     else:
         upload_flylight_variants(smp, newname)
 
@@ -1064,7 +1066,7 @@ def add_image_to_mongo(smp):
     '''
     coll = DBM.publishedURL
     payload = {}
-    for col in PUBLISHED_COL:
+    for col in CLOAD.published_col:
         if col in smp:
             payload[col] = deepcopy(smp[col])
     if "alpsRelease" in smp:
@@ -1076,7 +1078,7 @@ def add_image_to_mongo(smp):
     if result.inserted_id == smp['_id']:
         COUNT["Mongo insertions"] += 1
     else:
-        LOGGER.error(f"Could not insert {smp['_id']} into Mongo")
+        LOGGER.error("Could not insert %s into Mongo", smp['_id'])
 
 
 def remap_sample(smp):
@@ -1125,9 +1127,8 @@ def upload_cdms():
         if ARG.NEUPRINT:
             CONF['DATASET'] = ARG.NEUPRINT
         else:
-            if "pre" in ARG.MANIFOLD:
-                CONFIG['neuprint']['url'] = CONFIG['neuprint']['url'].replace("neuprint", "neuprint-pre")
-            response = call_responder('neuprint', 'dbmeta/datasets', {}, True)
+            which = "neuprint-pre" if "pre" in ARG.MANIFOLD else "neuprint"
+            response = call_responder(which, 'dbmeta/datasets', {}, True)
             datasets = list(response.keys())
             print(datasets)
             for dset in datasets:
@@ -1169,7 +1170,7 @@ def upload_cdms():
             handle_variants(smp, newname)
             for product in REQUIRED_PRODUCTS:
                 if product not in smp['uploaded']:
-                    LOGGER.error(f"Missing {product} for {smp['_id']}")
+                    LOGGER.error("Missing %s for %s", product, smp['_id'])
             json_out.append(smp)
             if ARG.WRITE:
                 add_image_to_mongo(smp)
@@ -1206,7 +1207,7 @@ def update_library_config():
     LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['method'] = 'JSON file' \
         if ARG.SOURCE == 'file' else 'MongoDB'
     if ARG.WRITE or ARG.CONFIG:
-        resp = requests.post(CONFIG['config']['url'] + 'importjson/cdm_library/' + ARG.LIBRARY,
+        resp = requests.post(REST.config.url + 'importjson/cdm_library/' + ARG.LIBRARY,
                              {"config": json.dumps(LIBRARY[ARG.LIBRARY])})
         if resp.status_code != 200:
             LOGGER.error(resp.json()['rest']['message'])
@@ -1279,6 +1280,9 @@ if __name__ == '__main__':
     LOGGER.addHandler(HANDLER)
 
     S3CP = ERR = ''
+    REST = create_config_object("rest_services")
+    AWS = create_config_object("aws")
+    CLOAD = create_config_object("upload_cdms")
     initialize_program()
     STAMP = strftime("%Y%m%dT%H%M%S")
     ERR_FILE = f"{ARG.LIBRARY}_errors_{STAMP}.txt"
