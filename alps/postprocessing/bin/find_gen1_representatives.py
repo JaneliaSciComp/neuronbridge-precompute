@@ -296,7 +296,7 @@ def set_payload(pname, result, obj):
                "ownerKey": obj["tiles"][0]["lsmReferences"][0]["ownerKey"],
                "readers": obj["tiles"][0]["lsmReferences"][0]["readers"],
                "writers": obj["tiles"][0]["lsmReferences"][0]["writers"],
-               "class": "org.janelia.model.domain.sample.PublishedImage",
+               "class": "org.janelia.model.domain.sample.PublishedLMImage",
                "creationDate": dtm, "updateDate": dtm}
     return payload
 
@@ -439,7 +439,7 @@ def process_imagery():
         Returns:
           None
     """
-    coll = DBM.publishedImage
+    coll = DBM.publishedLMImage
     if ARG.WRITE:
         delete_existing(coll)
     try:
