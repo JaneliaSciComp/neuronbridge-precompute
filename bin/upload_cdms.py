@@ -1207,6 +1207,15 @@ def update_library_config():
     LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['method'] = 'JSON file' \
         if ARG.SOURCE == 'file' else 'MongoDB'
     if ARG.WRITE or ARG.CONFIG:
+        NB.update_library_status(coll,
+                                 library=ARG.LIBRARY,
+                                 manifold=ARG.MANIFOLD,
+                                 method="MongoDB",
+                                 source="neuronMetadata",
+                                 images=COUNT['Samples'],
+                                 samples=COUNT['Images processed'],
+                                 updatedBy= CONF['FULL_NAME'])
+        return
         resp = requests.post(REST.config.url + 'importjson/cdm_library/' + ARG.LIBRARY,
                              {"config": json.dumps(LIBRARY[ARG.LIBRARY])})
         if resp.status_code != 200:
