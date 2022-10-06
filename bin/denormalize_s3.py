@@ -17,20 +17,32 @@ import os
 import random
 import sys
 import tempfile
+from types import SimpleNamespace
 import colorlog
 import boto3
 from botocore.exceptions import ClientError
 import requests
+from tqdm import tqdm
 import neuronbridge_lib as NB
 
 __version__ = '1.1.1'
 # Configuration
-CONFIG = {'config': {'url': os.environ.get('CONFIG_SERVER_URL')}}
-AWS = CDM = dict()
 KEYFILE = "keys_denormalized.json"
 COUNTFILE = "counts_denormalized.json"
 DISTRIBUTE_FILES = ['searchable_neurons']
 TAGS = 'PROJECT=CDCS&STAGE=prod&DEVELOPER=svirskasr&VERSION=%s' % (__version__)
+
+
+def terminate_program(msg=None):
+    """ Log an optional error to output, close files, and exit
+        Keyword arguments:
+          err: error message
+        Returns:
+           None
+    """
+    if msg:
+        LOGGER.critical(msg)
+    sys.exit(-1 if msg else 0)
 
 
 def call_responder(server, endpoint):
@@ -39,28 +51,32 @@ def call_responder(server, endpoint):
         server: server
         endpoint: REST endpoint
     """
-    url = CONFIG[server]['url'] + endpoint
+    url = ((getattr(getattr(REST, server), "url") if server else "") if "REST" in globals() \
+           else (os.environ.get('CONFIG_SERVER_URL') if server else "")) + endpoint
     try:
         req = requests.get(url)
     except requests.exceptions.RequestException as err:
         LOGGER.critical(err)
         sys.exit(-1)
     if req.status_code != 200:
-        LOGGER.error('Status: %s (%s)', str(req.status_code), url)
-        sys.exit(-1)
+        terminate_program(f"Status: {str(req.status_code)} ({url})")
     return req.json()
+
+
+def create_config_object(config):
+    """ Convert the JSON received from a configuration to an object
+        Keyword arguments:
+          config: configuration name
+        Returns:
+          Configuration object
+    """
+    data = (call_responder("config", f"config/{config}"))["config"]
+    return json.loads(json.dumps(data), object_hook=lambda dat: SimpleNamespace(**dat))
 
 
 def initialize_program():
     """ Initialize
     """
-    global AWS, CDM, CONFIG # pylint: disable=W0603
-    data = call_responder('config', 'config/rest_services')
-    CONFIG = data['config']
-    data = call_responder('config', 'config/aws')
-    AWS = data['config']
-    data = call_responder('config', 'config/cdm_library')
-    CDM = data['config']
     random.seed()
 
 
@@ -73,7 +89,7 @@ def upload_to_aws(s3r, body, object_name):
         Returns:
           None
     """
-    if ARG.TEST:
+    if not ARG.WRITE:
         LOGGER.warning("Would have uploaded %s", object_name)
         return
     LOGGER.info("Uploading %s", object_name)
@@ -121,8 +137,9 @@ def get_parms(s3_client):
         Returns:
             None
     """
+    cdm = (call_responder('config', 'config/cdm_library'))["config"]
     if not ARG.LIBRARY:
-        ARG.LIBRARY = NB.get_library(CDM)
+        ARG.LIBRARY = NB.get_library_from_aws(cdm)
         if not ARG.LIBRARY:
             LOGGER.error("No library selected")
             sys.exit(0)
@@ -133,12 +150,14 @@ def get_parms(s3_client):
             LOGGER.error("No alignment template selected")
             sys.exit(0)
         print(ARG.TEMPLATE)
-    for cdmlib in CDM:
-        if CDM[cdmlib]['name'].replace(' ', '_') == ARG.LIBRARY:
-            for jsonfile in CDM[cdmlib][ARG.MANIFOLD]:
-                print("Library %s was last modified on %s on %s"
-                      % (CDM[cdmlib]['name'], ARG.MANIFOLD,
-                         CDM[cdmlib][ARG.MANIFOLD][jsonfile]['updated']))
+    for cdmlib in cdm:
+        if cdm[cdmlib]['name'].replace(' ', '_') == ARG.LIBRARY:
+            for jsonfile in cdm[cdmlib][ARG.MANIFOLD]:
+                rec = cdm[cdmlib][ARG.MANIFOLD][jsonfile]
+                if rec is dict and "updated" in rec and rec["updated"]:
+                    print("Library %s was last modified on %s on %s"
+                          % (cdm[cdmlib]['name'], ARG.MANIFOLD,
+                             rec['updated']))
             break
 
 
@@ -151,7 +170,7 @@ def initialize_s3():
     """
     if ARG.MANIFOLD == 'prod':
         sts_client = boto3.client('sts')
-        aro = sts_client.assume_role(RoleArn=AWS['role_arn'],
+        aro = sts_client.assume_role(RoleArn=AWS.role_arn,
                                      RoleSessionName="AssumeRoleSession1")
         credentials = aro['Credentials']
         s3_client = boto3.client('s3',
@@ -186,13 +205,16 @@ def populate_batch_dict(s3_client, prefix):
     for which in DISTRIBUTE_FILES:
         max_batch[which] = 0
         first_batch[which] = 0
+    keys = []
     for obj in NB.get_all_s3_objects(s3_client, Bucket=ARG.BUCKET, Prefix=prefix):
         if KEYFILE in obj['Key'] or COUNTFILE in obj['Key'] or "pngs" in obj['Key'] \
            or obj['Key'].endswith("/"):
             continue
+        keys.append( obj['Key'])
+    for key in tqdm(keys, desc="Keys"):
         which = 'default'
-        LOGGER.debug(obj['Key'])
-        splitkey = obj['Key'].split('/')
+        LOGGER.debug(key)
+        splitkey = key.split('/')
         if len(splitkey) >= 4:
             which = splitkey[2]
         if which not in key_list:
@@ -201,14 +223,14 @@ def populate_batch_dict(s3_client, prefix):
             total_objects[which] = 0
         # Skip here
         if which == 'searchable_neurons':
-            fname = obj['Key'].split("/")[-1]
+            fname = key.split("/")[-1]
             if fname in EXCLUSION:
                 skipped_objects += 1
                 continue
         total_objects[which] += 1
-        key_list[which].append(obj['Key'])
+        key_list[which].append(key)
         if which in DISTRIBUTE_FILES:
-            num = int(obj['Key'].split("/")[3])
+            num = int(key.split("/")[3])
             if not first_batch[which]:
                 first_batch[which] = num
             if num > max_batch[which]:
@@ -283,13 +305,13 @@ def denormalize():
         LOGGER.info("Uploading %s count file (%d)", which, batch_dict['count'][which])
         upload_to_aws(s3_resource, json.dumps({"objectCount": batch_dict['count'][which]},
                                               indent=4), object_name)
-    if not ARG.TEST:
+    if ARG.WRITE:
         LOGGER.info("Updating DynamoDB")
         dynamodb = boto3.resource('dynamodb')
         table = 'janelia-neuronbridge-denormalization-%s' % (ARG.MANIFOLD)
         table = dynamodb.Table(table)
         table.put_item(Item=payload)
-    if order_file:
+    if order_file and ARG.WRITE:
         print("Order files must be processed with s3cp to upload the key file to S3:")
         for order in order_file:
             print("  python3 s3cp.py --order " + order)
@@ -305,11 +327,11 @@ if __name__ == '__main__':
     PARSER.add_argument('--library', dest='LIBRARY', action='store',
                         default='', help='Library')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
-                        default='dev', help='S3 manifold')
+                        default='prod', help='S3 manifold')
     PARSER.add_argument('--exclusion', dest='EXCLUSION', action='store',
                         help='Exclusion file')
-    PARSER.add_argument('--test', dest='TEST', action='store_true',
-                        default=False, help='Test mode (do not write to bucket)')
+    PARSER.add_argument('--write', dest='WRITE', action='store_true',
+                        default=False, help='Write mode (write to bucket)')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
                         default=False, help='Flag, Chatty')
     PARSER.add_argument('--debug', dest='DEBUG', action='store_true',
@@ -326,6 +348,8 @@ if __name__ == '__main__':
     HANDLER = colorlog.StreamHandler()
     HANDLER.setFormatter(colorlog.ColoredFormatter())
     LOGGER.addHandler(HANDLER)
+    REST = create_config_object("rest_services")
+    AWS = create_config_object("aws")
     initialize_program()
     # Exclusions
     EXCLUSION = dict()
