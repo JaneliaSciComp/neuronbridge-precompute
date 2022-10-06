@@ -173,3 +173,39 @@ def generate_jacs_uid(deployment_context=2, last_uid=None):
         sys.exit(-1)
     return next_uid
 
+
+def update_library_status(coll, **kwargs):
+    if "library" not in kwargs:
+        print("A library is required for update_library_status")
+        return False
+    if "manifold" not in kwargs:
+        kwargs["manifold"] = "prod"
+    if "method" not in kwargs:
+        kwargs["method"] = "MongoDB"
+        kwargs["source"] = "neuronMetadata"
+    if "source" not in kwargs:
+        if kwargs["method"] == "MongoDB":
+            kwargs["source"] = "neuronMetadata"
+        else:
+            print("A source is required for update_library_status")
+            return False
+    for arg in ["images", "samples"]:
+        if arg not in kwargs:
+            kwargs[arg] = 0
+    if "updateDate" not in kwargs:
+        payload["updateDate"] = datetime.now()
+    payload = {}
+    for arg in ["images", "library", "manifold", "method",
+                "samples", "source", "updateDate"]:
+        payload[arg] = kwargs[arg]
+    for arg in ["updatedBy"]:
+        if arg in kwargs:
+            payload[arg] = kwargs[arg]
+    print(payload)
+    return True
+    result = coll.insert_one(payload)
+    if result.inserted_id:
+        return True
+    else:
+        print("Could not insert record into Mongo")
+        return False
