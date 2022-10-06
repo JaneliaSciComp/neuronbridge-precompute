@@ -51,7 +51,6 @@ COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'Missing co
          'Bad driver': 0, 'Duplicate objects': 0, 'Unparsable files': 0, 'Updated on JACS': 0,
          'Mongo insertions': 0,
          'FlyEM flips': 0, 'Images processed': 0, 'Missing release': 0, 'Skipped release': 0}
-TRANSACTIONS = {}
 # Searchable neurons
 SUBDIVISION = {'prefix': 1, 'counter': 0, 'limit': 100}
 # File naming
@@ -97,10 +96,6 @@ def call_responder(server, endpoint, payload='', authenticate=False):
     '''
     url = ((getattr(getattr(REST, server), "url") if server else "") if "REST" in globals() \
            else (os.environ.get('CONFIG_SERVER_URL') if server else "")) + endpoint
-    if not server in TRANSACTIONS:
-        TRANSACTIONS[server] = 1
-    else:
-        TRANSACTIONS[server] += 1
     try:
         if payload or authenticate:
             headers = {"Content-Type": "application/json",
@@ -187,44 +182,62 @@ def initialize_s3():
                                      aws_secret_access_key=credentials['SecretAccessKey'],
                                      aws_session_token=credentials['SessionToken'])
 
-
-def get_parms():
-    """ Query the user for the CDM library and manifold
+def get_library():
+    """ Query the user for the CDM library
         Keyword arguments:
             None
         Returns:
             None
     """
+    coll = DBM.cdmLibraryStatus
+    payload = [{"$group": {"_id": "$library",
+                           "doc": {"$max": {"updateDate": "$updateDate",
+                                            "library": "$library",
+                                            "manifold": "$manifold"}}}},
+               {"$replaceRoot": {"newRoot": "$doc"}}]
+    result = coll.aggregate(payload)
+    updated = {}
+    for row in result:
+        updated[row["library"]] = {"manifold": row["manifold"],
+                                   "updateDate": row["updateDate"].strftime("%Y-%m-%d %H:%M:%S")}
     coll = DBM.neuronMetadata
+    if ARG.SOURCE == 'mongo':
+        mongo_libs = coll.distinct("libraryName")
+    print("Select a library:")
+    cdmlist = []
+    liblist = []
+    for cdmlib in LIBRARY:
+        if ARG.MANIFOLD not in LIBRARY[cdmlib]:
+            LIBRARY[cdmlib][ARG.MANIFOLD] = {'updated': None}
+        if ARG.SOURCE == 'mongo' and cdmlib not in mongo_libs:
+            continue
+        liblist.append(cdmlib)
+        text = cdmlib
+        if cdmlib in updated:
+            text += f" (updated {updated[cdmlib]['updateDate']} on " \
+                    + f"{updated[cdmlib]['manifold']})"
+        cdmlist.append(text)
+    terminal_menu = TerminalMenu(cdmlist)
+    chosen = terminal_menu.show()
+    if chosen is None:
+        terminate_program("No library selected")
+    ARG.LIBRARY = liblist[chosen].replace(' ', '_')
+
+
+def get_parms():
+    """ Query the user for the CDM library, version, and JSON file
+        Keyword arguments:
+            None
+        Returns:
+            None
+    """
     if not ARG.LIBRARY:
-        if ARG.SOURCE == 'mongo':
-            mongo_libs = coll.distinct("libraryName")
-        print("Select a library:")
-        cdmlist = []
-        liblist = []
-        for cdmlib in LIBRARY:
-            if ARG.MANIFOLD not in LIBRARY[cdmlib]:
-                LIBRARY[cdmlib][ARG.MANIFOLD] = {'updated': None}
-            if ARG.SOURCE == 'mongo' and cdmlib not in mongo_libs:
-                continue
-            liblist.append(cdmlib)
-            text = cdmlib
-            if 'updated' in LIBRARY[cdmlib][ARG.MANIFOLD] and \
-               LIBRARY[cdmlib][ARG.MANIFOLD]['updated'] \
-               and "0000-00-00" not in LIBRARY[cdmlib][ARG.MANIFOLD]['updated']:
-                text += f" (last updated {LIBRARY[cdmlib][ARG.MANIFOLD]['updated']} " \
-                        + f"on {ARG.MANIFOLD})"
-            cdmlist.append(text)
-        terminal_menu = TerminalMenu(cdmlist)
-        chosen = terminal_menu.show()
-        if chosen is None:
-            terminate_program("No library selected")
-        ARG.LIBRARY = liblist[chosen].replace(' ', '_')
+        get_library()
     if not ARG.NEURONBRIDGE:
         if ARG.SOURCE == 'file':
             ARG.NEURONBRIDGE = NB.get_neuronbridge_version_from_file()
         else:
-            ARG.NEURONBRIDGE = NB.get_neuronbridge_version(coll, ARG.LIBRARY)
+            ARG.NEURONBRIDGE = NB.get_neuronbridge_version(DBM.neuronMetadata, ARG.LIBRARY)
             if ARG.NEURONBRIDGE:
                 ARG.NEURONBRIDGE = "v" + ARG.NEURONBRIDGE
         if not ARG.NEURONBRIDGE:
@@ -240,6 +253,26 @@ def get_parms():
         if chosen is None:
             terminate_program("No JSON file selected")
         ARG.JSON = '/'.join([json_base, jsonlist[chosen]])
+
+
+def get_flyem_dataset():
+    """ Set FlyEM dataset and version
+        Keyword arguments:
+            None
+        Returns:
+            None
+    """
+    if ARG.NEUPRINT:
+        CONF['DATASET'] = ARG.NEUPRINT
+    else:
+        which = "neuprint-pre" if "pre" in ARG.MANIFOLD else "neuprint"
+        response = call_responder(which, 'dbmeta/datasets', {}, True)
+        datasets = list(response.keys())
+        for dset in datasets:
+            if ARG.LIBRARY.endswith(dset.replace(":v", "_").replace(".", "_")):
+                CONF['DATASET'] = dset
+    if 'DATASET' not in CONF:
+        terminate_program(f"Could not find NeuPrint dataset for {ARG.LIBRARY}")
 
 
 def set_searchable_subdivision(smp):
@@ -605,27 +638,14 @@ def get_smp_info(smp):
     return sid, publishing_name
 
 
-def process_light(smp):
-    ''' Return the file name for a light microscopy sample.
+def driver_check(publishing_name, sid):
+    ''' Check that the driver is valid
         Keyword arguments:
-          smp: sample record
+          publishing_name: publishing name
+          sid: sample ID
         Returns:
-          New file name
+          Driver name (or False for error)
     '''
-    sid, publishing_name = get_smp_info(smp)
-    if not sid:
-        return False
-    REC['line'] = publishing_name
-    missing = []
-    for check in ['slideCode', 'gender', 'objective', 'anatomicalArea']:
-        if check not in smp or not smp[check]:
-            missing.append(check)
-    if missing:
-        terminate_program(f"Missing columns for sample {smp['sampleRef']}: {', '.join(missing)}")
-    REC['slide_code'] = smp['slideCode']
-    REC['gender'] = smp['gender']
-    REC['objective'] = smp['objective']
-    REC['area'] = smp['anatomicalArea'].lower()
     if publishing_name in DRIVER:
         if not DRIVER[publishing_name]:
             COUNT['No driver'] += 1
@@ -649,6 +669,33 @@ def process_light(smp):
         ERR.write(err_text + "\n")
         #if ARG.WRITE: PLUG
         #    terminate_program(err_text)
+        return False
+    return drv
+
+
+def process_light(smp):
+    ''' Return the file name for a light microscopy sample.
+        Keyword arguments:
+          smp: sample record
+        Returns:
+          New file name
+    '''
+    sid, publishing_name = get_smp_info(smp)
+    if not sid:
+        return False
+    REC['line'] = publishing_name
+    missing = []
+    for check in ['slideCode', 'gender', 'objective', 'anatomicalArea']:
+        if check not in smp or not smp[check]:
+            missing.append(check)
+    if missing:
+        terminate_program(f"Missing columns for sample {smp['sampleRef']}: {', '.join(missing)}")
+    REC['slide_code'] = smp['slideCode']
+    REC['gender'] = smp['gender']
+    REC['objective'] = smp['objective']
+    REC['area'] = smp['anatomicalArea'].lower()
+    drv = driver_check(publishing_name, sid)
+    if not drv:
         return False
     fname = os.path.basename(smp['filepath'])
     if 'gamma' in fname:
@@ -712,23 +759,6 @@ def produce_thumbnail(dirpath, fname, newname, url):
         resize_image(complete_fpath, '/tmp/' + tname)
         turl, _ = upload_aws(getattr(AWS.s3_bucket, "cdm-thumbnail"), '/tmp', tname, tname)
     return turl
-
-
-def update_jacs(sid, url, turl):
-    ''' Update a sample in JACS with URL and thumbnail URL for viewable image
-        Keyword arguments:
-          sid: sample ID
-          url: image URL
-          turl: thumbnail URL
-        Returns:
-          None
-    '''
-    pay = {"class": "org.janelia.model.domain.gui.cdmip.ColorDepthImage",
-           "publicImageUrl": url,
-           "publicThumbnailUrl": turl}
-    call_responder('jacsv2', 'colorDepthMIPs/' + sid \
-                   + '/publicURLs', pay, True)
-    COUNT['Updated on JACS'] += 1
 
 
 def set_name_and_filepath(smp):
@@ -926,7 +956,6 @@ def upload_primary(smp, newname):
             if ARG.WRITE:
                 if ARG.AWS and ('flyem_' in ARG.LIBRARY):
                     os.remove(smp['filepath'])
-                #update_jacs(smp['_id'], url, turl)
             elif ARG.AWS:
                 LOGGER.info("Primary %s", url)
     elif ARG.WRITE:
@@ -1109,6 +1138,25 @@ def remap_sample(smp):
             smp['variants']['gradient'] = smp['computeFiles']['GradientImage']
 
 
+def write_output_files(json_out, names_out):
+    ''' Produce output files
+        Keyword arguments:
+          json_out: JSON output
+          names_out: names to output
+        Returns:
+          None
+    '''
+    if ARG.SOURCE == 'mongo' and json_out:
+        LOGGER.info("Writing JSON file")
+        with open(JSONO_FILE, 'w', encoding='ascii') as jsonfile:
+            jsonfile.write(json.dumps(json_out, indent=4, default=str))
+    if names_out:
+        LOGGER.info("Writing names file")
+        with open(NAMES_FILE, 'w', encoding='ascii') as namefile:
+            for pname in names_out:
+                namefile.write(f"{pname}\n")
+
+
 def upload_cdms():
     ''' Upload color depth MIPs and other files to AWS S3.
         The list of color depth MIPs comes from a supplied JSON file.
@@ -1123,19 +1171,7 @@ def upload_cdms():
     if not entries:
         terminate_program("No entries to process")
     if 'flyem_' in ARG.LIBRARY:
-        # Get dataset and version
-        if ARG.NEUPRINT:
-            CONF['DATASET'] = ARG.NEUPRINT
-        else:
-            which = "neuprint-pre" if "pre" in ARG.MANIFOLD else "neuprint"
-            response = call_responder(which, 'dbmeta/datasets', {}, True)
-            datasets = list(response.keys())
-            print(datasets)
-            for dset in datasets:
-                if ARG.LIBRARY.endswith(dset.replace(":v", "_").replace(".", "_")):
-                    CONF['DATASET'] = dset
-        if 'DATASET' not in CONF:
-            terminate_program(f"Could not find NeuPrint dataset for {ARG.LIBRARY}")
+        get_flyem_dataset()
     else:
         # Get image mapping
         dbdata = (call_responder('config', 'config/db_config'))["config"]
@@ -1149,7 +1185,6 @@ def upload_cdms():
     set_searchable_subdivision(data[0])
     if not confirm_run():
         return
-
     print(f"Processing {ARG.LIBRARY} on {ARG.MANIFOLD} manifold")
     json_out = []
     names_out = {}
@@ -1174,57 +1209,34 @@ def upload_cdms():
             json_out.append(smp)
             if ARG.WRITE:
                 add_image_to_mongo(smp)
-    data = None
-    if ARG.SOURCE == 'mongo' and json_out:
-        LOGGER.info("Writing JSON file")
-        with open(JSONO_FILE, 'w', encoding='ascii') as jsonfile:
-            jsonfile.write(json.dumps(json_out, indent=4, default=str))
-    if names_out:
-        LOGGER.info("Writing names file")
-        with open(NAMES_FILE, 'w', encoding='ascii') as namefile:
-            for pname in names_out:
-                namefile.write(f"{pname}\n")
+    write_output_files(json_out, names_out)
 
 
 def update_library_config():
-    ''' Update the config JSON for this library
+    ''' Update the library status
         Keyword arguments:
           None
         Returns:
           None
     '''
     if ARG.WRITE or ARG.CONFIG:
-        if not NB.update_library_status(DBM.cdmLibraryStatus,
-                                        library=ARG.LIBRARY,
-                                        manifold=ARG.MANIFOLD,
-                                        method="MongoDB",
-                                        source="neuronMetadata",
-                                        images=COUNT['Images processed'],
-                                        samples=COUNT['Samples'],
-                                        updatedBy= CONF['FULL_NAME']):
-            LOGGER.error("Could not update status in cdmLibraryStatus")
-    return
-    # Old code for config-based status
-    if ARG.MANIFOLD not in LIBRARY[ARG.LIBRARY]:
-        LIBRARY[ARG.LIBRARY][ARG.MANIFOLD] = {}
-    if ARG.JSON not in LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]:
-        LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON] = {}
-    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['samples'] = COUNT['Samples']
-    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['images'] = COUNT['Images processed']
-    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['updated'] = re.sub(r"\..*", '',
-                                                                     str(datetime.now()))
-    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]['updated'] = \
-        LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['updated']
-    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['updated_by'] = CONF['FULL_NAME']
-    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['method'] = 'JSON file' \
-        if ARG.SOURCE == 'file' else 'MongoDB'
-    if ARG.WRITE or ARG.CONFIG:
-        resp = requests.post(REST.config.url + 'importjson/cdm_library/' + ARG.LIBRARY,
-                             {"config": json.dumps(LIBRARY[ARG.LIBRARY])})
-        if resp.status_code != 200:
-            LOGGER.error(resp.json()['rest']['message'])
+        if ARG.SOURCE == "mongo":
+            method = "MongoDB"
+            source = "neuronMetadata"
         else:
+            method = "JSON file"
+            source = ARG.JSON
+        if NB.update_library_status(DBM.cdmLibraryStatus,
+                                    library=ARG.LIBRARY,
+                                    manifold=ARG.MANIFOLD,
+                                    method=method,
+                                    source=source,
+                                    images=COUNT['Images processed'],
+                                    samples=COUNT['Samples'],
+                                    updatedBy=CONF['FULL_NAME']):
             LOGGER.info("Updated cdm_library configuration")
+        else:
+            LOGGER.error("Could not update status in cdmLibraryStatus")
 
 
 if __name__ == '__main__':
@@ -1323,6 +1335,4 @@ if __name__ == '__main__':
         print('Uploaded variants:')
         for key in sorted(VARIANT_UPLOADS):
             print(f"  {key + ':' : <21} {VARIANT_UPLOADS[key]}")
-    print("Server calls (excluding AWS)")
-    print(TRANSACTIONS)
     terminate_program()
