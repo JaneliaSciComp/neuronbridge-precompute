@@ -2,6 +2,7 @@
     Function library for NeuronBridge processing
 '''
 
+from datetime import datetime
 import glob
 import os.path
 import re
@@ -192,17 +193,15 @@ def update_library_status(coll, **kwargs):
     for arg in ["images", "samples"]:
         if arg not in kwargs:
             kwargs[arg] = 0
-    if "updateDate" not in kwargs:
-        payload["updateDate"] = datetime.now()
     payload = {}
     for arg in ["images", "library", "manifold", "method",
-                "samples", "source", "updateDate"]:
+                "samples", "source"]:
         payload[arg] = kwargs[arg]
-    for arg in ["updatedBy"]:
+    for arg in ["updateDate", "updatedBy"]:
         if arg in kwargs:
             payload[arg] = kwargs[arg]
-    print(payload)
-    return True
+    if "updateDate" not in kwargs:
+        payload["updateDate"] = datetime.now()
     result = coll.insert_one(payload)
     if result.inserted_id:
         return True

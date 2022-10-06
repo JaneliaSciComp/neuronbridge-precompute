@@ -331,7 +331,7 @@ def initialize_program():
     # MongoDB
     data = (call_responder('config', 'config/db_config'))["config"]
     LOGGER.info("Connecting to Mongo on %s", ARG.MONGO)
-    rwp = 'write' if ARG.WRITE else 'read'
+    rwp = 'write' if (ARG.WRITE or ARG.CONFIG) else 'read'
     try:
         rset = 'rsProd' if ARG.MONGO == 'prod' else 'rsDev'
         client = MongoClient(data[MONGODB][ARG.MONGO][rwp]['host'],
@@ -1193,6 +1193,18 @@ def update_library_config():
         Returns:
           None
     '''
+    if ARG.WRITE or ARG.CONFIG:
+        if not NB.update_library_status(DBM.cdmLibraryStatus,
+                                        library=ARG.LIBRARY,
+                                        manifold=ARG.MANIFOLD,
+                                        method="MongoDB",
+                                        source="neuronMetadata",
+                                        images=COUNT['Images processed'],
+                                        samples=COUNT['Samples'],
+                                        updatedBy= CONF['FULL_NAME']):
+            LOGGER.error("Could not update status in cdmLibraryStatus")
+    return
+    # Old code for config-based status
     if ARG.MANIFOLD not in LIBRARY[ARG.LIBRARY]:
         LIBRARY[ARG.LIBRARY][ARG.MANIFOLD] = {}
     if ARG.JSON not in LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]:
@@ -1207,15 +1219,6 @@ def update_library_config():
     LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['method'] = 'JSON file' \
         if ARG.SOURCE == 'file' else 'MongoDB'
     if ARG.WRITE or ARG.CONFIG:
-        NB.update_library_status(coll,
-                                 library=ARG.LIBRARY,
-                                 manifold=ARG.MANIFOLD,
-                                 method="MongoDB",
-                                 source="neuronMetadata",
-                                 images=COUNT['Samples'],
-                                 samples=COUNT['Images processed'],
-                                 updatedBy= CONF['FULL_NAME'])
-        return
         resp = requests.post(REST.config.url + 'importjson/cdm_library/' + ARG.LIBRARY,
                              {"config": json.dumps(LIBRARY[ARG.LIBRARY])})
         if resp.status_code != 200:
