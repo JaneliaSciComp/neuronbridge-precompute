@@ -468,7 +468,7 @@ if __name__ == '__main__':
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         default='prod', choices=['dev', 'prod'], help='Publishing manifold')
     PARSER.add_argument('--mongo', dest='MONGO', action='store',
-                        default='dev', choices=['dev', 'prod', 'local'], help='Mongo manifold')
+                        default='prod', choices=['dev', 'prod', 'local'], help='Mongo manifold')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',
                         default=False, help='Actually write to databases')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
