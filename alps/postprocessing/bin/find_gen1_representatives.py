@@ -296,7 +296,7 @@ def set_payload(pname, result, obj):
                "ownerKey": obj["tiles"][0]["lsmReferences"][0]["ownerKey"],
                "readers": obj["tiles"][0]["lsmReferences"][0]["readers"],
                "writers": obj["tiles"][0]["lsmReferences"][0]["writers"],
-               "class": "org.janelia.model.domain.sample.PublishedLMImage",
+               "class": "org.janelia.colormipsearch.model.PublishedLMImage",
                "creationDate": dtm, "updateDate": dtm}
     return payload
 
@@ -331,6 +331,8 @@ def process_sample_result(result, pname, tile):
         return [None] * 2
     payload = set_payload(pname, result, obj)
     payload["alignmentSpace"] = prr["name"].replace(" (CMTK)", "")
+    if "Unisex_VNC" in payload["alignmentSpace"]:
+        LOGGER.error(f"{payload['alignmentSpace']}")
     payload["tile"] = tile
     payload["sampleRef"] = "Sample#" + sample
     filepath = {}
