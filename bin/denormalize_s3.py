@@ -9,6 +9,8 @@
     For variants in DISTRIBUTE_FILES, an order file for use with s3cp will be created
     which will copy keys_denormalized.json to Template/Library/<variant>/KEYS/<num>
     where <num> is a number from 0-99.
+    The DynamoDB table janelia-neuronbridge-denormalization-<manifold> is also
+    populated with counts and prefixes.
 '''
 
 import argparse
@@ -25,13 +27,14 @@ import requests
 from tqdm import tqdm
 import neuronbridge_lib as NB
 
-__version__ = '1.1.1'
+__version__ = '1.2.0'
 # Configuration
 KEYFILE = "keys_denormalized.json"
 COUNTFILE = "counts_denormalized.json"
 DISTRIBUTE_FILES = ['searchable_neurons']
 TAGS = 'PROJECT=CDCS&STAGE=prod&DEVELOPER=svirskasr&VERSION=%s' % (__version__)
-
+AWSS3 = {"client": None, "resource": 0}
+COUNT = {"skipped": 0}
 
 def terminate_program(msg=None):
     """ Log an optional error to output, close files, and exit
@@ -56,8 +59,7 @@ def call_responder(server, endpoint):
     try:
         req = requests.get(url)
     except requests.exceptions.RequestException as err:
-        LOGGER.critical(err)
-        sys.exit(-1)
+        terminate_program(err)
     if req.status_code != 200:
         terminate_program(f"Status: {str(req.status_code)} ({url})")
     return req.json()
@@ -115,7 +117,7 @@ def write_order_file(which, body, prefix):
             order file name
     """
     fname = tempfile.mktemp()
-    source_file = "%s_%s.txt" % (fname, which)
+    source_file = f"{fname}_{which}.txt"
     LOGGER.info("Writing temporary file %s", source_file)
     tfile = open(source_file, "w")
     tfile.write(body)
@@ -130,10 +132,10 @@ def write_order_file(which, body, prefix):
     return order_file
 
 
-def get_parms(s3_client):
+def get_parms():
     """ Query the user for the CDM library and manifold
         Keyword arguments:
-            s3_client: S3 client
+            None
         Returns:
             None
     """
@@ -141,15 +143,11 @@ def get_parms(s3_client):
     if not ARG.LIBRARY:
         ARG.LIBRARY = NB.get_library_from_aws(cdm)
         if not ARG.LIBRARY:
-            LOGGER.error("No library selected")
-            sys.exit(0)
-        print(ARG.LIBRARY)
+            terminate_program("No library selected")
     if not ARG.TEMPLATE:
-        ARG.TEMPLATE = NB.get_template(s3_client, ARG.BUCKET)
+        ARG.TEMPLATE = NB.get_template(AWSS3["client"], ARG.BUCKET)
         if not ARG.TEMPLATE:
-            LOGGER.error("No alignment template selected")
-            sys.exit(0)
-        print(ARG.TEMPLATE)
+            terminate_program("No alignment template selected")
     for cdmlib in cdm:
         if cdm[cdmlib]['name'].replace(' ', '_') == ARG.LIBRARY:
             for jsonfile in cdm[cdmlib][ARG.MANIFOLD]:
@@ -166,51 +164,82 @@ def initialize_s3():
         Keyword arguments:
           None
         Returns:
-          S3 client and resource
+          None
     """
     if ARG.MANIFOLD == 'prod':
         sts_client = boto3.client('sts')
         aro = sts_client.assume_role(RoleArn=AWS.role_arn,
                                      RoleSessionName="AssumeRoleSession1")
         credentials = aro['Credentials']
-        s3_client = boto3.client('s3',
-                                 aws_access_key_id=credentials['AccessKeyId'],
-                                 aws_secret_access_key=credentials['SecretAccessKey'],
-                                 aws_session_token=credentials['SessionToken'])
-        s3_resource = boto3.resource('s3',
-                                     aws_access_key_id=credentials['AccessKeyId'],
-                                     aws_secret_access_key=credentials['SecretAccessKey'],
-                                     aws_session_token=credentials['SessionToken'])
+        AWSS3["client"] = boto3.client('s3',
+                                       aws_access_key_id=credentials['AccessKeyId'],
+                                       aws_secret_access_key=credentials['SecretAccessKey'],
+                                       aws_session_token=credentials['SessionToken'])
+        AWSS3["resource"] = boto3.resource('s3',
+                                           aws_access_key_id=credentials['AccessKeyId'],
+                                           aws_secret_access_key=credentials['SecretAccessKey'],
+                                           aws_session_token=credentials['SessionToken'])
     else:
         ARG.BUCKET = '-'.join([ARG.BUCKET, ARG.MANIFOLD])
-        s3_client = boto3.client('s3')
-        s3_resource = boto3.resource('s3')
-    return s3_client, s3_resource
+        AWSS3["client"] = boto3.client('s3')
+        AWSS3["resource"] = boto3.resource('s3')
 
 
-def populate_batch_dict(s3_client, prefix):
+def get_batch_dict(prefix, first_batch, key_list, max_batch, total_objects):
+    """ Return a batch dict for a prefix
+        Keyword arguments:
+          prefix: prefix
+          first_batch: first batch number
+          key_list: list of S3 keys
+          max_batch: maximum batch number
+          total_pbjects: object count
+        Returns:
+          batch_dict
+    """
+    batch_size = dict()
+    for which in DISTRIBUTE_FILES:
+        batch_size[which] = 0
+        objs = NB.get_all_s3_objects(AWSS3["client"], Bucket=ARG.BUCKET, Prefix=prefix + which + "/"
+                                     + str(first_batch[which]) + "/")
+        for _ in objs:
+            batch_size[which] += 1
+    batch_dict = {'count': total_objects,
+                  'keys': key_list,
+                  'size': batch_size,
+                  'max_batch': max_batch}
+    for which in key_list:
+        print(which)
+        print("  Total objects: %d" % (total_objects[which]))
+        print("  Total keys:    %d" % (len(key_list[which])))
+        if which in batch_size:
+            print("  Batch size:    %d" % (batch_size[which]))
+            print("  Max batch:     %d" % (max_batch[which]))
+    print(f"Skipped objects: {COUNT['skipped']}")
+    return batch_dict
+
+
+def populate_batch_dict():
     """ Produce a dict with key/batch information
         Keyword arguments:
-          s3_client: S3 client
-          prefix: top-level prefix
+          None
         Returns:
           batch dictionary
     """
+    prefix = '/'.join([ARG.TEMPLATE, ARG.LIBRARY]) + '/'
     LOGGER.info("Batching keys for %s", prefix)
     total_objects = dict()
     key_list = dict()
     max_batch = dict()
     first_batch = dict()
-    skipped_objects = 0;
     for which in DISTRIBUTE_FILES:
         max_batch[which] = 0
         first_batch[which] = 0
     keys = []
-    for obj in NB.get_all_s3_objects(s3_client, Bucket=ARG.BUCKET, Prefix=prefix):
+    for obj in NB.get_all_s3_objects(AWSS3["client"], Bucket=ARG.BUCKET, Prefix=prefix):
         if KEYFILE in obj['Key'] or COUNTFILE in obj['Key'] or "pngs" in obj['Key'] \
            or obj['Key'].endswith("/"):
             continue
-        keys.append( obj['Key'])
+        keys.append(obj['Key'])
     for key in tqdm(keys, desc="Keys"):
         which = 'default'
         LOGGER.debug(key)
@@ -225,7 +254,7 @@ def populate_batch_dict(s3_client, prefix):
         if which == 'searchable_neurons':
             fname = key.split("/")[-1]
             if fname in EXCLUSION:
-                skipped_objects += 1
+                COUNT["skipped"] += 1
                 continue
         total_objects[which] += 1
         key_list[which].append(key)
@@ -235,26 +264,7 @@ def populate_batch_dict(s3_client, prefix):
                 first_batch[which] = num
             if num > max_batch[which]:
                 max_batch[which] = num
-    batch_size = dict()
-    for which in DISTRIBUTE_FILES:
-        batch_size[which] = 0
-        objs = NB.get_all_s3_objects(s3_client, Bucket=ARG.BUCKET, Prefix=prefix + which + "/"
-                                     + str(first_batch[which]) + "/")
-        for obj in objs:
-            batch_size[which] += 1
-    batch_dict = {'count': total_objects,
-                  'keys': key_list,
-                  'size': batch_size,
-                  'max_batch': max_batch}
-    for which in key_list:
-        print(which)
-        print("  Total objects: %d" % (total_objects[which]))
-        print("  Total keys:    %d" % (len(key_list[which])))
-        if which in batch_size:
-            print("  Batch size:    %d" % (batch_size[which]))
-            print("  Max batch:     %d" % (max_batch[which]))
-    print("Skipped objects: %d" % (skipped_objects))
-    return batch_dict
+    return get_batch_dict(prefix, first_batch, key_list, max_batch, total_objects)
 
 
 def denormalize():
@@ -265,14 +275,12 @@ def denormalize():
           None
     """
     #pylint: disable=no-member
-    s3_client, s3_resource = initialize_s3()
-    get_parms(s3_client)
-    prefix = '/'.join([ARG.TEMPLATE, ARG.LIBRARY]) + '/'
-    print("Processing %s on %s manifold" % (ARG.LIBRARY, ARG.MANIFOLD))
-    batch_dict = populate_batch_dict(s3_client, prefix)
+    initialize_s3()
+    get_parms()
+    print(f"Processing {ARG.LIBRARY}/{ARG.TEMPLATE} on {ARG.MANIFOLD} manifold")
+    batch_dict = populate_batch_dict()
     if not batch_dict['count'] or not batch_dict['count']['default']:
-        LOGGER.error("%s/%s was not found in the %s bucket", ARG.TEMPLATE, ARG.LIBRARY, ARG.BUCKET)
-        sys.exit(-1)
+        terminate_program(f"{ARG.TEMPLATE}/{ARG.LIBRARY} was not found in the {ARG.BUCKET} bucket")
     # Write files
     prefix_template = 'https://%s.s3.amazonaws.com/%s'
     payload = {'keyname': ARG.LIBRARY, 'count': 0, 'prefix': '',
@@ -300,11 +308,12 @@ def denormalize():
         if which in DISTRIBUTE_FILES:
             order_file.append(write_order_file(which, json.dumps(batch_dict['keys'][which],
                                                                  indent=4), prefix))
-        upload_to_aws(s3_resource, json.dumps(batch_dict['keys'][which], indent=4), object_name)
+        upload_to_aws(AWSS3["resource"], json.dumps(batch_dict['keys'][which],
+                                                    indent=4), object_name)
         object_name = '/'.join([prefix, COUNTFILE])
         LOGGER.info("Uploading %s count file (%d)", which, batch_dict['count'][which])
-        upload_to_aws(s3_resource, json.dumps({"objectCount": batch_dict['count'][which]},
-                                              indent=4), object_name)
+        upload_to_aws(AWSS3["resource"], json.dumps({"objectCount": batch_dict['count'][which]},
+                                                    indent=4), object_name)
     if ARG.WRITE:
         LOGGER.info("Updating DynamoDB")
         dynamodb = boto3.resource('dynamodb')
@@ -355,7 +364,7 @@ if __name__ == '__main__':
     EXCLUSION = dict()
     if ARG.EXCLUSION:
         with open(ARG.EXCLUSION) as inf:
-            lines = inf.read().splitlines()
-        EXCLUSION = {key: True for key in lines}
+            LINES = inf.read().splitlines()
+        EXCLUSION = {key: True for key in LINES}
         print("Loaded %d exclusions" % (len(EXCLUSION)))
     denormalize()

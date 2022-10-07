@@ -129,7 +129,6 @@ def get_template(s3_client, bucket):
         Returns:
           Alignment template
     """
-    print("Select an alignment template:")
     paginator = s3_client.get_paginator('list_objects')
     result = paginator.paginate(Bucket=bucket, Delimiter='/')
     template = list()
@@ -137,6 +136,9 @@ def get_template(s3_client, bucket):
         key = prefix.get('Prefix')
         if re.search(r"JRC\d+.+/", key):
             template.append(key.replace("/", ""))
+    if len(template) == 1:
+        return template[0]
+    print("Select an alignment template:")
     terminal_menu = TerminalMenu(template)
     chosen = terminal_menu.show()
     return template[chosen] if chosen is not None else None
