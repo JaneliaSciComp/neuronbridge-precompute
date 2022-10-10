@@ -15,15 +15,18 @@ from tqdm import tqdm
 import neuronbridge_lib as NB
 
 # pylint: disable=W0703, E1101
-# Configuration
-
 # Database
+MONGODB = "neuronbridge-mongo"
 DATABASE = {}
+BATCH_SIZE = 10000
 # General use
-NEURONBRIDGE_JSON_BASE = '/nrs/neuronbridge'
-PPP_BASE = NEURONBRIDGE_JSON_BASE + '/ppp_imagery'
+NEURONBRIDGE_JSON_BASE = "/nrs/neuronbridge"
+PPP_BASE = NEURONBRIDGE_JSON_BASE + "/ppp_imagery"
+# Output files
+COPY = S3CP = None
 # Counters
-COUNT = {"matches": 0, "Missing sourceImageFiles": 0}
+COUNT = {"files": 0, "matches": 0, "Missing sourceImageFiles": 0,
+         "mongo": 0, "processed": 0}
 
 
 def terminate_program(msg=None):
@@ -82,20 +85,54 @@ def initialize_program():
         Returns:
           None
     """
-    dbconfig = create_config_object("db_config")
+    data = (call_responder('config', 'config/db_config'))["config"]
     # MongoDB
     LOGGER.info("Connecting to neuronbridge MongoDB on %s", ARG.MONGO)
+    rwp = 'write' if ARG.WRITE else 'read'
     try:
-        dbc = getattr(getattr(dbconfig, "neuronbridge-mongo"), ARG.MONGO)
         rset = 'rsProd' if ARG.MONGO == 'prod' else 'rsDev'
-        client = MongoClient(dbc.read.host, replicaSet=rset)
+        client = MongoClient(data[MONGODB][ARG.MONGO][rwp]['host'],
+                             replicaSet=rset)
         dbm = client.admin
-        dbm.authenticate(dbc.read.user, dbc.read.password)
+        dbm.authenticate(data[MONGODB][ARG.MONGO][rwp]['user'],
+                         data[MONGODB][ARG.MONGO][rwp]['password'])
         DATABASE["NB"] = client.neuronbridge
+        DATABASE["NB_count"] = 0
     except Exception as err:
         terminate_program(f"Could not connect to Mongo: {err}")
     if not ARG.NEURONBRIDGE:
         ARG.NEURONBRIDGE = NB.get_ppp_version(DATABASE["NB"].pppMatches)
+
+
+def write_mongo():
+    ''' Write a batch of records to Mongo
+        Keyword arguments:
+          None
+        Returns:
+          None
+    '''
+    coll = DATABASE["NB"].matchURL
+    result = coll.insert_many(ITEMS)
+    COUNT["mongo"] += DATABASE["NB_count"]
+    ITEMS.clear()
+    DATABASE["NB_count"] = 0
+
+
+def add_row_to_mongo(mid, filedict):
+    ''' Create and save a payload for a single row
+        Keyword arguments:
+          mid: _id from pppMatch
+          filedict: dict with file locations
+        Returns:
+          None
+    '''
+    payload = {"_id": mid,
+               "uploadedFiles": filedict
+               }
+    ITEMS.append(payload)
+    DATABASE["NB_count"] += 1
+    if DATABASE["NB_count"] == BATCH_SIZE:
+        write_mongo()
 
 
 def handle_single_entry(row):
@@ -109,6 +146,7 @@ def handle_single_entry(row):
     if "sourceImageFiles" not in row:
         COUNT["Missing sourceImageFiles"] += 1
         return
+    COUNT["processed"] += 1
     bucket = AWS.s3_bucket.ppp
     bucket += '-' + ARG.MANIFOLD
     bid = (row["sourceEmName"].split("-"))[0]
@@ -117,10 +155,15 @@ def handle_single_entry(row):
     newdir = '/'.join([PPP_BASE, "v" + ARG.NEURONBRIDGE, lib, prefix, bid])
     files = row["sourceImageFiles"]
     template = "JRC2018_Unisex_20x_HR" #PLUG
+    filedict = {}
     for file in files:
-        target = files[file]
+        target = os.path.basename(files[file]) # Replace this with a computed file name
+        filedict[file] = f"{template}/{lib}/{prefix}/{bid}/{target}"
         COPY.write(f"cp {files[file]} {newdir}\n")
         S3CP.write(f"{files[file]}\t{bucket}/{template}/{lib}/{prefix}/{bid}/{target}\n")
+        COUNT["files"] += 1
+    if ARG.WRITE:
+        add_row_to_mongo(row["_id"], filedict)
 
 
 def handle_matches():
@@ -137,9 +180,14 @@ def handle_matches():
     results = coll.find({"tags": ARG.NEURONBRIDGE})
     for row in tqdm(results, total=count):
         handle_single_entry(row)
+    if DATABASE["NB_count"]:
+        write_mongo()
     print(f"Matches read:             {COUNT['matches']}")
     print(f"Missing sourceImageFiles: {COUNT['Missing sourceImageFiles']}" \
           + f" ({COUNT['Missing sourceImageFiles']/COUNT['matches']*100.0:.2f}%)")
+    print(f"Rows processed:           {COUNT['processed']}")
+    print(f"Rows written to Mongo:    {COUNT['mongo']}")
+    print(f"Files to transfer:        {COUNT['files']}")
 
 
 if __name__ == '__main__':
@@ -181,5 +229,6 @@ if __name__ == '__main__':
     COPY = open(COPY_FILE, 'w', encoding='ascii')
     S3CP_FILE = f"upload_ppp-{ARG.NEURONBRIDGE}-{ARG.MANIFOLD}-{STAMP}_s3cp.order"
     S3CP = open(S3CP_FILE, 'w', encoding='ascii')
+    ITEMS = []
     handle_matches()
     terminate_program()
