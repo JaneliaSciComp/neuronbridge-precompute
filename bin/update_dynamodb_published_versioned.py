@@ -127,19 +127,6 @@ def valid_row(row):
     return True
 
 
-def qualified_bodyid(lib, bid):
-    """ Create a qualified body ID
-        Keyword arguments:
-          lib: library
-          bid: body ID
-        Returns:
-          Quelified body ID
-    """
-    lib = lib.replace("flyem_", "")
-    lib = lib.replace("_", ".")
-    return ":".join([lib, bid])
-
-
 def batch_row(name, keytype, matches, bodyids=None):
     ''' Create and save a payload for a single row
         Keyword arguments:
@@ -178,8 +165,7 @@ def primary_update(rlist, matches):
         name = row["publishedName"]
         if row["libraryName"].startswith("flyem"):
             keytype = "bodyID"
-            name = qualified_bodyid(row["libraryName"], row["publishedName"])
-        batch_row(name, keytype, matches[row["publishedName"]])
+        batch_row(row["publishedName"], keytype, matches[row["publishedName"]])
 
 
 def add_neuron(neuron, ntype):
@@ -201,8 +187,7 @@ def add_neuron(neuron, ntype):
     for brow in results:
         if brow["publishedName"] in bids or "processedTags" not in brow:
             continue
-        name = qualified_bodyid(brow["libraryName"], brow["publishedName"])
-        bids[name] = True
+        bids[brow["publishedName"]] = True
         if "ColorDepthSearch" in brow["processedTags"] \
            and brow["processedTags"]["ColorDepthSearch"]:
             nmatch["cdm"] = True
