@@ -236,7 +236,7 @@ def process_em_dataset(dataset):
     LOGGER.info("%d Body IDs found in NeuPrint %s", len(results['data']), dataset)
     for row in tqdm(results['data'], desc=dataset):
         COUNT['read'] += 1
-        bid = ":".join([dsname, version, str(row[0])])
+        bid = ":".join([dsname, "v" + version, str(row[0])])
         doi = EMDOI[dsname]
         if bid not in MAPPING:
             MAPPING[bid] = doi
