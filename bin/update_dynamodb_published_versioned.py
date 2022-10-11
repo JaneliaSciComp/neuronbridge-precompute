@@ -127,6 +127,19 @@ def valid_row(row):
     return True
 
 
+def qualified_bodyid(lib, bid):
+    """ Create a qualified body ID
+        Keyword arguments:
+          lib: library
+          bid: body ID
+        Returns:
+          Quelified body ID
+    """
+    lib = lib.replace("flyem_", "")
+    lib = lib.replace("_", ".")
+    return ":".join([lib, bid])
+
+
 def batch_row(name, keytype, matches, bodyids=None):
     ''' Create and save a payload for a single row
         Keyword arguments:
@@ -162,9 +175,11 @@ def primary_update(rlist, matches):
     '''
     for row in tqdm(rlist, desc="Primary update"):
         keytype = "publishingName"
+        name = row["publishedName"]
         if row["libraryName"].startswith("flyem"):
             keytype = "bodyID"
-        batch_row(row["publishedName"], keytype, matches[row["publishedName"]])
+            name = qualified_bodyid(row["libraryName"], row["publishedName"])
+        batch_row(name, keytype, matches[row["publishedName"]])
 
 
 def add_neuron(neuron, ntype):
@@ -177,15 +192,17 @@ def add_neuron(neuron, ntype):
     '''
     nmatch = {"cdm": False, "ppp": False}
     coll = DATABASE["NB"]["neuronMetadata"]
-    #payload = {ntype: neuron, "libraryName": row["libraryName"]}
     # Allow a body ID from any library
     payload = {ntype: neuron}
-    results = coll.find(payload, {"publishedName": 1, "processedTags": 1})
+    #payload = {ntype: neuron, "libraryName": row["libraryName"]}
+    results = coll.find(payload, {"publishedName": 1, "processedTags": 1,
+                                  "libraryName": 1})
     bids = {}
     for brow in results:
         if brow["publishedName"] in bids or "processedTags" not in brow:
             continue
-        bids[brow["publishedName"]] = True
+        name = qualified_bodyid(brow["libraryName"], brow["publishedName"])
+        bids[name] = True
         if "ColorDepthSearch" in brow["processedTags"] \
            and brow["processedTags"]["ColorDepthSearch"]:
             nmatch["cdm"] = True
