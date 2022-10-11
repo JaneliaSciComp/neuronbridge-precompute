@@ -277,7 +277,7 @@ def process_em_library(coll, library, count):
     """
     result = re.search(r"flyem_([^_]*)((_\d)+)", library)
     lib = result[1]
-    version = result[2][1:].replace("_", ".")
+    version = "v" + result[2][1:].replace("_", ".")
     prefix = ":".join([lib, version])
     results = coll.find({"libraryName": library})
     if (lib not in EMDOI) or (not EMDOI[lib]):
