@@ -121,6 +121,28 @@ def get_neuronbridge_version(coll, library=None):
     return versions[chosen]
 
 
+def get_ppp_version(coll):
+    ''' Allow the user to select a PPP version from MongoDB
+        Keyword arguments:
+          coll: MongoDB collection
+        Returns:
+          NeuronBridge version or None
+    '''
+    versions = {}
+    results = coll.distinct("tags")
+    for row in results:
+        versions[row] = True
+    versions = list(versions.keys())
+    versions.sort()
+    print("Select a PPP version:")
+    terminal_menu = TerminalMenu(versions)
+    chosen = terminal_menu.show()
+    if chosen is None:
+        print("No PPP version selected")
+        return None
+    return versions[chosen]
+
+
 def get_template(s3_client, bucket):
     """ Get a NeuronBridge alignment template from the bucket
         Keyword arguments:
