@@ -5,6 +5,7 @@
 import argparse
 import json
 import os
+import re
 import sys
 from types import SimpleNamespace
 import boto3
@@ -94,7 +95,12 @@ def initialize_program():
         ARG.VERSION = NB.get_neuronbridge_version(DATABASE["NB"]["neuronMetadata"])
         if not ARG.VERSION:
             terminate_program("No NeuronBridge version selected")
-    table = "janelia-neuronbridge-published-test" #PLUG
+    if ARG.DDBVERSION:
+        if not re.match(r"v\d+(?:\.\d+)+", ARG.DDBVERSION):
+            terminate_program(f"{ARG.DDBVERSION} is not a valid version")
+        table = "janelia-neuronbridge-published-" + ARG.DDBVERSION
+    else:
+        table = "janelia-neuronbridge-published-test" #PLUG
     try:
         dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
         dynamodb_client = boto3.client('dynamodb', region_name='us-east-1')
@@ -103,7 +109,7 @@ def initialize_program():
     try:
         _ = dynamodb_client.describe_table(TableName=table)
     except dynamodb_client.exceptions.ResourceNotFoundException:
-        LOGGER.error("Table %s doesn't exist", table)
+        LOGGER.critical("Table %s doesn't exist", table)
         print("You can create it using " \
               + "neuronbridge-utilities/dynamodb/create_janelia-neuronbridge-published.sh")
         sys.exit(-1)
@@ -270,20 +276,7 @@ def display_counts():
     print(f"  publishingName:          {COUNT['publishingName']}")
 
 
-def update_dynamo():
-    ''' Main routine to update DynamoDB from MongoDB neuronMetadata
-        Keyword arguments:
-          None
-        Returns:
-          None
-    '''
-    coll = DATABASE["NB"]["neuronMetadata"]
-    payload = {"$or": [{"processedTags.ColorDepthSearch": ARG.VERSION},
-                       {"processedTags.PPPMatch": ARG.VERSION}]}
-    project = {"libraryName": 1, "publishedName": 1, "processedTags": 1,
-               "neuronInstance": 1, "neuronType": 1}
-    results = coll.find(payload, project)
-    count = coll.count_documents(payload)
+def process_results(count, results):
     matches = {}
     rlist = []
     library = {}
@@ -323,10 +316,32 @@ def update_dynamo():
     display_counts()
 
 
+def update_dynamo():
+    ''' Main routine to update DynamoDB from MongoDB neuronMetadata
+        Keyword arguments:
+          None
+        Returns:
+          None
+    '''
+    coll = DATABASE["NB"]["neuronMetadata"]
+    payload = {"$or": [{"processedTags.ColorDepthSearch": ARG.VERSION},
+                       {"processedTags.PPPMatch": ARG.VERSION}]}
+    project = {"libraryName": 1, "publishedName": 1, "processedTags": 1,
+               "neuronInstance": 1, "neuronType": 1}
+    count = coll.count_documents(payload)
+    if not count:
+        LOGGER.error(f"There are no processed tags for version {ARG.VERSION}")
+        results = {}
+    else:
+        results = coll.find(payload, project)
+    process_results(count, results)
+
+
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
         description="Update a janelia-neuronbridge-published-* table")
     PARSER.add_argument('--version', dest='VERSION', default='', help='NeuronBridge version')
+    PARSER.add_argument('--ddbversion', dest='DDBVERSION', default='', help='DynamoDB NeuronBridge version')
     PARSER.add_argument('--mongo', dest='MONGO', action='store',
                         default='prod', choices=['dev', 'prod'], help='MongoDB manifold')
     PARSER.add_argument('--write', action='store_true', dest='WRITE',
