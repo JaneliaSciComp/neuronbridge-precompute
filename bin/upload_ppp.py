@@ -18,14 +18,18 @@ import neuronbridge_lib as NB
 # Database
 MONGODB = "neuronbridge-mongo"
 DATABASE = {}
-BATCH_SIZE = 10000
+BATCH_SIZE = 500000
 # General use
 NEURONBRIDGE_JSON_BASE = "/nrs/neuronbridge"
 PPP_BASE = NEURONBRIDGE_JSON_BASE + "/ppp_imagery"
+RENAME_COMPONENTS = ["maskPublishedName", "lmPublishedName", "lmSlideCode",
+                     #"lmObjective",
+                     "inputAlignmentSpace"]
+KEYS = {}
 # Output files
 COPY = S3CP = None
 # Counters
-COUNT = {"files": 0, "matches": 0, "Missing sourceImageFiles": 0,
+COUNT = {"files": 0, "matches": 0, "lmPublishedName": 0,
          "mongo": 0, "processed": 0}
 
 
@@ -118,15 +122,17 @@ def write_mongo():
     DATABASE["NB_count"] = 0
 
 
-def add_row_to_mongo(mid, filedict):
+def add_row_to_mongo(mid, copydict, filedict):
     ''' Create and save a payload for a single row
         Keyword arguments:
           mid: _id from pppMatch
-          filedict: dict with file locations
+          copydict: dict with /nrs file locations
+          filedict: dict with S3 file locations
         Returns:
           None
     '''
     payload = {"_id": mid,
+               "copiedFiles": copydict,
                "uploadedFiles": filedict
                }
     ITEMS.append(payload)
@@ -143,8 +149,8 @@ def handle_single_entry(row):
           None
     '''
     COUNT["matches"] += 1
-    if "sourceImageFiles" not in row:
-        COUNT["Missing sourceImageFiles"] += 1
+    if "lmPublishedName" not in row:
+        COUNT["lmPublishedName"] += 1
         return
     COUNT["processed"] += 1
     bucket = AWS.s3_bucket.ppp
@@ -152,18 +158,35 @@ def handle_single_entry(row):
     bid = (row["sourceEmName"].split("-"))[0]
     prefix = bid[0:2]
     lib = getattr(CDM, row["sourceEmLibrary"]).name
-    newdir = '/'.join([PPP_BASE, "v" + ARG.NEURONBRIDGE, lib, prefix, bid])
+    row["maskPublishedName"] = bid
+    if "lmObjective" not in row:
+        row["lmObjective"] = "40x"
+    good = True
+    for key in RENAME_COMPONENTS:
+        if key not in row:
+            good = False
+            LOGGER.error("No %s for %s", key, row["_id"])
+    if not good:
+        terminate_program("Missing file components")
+    template = row["inputAlignmentSpace"]
     files = row["sourceImageFiles"]
-    template = "JRC2018_Unisex_20x_HR" #PLUG
+    fs_prefix = '/'.join([PPP_BASE, "v" + ARG.NEURONBRIDGE, lib, prefix, bid])
+    s3_prefix = f"{template}/{lib}/{prefix}/{bid}"
+    copydict = {}
     filedict = {}
     for file in files:
-        target = os.path.basename(files[file]) # Replace this with a computed file name
-        filedict[file] = f"{template}/{lib}/{prefix}/{bid}/{target}"
-        COPY.write(f"cp {files[file]} {newdir}\n")
-        S3CP.write(f"{files[file]}\t{bucket}/{template}/{lib}/{prefix}/{bid}/{target}\n")
+        newname = '%s-%s-%s-%s' % tuple([row[key] for key in RENAME_COMPONENTS])
+        newname += "-%s.png" % (file.lower())
+        if newname in KEYS:
+            terminate_program(f"Fuplicate file {newname} for {row['_id']}")
+        KEYS[newname] = True
+        copydict[file] = f"{fs_prefix}/{newname}"
+        filedict[file] = f"{s3_prefix}/{newname}"
+        COPY.write(f"cp \"{files[file]}\" {fs_prefix}/{newname}\n")
+        S3CP.write(f"{files[file]}\t{bucket}/{s3_prefix}/{newname}\n")
         COUNT["files"] += 1
     if ARG.WRITE:
-        add_row_to_mongo(row["_id"], filedict)
+        add_row_to_mongo(row["_id"], copydict, filedict)
 
 
 def handle_matches():
@@ -174,20 +197,21 @@ def handle_matches():
           None
     '''
     coll = DATABASE["NB"].pppMatches
+    payload = {"tags": ARG.NEURONBRIDGE,
+               "sourceImageFiles": { "$ne": None }}
     LOGGER.info("Getting match count for version %s", ARG.NEURONBRIDGE)
-    count = coll.count_documents({"tags": ARG.NEURONBRIDGE})
+    count = coll.count_documents(payload)
     LOGGER.info("Getting matches for version %s", ARG.NEURONBRIDGE)
-    results = coll.find({"tags": ARG.NEURONBRIDGE})
+    results = coll.find(payload)
     for row in tqdm(results, total=count):
         handle_single_entry(row)
     if DATABASE["NB_count"]:
         write_mongo()
-    print(f"Matches read:             {COUNT['matches']}")
-    print(f"Missing sourceImageFiles: {COUNT['Missing sourceImageFiles']}" \
-          + f" ({COUNT['Missing sourceImageFiles']/COUNT['matches']*100.0:.2f}%)")
-    print(f"Rows processed:           {COUNT['processed']}")
-    print(f"Rows written to Mongo:    {COUNT['mongo']}")
-    print(f"Files to transfer:        {COUNT['files']}")
+    print(f"Matches read:            {COUNT['matches']}")
+    print(f"Missing lmPublishedName: {COUNT['lmPublishedName']}")
+    print(f"Rows processed:          {COUNT['processed']}")
+    print(f"Rows written to Mongo:   {COUNT['mongo']}")
+    print(f"Files to transfer:       {COUNT['files']}")
 
 
 if __name__ == '__main__':
