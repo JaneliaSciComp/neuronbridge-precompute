@@ -349,6 +349,11 @@ def process_lm():
           None
     """
     for database in PUBLISHING_DATABASE:
+        if ARG.RELEASE:
+            if database == "gen1mcfo" and "Gen1 MCFO" not in ARG.RELEASE:
+                continue
+            if database != "gen1mcfo" and "Gen1 MCFO" in ARG.RELEASE:
+                continue
         LOGGER.info("Fetching lines from %s", database)
         try:
             if ARG.RELEASE:
