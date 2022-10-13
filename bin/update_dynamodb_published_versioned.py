@@ -90,8 +90,8 @@ def create_dynamodb_table(dynamodb, table):
                         {"Key": "DEVELOPER", "Value": "svirskasr"},
                         {"Key": "STAGE", "Value": ARG.MANIFOLD}]
               }
-    print(f"Creating DynamoDB table {table}")
     if ARG.WRITE:
+        print(f"Creating DynamoDB table {table}")
         table = dynamodb.create_table(**payload)
         table.wait_until_exists()
 

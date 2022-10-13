@@ -111,6 +111,30 @@ def db_connect(dbd):
         sql_error(err)
 
 
+def create_dynamodb_table(dynamodb, table):
+    """ Create a DynamoDB table
+        Keyword arguments:
+          dynamodb: DynamoDB resource
+          table: table name
+        Returns:
+          None
+    """
+    payload = {"TableName": table,
+               "KeySchema": [{"AttributeName": "name", "KeyType": "HASH"}
+                            ],
+               "AttributeDefinitions": [{'AttributeName': 'name', 'AttributeType': 'S'}
+                                       ],
+               "BillingMode": "PAY_PER_REQUEST",
+               "Tags": [{"Key": "PROJECT", "Value": "NeuronBridge"},
+                        {"Key": "DEVELOPER", "Value": "svirskasr"},
+                        {"Key": "STAGE", "Value": "prod"}]
+              }
+    if ARG.WRITE:
+        print(f"Creating DynamoDB table {table}")
+        table = dynamodb.create_table(**payload)
+        table.wait_until_exists()
+
+
 def initialize_program():
     """ Initialize the program
         Keyword arguments:
@@ -153,10 +177,9 @@ def initialize_program():
     try:
         _ = dynamodb_client.describe_table(TableName=table)
     except dynamodb_client.exceptions.ResourceNotFoundException:
-        LOGGER.error("Table %s doesn't exist", table)
-        print("You can create it using " \
-              + "neuronbridge-utilities/dynamodb/create_janelia-neuronbridge-publishing-doi.sh")
-        sys.exit(-1)
+        LOGGER.warning("Table %s doesn't exist", table)
+        create_dynamodb_table(dynamodb, table)
+    LOGGER.info("Writing results to DynamoDB table %s", table)
     DATABASE["DOI"] = dynamodb.Table(table)
 
 
@@ -398,7 +421,7 @@ if __name__ == '__main__':
     PARSER.add_argument('--source', dest='SOURCE', choices=['', 'em', 'lm'], default='',
                         help='Source release (em or lm)')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
-                        choices=['staging', 'prod'], default='staging', help='MySQL manifold')
+                        choices=['staging', 'prod'], default='prod', help='MySQL manifold')
     PARSER.add_argument('--mongo', dest='MONGO', action='store',
                         default='prod', choices=['dev', 'prod'], help='MongoDB manifold')
     PARSER.add_argument('--write', action='store_true', dest='WRITE',
