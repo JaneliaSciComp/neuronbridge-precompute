@@ -24,3 +24,4 @@ Utility programs for indexing and transferring of NeuronBridge-related files.
 | copy_ppp_imagery.py | Copy PPP imagery between filesystems and upload to AWS S3. Replaced with upload_ppp.py. |
 | create_ppp_thumbnails.py | Create/update PPP thumbnails. Replaced with AWS Lambda function. |
 | populate_published.py | Update janelia-neuronbridge-published-* DynamoDB table. Replaced with update_dynamodb_published_versioned.py. |
+| ppp_progress.py | Display PPP processing status |
