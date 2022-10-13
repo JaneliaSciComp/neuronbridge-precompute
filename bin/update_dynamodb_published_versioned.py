@@ -70,6 +70,31 @@ def create_config_object(config):
     data = (call_responder("config", f"config/{config}"))["config"]
     return json.loads(json.dumps(data), object_hook=lambda dat: SimpleNamespace(**dat))
 
+def create_dynamodb_table(dynamodb, table):
+    """ Create a DynamoDB table
+        Keyword arguments:
+          dynamodb: DynamoDB resource
+          table: table name
+        Returns:
+          None
+    """
+    payload = {"TableName": table,
+               "KeySchema": [{"AttributeName": "itemType", "KeyType": "HASH"},
+                             {"AttributeName": "searchKey", "KeyType": "RANGE"}
+                            ],
+               "AttributeDefinitions": [{'AttributeName': 'itemType', 'AttributeType': 'S'},
+                                        {'AttributeName': 'searchKey', 'AttributeType': 'S'}
+                                       ],
+               "BillingMode": "PAY_PER_REQUEST",
+               "Tags": [{"Key": "PROJECT", "Value": "NeuronBridge"},
+                        {"Key": "DEVELOPER", "Value": "svirskasr"},
+                        {"Key": "STAGE", "Value": ARG.MANIFOLD}]
+              }
+    print(f"Creating DynamoDB table {table}")
+    if ARG.WRITE:
+        table = dynamodb.create_table(**payload)
+        table.wait_until_exists()
+
 
 def initialize_program():
     """ Initialize the program
@@ -100,7 +125,9 @@ def initialize_program():
             terminate_program(f"{ARG.DDBVERSION} is not a valid version")
         table = "janelia-neuronbridge-published-" + ARG.DDBVERSION
     else:
-        table = "janelia-neuronbridge-published-test" #PLUG
+        table = "janelia-neuronbridge-published-" + ARG.VERSION
+    if ARG.MANIFOLD != "prod":
+        table += f"-{ARG.MANIFOLD}"
     try:
         dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
         dynamodb_client = boto3.client('dynamodb', region_name='us-east-1')
@@ -109,10 +136,9 @@ def initialize_program():
     try:
         _ = dynamodb_client.describe_table(TableName=table)
     except dynamodb_client.exceptions.ResourceNotFoundException:
-        LOGGER.critical("Table %s doesn't exist", table)
-        print("You can create it using " \
-              + "neuronbridge-utilities/dynamodb/create_janelia-neuronbridge-published.sh")
-        sys.exit(-1)
+        LOGGER.warning("Table %s doesn't exist", table)
+        create_dynamodb_table(dynamodb, table)
+    LOGGER.info("Writing results to DynamoDB table %s", table)
     DATABASE["DYN"] = dynamodb.Table(table)
 
 
@@ -171,7 +197,7 @@ def primary_update(rlist, matches):
         name = row["publishedName"]
         if row["libraryName"].startswith("flyem"):
             keytype = "bodyID"
-        batch_row(row["publishedName"], keytype, matches[row["publishedName"]])
+        batch_row(name, keytype, matches[name])
 
 
 def add_neuron(neuron, ntype):
@@ -277,6 +303,13 @@ def display_counts():
 
 
 def process_results(count, results):
+    ''' Process results from neuronMetadata table
+        Keyword arguments:
+          count: document count
+          results: documents from neuronMetadata
+        Returns:
+          None
+    '''
     matches = {}
     rlist = []
     library = {}
@@ -330,7 +363,7 @@ def update_dynamo():
                "neuronInstance": 1, "neuronType": 1}
     count = coll.count_documents(payload)
     if not count:
-        LOGGER.error(f"There are no processed tags for version {ARG.VERSION}")
+        LOGGER.error("There are no processed tags for version %s", ARG.VERSION)
         results = {}
     else:
         results = coll.find(payload, project)
@@ -341,9 +374,13 @@ if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
         description="Update a janelia-neuronbridge-published-* table")
     PARSER.add_argument('--version', dest='VERSION', default='', help='NeuronBridge version')
-    PARSER.add_argument('--ddbversion', dest='DDBVERSION', default='', help='DynamoDB NeuronBridge version')
+    PARSER.add_argument('--ddbversion', dest='DDBVERSION', default='',
+                        help='DynamoDB NeuronBridge version')
     PARSER.add_argument('--mongo', dest='MONGO', action='store',
                         default='prod', choices=['dev', 'prod'], help='MongoDB manifold')
+    PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
+                        default='prod', choices=['dev', 'prod', 'devpre', 'prodpre'],
+                        help='DynamoDB manifold')
     PARSER.add_argument('--write', action='store_true', dest='WRITE',
                         default=False, help='Write to DynamoDB')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
