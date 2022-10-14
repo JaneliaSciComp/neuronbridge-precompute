@@ -115,7 +115,7 @@ def write_mongo():
         Returns:
           None
     '''
-    coll = DATABASE["NB"].matchURL
+    coll = DATABASE["NB"].pppmURL
     result = coll.insert_many(ITEMS)
     COUNT["mongo"] += DATABASE["NB_count"]
     ITEMS.clear()
