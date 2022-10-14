@@ -150,10 +150,11 @@ def initialize_program():
         DOI[key] = val
     for key, val in call_responder('config', 'config/em_dois')['config'].items():
         EMDOI[key] = val
-    # MySQL
     data = call_responder('config', 'config/db_config')["config"]
-    for pdb in PUBLISHING_DATABASE:
-        (CONN[pdb], CURSOR[pdb]) = db_connect(data[pdb][ARG.MANIFOLD])
+    # MySQL
+    if ARG.SOURCE != "em":
+        for pdb in PUBLISHING_DATABASE:
+            (CONN[pdb], CURSOR[pdb]) = db_connect(data[pdb][ARG.MANIFOLD])
     # MongoDB
     LOGGER.info("Connecting to Mongo on %s", ARG.MONGO)
     rwp = 'write' if ARG.WRITE else 'read'
@@ -336,6 +337,7 @@ def process_em():
         library = row["_id"]["lib"]
         if not library.startswith("flyem"):
             continue
+        LOGGER.info("Library %s %s", library, row["_id"]["tag"])
         process_em_library(coll, library, row["count"])
 
 
