@@ -1,17 +1,78 @@
-'''
+''' create_ppp_sync_submitter.py
+    Create a shell script to submit AWS S3 sync jobs to the cluster
+    for PPP imagery.
 '''
 
 import argparse
+import re
 import os
+import colorlog
+import inquirer
+from aws_s3_lib import *
 
+# Configuration
+MANIFOLDS = ['dev', 'prod', 'devpre', 'prodpre']
 BASE = "/nrs/neuronbridge/ppp_imagery"
 
+def get_dirlist(start=BASE, regex=None):
+    files = os.listdir(start)
+    if regex:
+        files = [file for file in files if os.path.isdir(start+'/' + file) \
+                                           and re.search(regex, file)]
+    else:
+        files = [file for file in files if os.path.isdir(start+'/' + file)]
+    return files
+
 def create_commands():
-    files = os.listdir(BASE)
-    files = [f for f in files if os.path.isfile(BASE+'/'+f)] #Filtering only the files.
-    print(*files, sep="\n")
+    # Get local paths
+    paths = []
+    versions = get_dirlist(BASE, "^v\d+")
+    for version in versions:
+        libs = get_dirlist("/".join([BASE, version]), "Fly")
+        for lib in libs:
+            paths.append("/".join([version, lib]))
+    choices = [inquirer.List("dir",
+                             "Choose a version/library",
+                             paths)]
+    source = inquirer.prompt(choices)["dir"]
+    subsets = get_dirlist("/".join([BASE, source]), "^\d+$")
+    # Get source prefix
+    bucket = "janelia-ppp-match-" + ARG.MANIFOLD
+    prefixes = list_prefixes(bucket)
+    prefixes = [prefix for prefix in prefixes if "JRC" in prefix]
+    if len(prefixes) == 1:
+        template = prefixes[0]
+    else:
+        choices = [inquirer.List("prefix",
+                                 "Choose a template",
+                                 prefixes)]
+        template = inquirer.prompt(choices)["prefix"]
+    print(f"Found {len(subsets)} subsets")
+    # Write file
+    with open("ppp_sync.sh", 'w', encoding='ascii') as output:
+        for sub in subsets:
+            dir = "/".join([BASE, source, sub])
+            lib = source.split("/")[-1]
+            s3_prefix = "/".join([template, lib, sub])
+            output.write(f"bsub -J ppp_{sub} -n 4 -P neuronbridge "
+                         + '"' + f"aws s3 sync {dir} "
+                         + f"s3://{bucket}/{s3_prefix}"
+                         + ' --only-show-errors"\n')
 
 # -----------------------------------------------------------------------------
 
 if __name__ == '__main__':
+    PARSER = argparse.ArgumentParser(
+        description="Create PPP sync commands")
+    PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
+                        choices=MANIFOLDS, default="devpre", help='S3 manifold')
+    ARG = PARSER.parse_args()
+
+    LOGGER = colorlog.getLogger()
+    ATTR = colorlog.colorlog.logging if "colorlog" in dir(colorlog) else colorlog
+    LOGGER.setLevel(ATTR.WARNING)
+    HANDLER = colorlog.StreamHandler()
+    HANDLER.setFormatter(colorlog.ColoredFormatter())
+    LOGGER.addHandler(HANDLER)
     create_commands()
+
