@@ -8,13 +8,21 @@ import re
 import os
 import colorlog
 import inquirer
-from aws_s3_lib import *
+from aws_s3_lib import list_prefixes
 
 # Configuration
 MANIFOLDS = ['dev', 'prod', 'devpre', 'prodpre']
 BASE = "/nrs/neuronbridge/ppp_imagery"
 
+
 def get_dirlist(start=BASE, regex=None):
+    """ Get a list of directories
+        Keyword arguments:
+          start: start directory
+          regex: filtering regex
+        Returns:
+          List of directories
+    """
     files = os.listdir(start)
     if regex:
         files = [file for file in files if os.path.isdir(start+'/' + file) \
@@ -23,7 +31,14 @@ def get_dirlist(start=BASE, regex=None):
         files = [file for file in files if os.path.isdir(start+'/' + file)]
     return files
 
+
 def create_commands():
+    """ Produce a file with commands to run AWS syncs
+        Keyword arguments:
+          None
+        Returns:
+          None
+    """
     # Get local paths
     paths = []
     versions = get_dirlist(BASE, "^v\d+")
@@ -51,11 +66,11 @@ def create_commands():
     # Write file
     with open("ppp_sync.sh", 'w', encoding='ascii') as output:
         for sub in subsets:
-            dir = "/".join([BASE, source, sub])
+            source_dir = "/".join([BASE, source, sub])
             lib = source.split("/")[-1]
             s3_prefix = "/".join([template, lib, sub])
             output.write(f"bsub -J ppp_{sub} -n 4 -P neuronbridge "
-                         + '"' + f"aws s3 sync {dir} "
+                         + '"' + f"aws s3 sync {source_dir} "
                          + f"s3://{bucket}/{s3_prefix}"
                          + ' --only-show-errors"\n')
 
@@ -75,4 +90,3 @@ if __name__ == '__main__':
     HANDLER.setFormatter(colorlog.ColoredFormatter())
     LOGGER.addHandler(HANDLER)
     create_commands()
-
