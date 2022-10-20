@@ -23,7 +23,7 @@ BATCH_SIZE = 500000
 NEURONBRIDGE_JSON_BASE = "/nrs/neuronbridge"
 PPP_BASE = NEURONBRIDGE_JSON_BASE + "/ppp_imagery"
 RENAME_COMPONENTS = ["maskPublishedName", "lmPublishedName", "lmSlideCode",
-                     #"lmObjective",
+                     "lmObjective",
                      "inputAlignmentSpace"]
 KEYS = {}
 # Output files
@@ -108,6 +108,21 @@ def initialize_program():
         ARG.NEURONBRIDGE = NB.get_ppp_version(DATABASE["NB"].pppMatches)
 
 
+def all_components_present(row):
+    ''' Write a batch of records to Mongo
+        Keyword arguments:
+          row: row from pppMatches
+        Returns:
+          True or False
+    '''
+    good = True
+    for key in RENAME_COMPONENTS:
+        if key not in row:
+            good = False
+            LOGGER.error("No %s for %s", key, row["_id"])
+    return good
+
+
 def write_mongo():
     ''' Write a batch of records to Mongo
         Keyword arguments:
@@ -117,12 +132,12 @@ def write_mongo():
     '''
     coll = DATABASE["NB"].pppmURL
     result = coll.insert_many(ITEMS)
-    COUNT["mongo"] += DATABASE["NB_count"]
+    COUNT["mongo"] += len(result.inserted_ids)
     ITEMS.clear()
     DATABASE["NB_count"] = 0
 
 
-def add_row_to_mongo(mid, copydict, filedict):
+def add_row_to_mongo(mid, copydict, filedict, thumbdict):
     ''' Create and save a payload for a single row
         Keyword arguments:
           mid: _id from pppMatch
@@ -133,11 +148,12 @@ def add_row_to_mongo(mid, copydict, filedict):
     '''
     payload = {"_id": mid,
                "copiedFiles": copydict,
-               "uploadedFiles": filedict
+               "uploadedFiles": filedict,
+               "uploadedThumbnails": thumbdict,
                }
     ITEMS.append(payload)
     DATABASE["NB_count"] += 1
-    if DATABASE["NB_count"] == BATCH_SIZE:
+    if DATABASE["NB_count"] >= BATCH_SIZE:
         write_mongo()
 
 
@@ -161,12 +177,7 @@ def handle_single_entry(row):
     row["maskPublishedName"] = bid
     if "lmObjective" not in row:
         row["lmObjective"] = "40x"
-    good = True
-    for key in RENAME_COMPONENTS:
-        if key not in row:
-            good = False
-            LOGGER.error("No %s for %s", key, row["_id"])
-    if not good:
+    if not all_components_present(row):
         terminate_program("Missing file components")
     template = row["inputAlignmentSpace"]
     files = row["sourceImageFiles"]
@@ -174,19 +185,23 @@ def handle_single_entry(row):
     s3_prefix = f"{template}/{lib}/{prefix}/{bid}"
     copydict = {}
     filedict = {}
+    thumbdict = {}
     for file in files:
-        newname = '%s-%s-%s-%s' % tuple([row[key] for key in RENAME_COMPONENTS])
+        #newname = '%s-%s-%s-%s' % tuple([row[key] for key in RENAME_COMPONENTS])
+        newname = '%s-%s-%s-%s-%s' % tuple([row[key] for key in RENAME_COMPONENTS])
         newname += "-%s.png" % (file.lower())
         if newname in KEYS:
             terminate_program(f"Fuplicate file {newname} for {row['_id']}")
         KEYS[newname] = True
         copydict[file] = f"{fs_prefix}/{newname}"
         filedict[file] = f"{s3_prefix}/{newname}"
+        if file == "CH":
+            thumbdict[file] = filedict[file].replace(".png", ".jpg")
         COPY.write(f"cp \"{files[file]}\" {fs_prefix}/{newname}\n")
         S3CP.write(f"{files[file]}\t{bucket}/{s3_prefix}/{newname}\n")
         COUNT["files"] += 1
     if ARG.WRITE:
-        add_row_to_mongo(row["_id"], copydict, filedict)
+        add_row_to_mongo(row["_id"], copydict, filedict, thumbdict)
 
 
 def handle_matches():
@@ -198,7 +213,7 @@ def handle_matches():
     '''
     coll = DATABASE["NB"].pppMatches
     payload = {"tags": ARG.NEURONBRIDGE,
-               "sourceImageFiles": { "$ne": None }}
+               "sourceImageFiles": {"$ne": None}}
     LOGGER.info("Getting match count for version %s", ARG.NEURONBRIDGE)
     count = coll.count_documents(payload)
     LOGGER.info("Getting matches for version %s", ARG.NEURONBRIDGE)
@@ -207,11 +222,11 @@ def handle_matches():
         handle_single_entry(row)
     if DATABASE["NB_count"]:
         write_mongo()
-    print(f"Matches read:            {COUNT['matches']}")
-    print(f"Missing lmPublishedName: {COUNT['lmPublishedName']}")
-    print(f"Rows processed:          {COUNT['processed']}")
-    print(f"Rows written to Mongo:   {COUNT['mongo']}")
-    print(f"Files to transfer:       {COUNT['files']}")
+    print(f"Matches read:            {COUNT['matches']:10,}")
+    print(f"Missing lmPublishedName: {COUNT['lmPublishedName']:10,}")
+    print(f"Rows processed:          {COUNT['processed']:10,}")
+    print(f"Rows written to Mongo:   {COUNT['mongo']:10,}")
+    print(f"Files to transfer:       {COUNT['files']:10,}")
 
 
 if __name__ == '__main__':
