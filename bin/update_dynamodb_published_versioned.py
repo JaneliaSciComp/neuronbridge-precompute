@@ -70,6 +70,7 @@ def create_config_object(config):
     data = (call_responder("config", f"config/{config}"))["config"]
     return json.loads(json.dumps(data), object_hook=lambda dat: SimpleNamespace(**dat))
 
+
 def create_dynamodb_table(dynamodb, table):
     """ Create a DynamoDB table
         Keyword arguments:
