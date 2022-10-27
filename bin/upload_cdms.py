@@ -262,10 +262,10 @@ def get_flyem_dataset():
         Returns:
             None
     """
-    if ARG.NEUPRINT:
-        CONF['DATASET'] = ARG.NEUPRINT
+    if ARG.DATASET:
+        CONF['DATASET'] = ARG.DATASET
     else:
-        which = "neuprint-pre" if "pre" in ARG.MANIFOLD else "neuprint"
+        which = "neuprint-pre" if ARG.NEUPRINT == "pre" else "neuprint"
         response = call_responder(which, 'dbmeta/datasets', {}, True)
         datasets = list(response.keys())
         for dset in datasets:
@@ -1251,8 +1251,8 @@ if __name__ == '__main__':
                         default='', help='ALPS release')
     PARSER.add_argument('--neuronbridge', dest='NEURONBRIDGE', action='store',
                         help='NeuronBridge version')
-    PARSER.add_argument('--neuprint', dest='NEUPRINT', action='store',
-                        help='NeuPrint version, e.g. vnc:v0.6')
+    PARSER.add_argument('--dataset', dest='DATASET', action='store',
+                        help='NeuPrint dataset, e.g. vnc:v0.6')
     PARSER.add_argument('--json', dest='JSON', action='store',
                         help='JSON file')
     PARSER.add_argument('--backcheck', dest='BACKCHECK', action='store_true',
@@ -1277,6 +1277,9 @@ if __name__ == '__main__':
     PARSER.add_argument('--mongo', dest='MONGO', action='store',
                         default='prod', choices=['dev', 'prod'],
                         help='MongoDB manifold [dev, prod]')
+    PARSER.add_argument('--neuprint', dest='NEUPRINT', action='store',
+                        default='prod', choices=['pre', 'prod'],
+                        help='NeuPrint manifold [pre, prod]')
     PARSER.add_argument('--mysql', dest='MYSQL', action='store',
                         default='prod', choices=['staging', 'prod'],
                         help='MySQL manifold [staging, prod]')
