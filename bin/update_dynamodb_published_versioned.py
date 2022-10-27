@@ -26,6 +26,7 @@ COUNT = {"bodyID": 0, "publishingName": 0, "neuronInstance": 0, "neuronType": 0,
          "images": 0, "missing": 0, "consensus": 0,
          "insertions": 0}
 KEYS = {}
+KNOWN_PPP = {}
 
 
 def terminate_program(msg=None):
@@ -139,7 +140,7 @@ def initialize_program():
     except dynamodb_client.exceptions.ResourceNotFoundException:
         LOGGER.warning("Table %s doesn't exist", table)
         create_dynamodb_table(dynamodb, table)
-    LOGGER.info("Writing results to DynamoDB table %s", table)
+    LOGGER.info("Will write results to DynamoDB table %s", table)
     DATABASE["DYN"] = dynamodb.Table(table)
 
 
@@ -160,6 +161,13 @@ def valid_row(row):
     return True
 
 
+def build_bodyid_list(bodyids):
+    blist = []
+    for bid in bodyids:
+        blist.append({bid: bid in KNOWN_PPP})
+    return blist
+
+
 def batch_row(name, keytype, matches, bodyids=None):
     ''' Create and save a payload for a single row
         Keyword arguments:
@@ -178,7 +186,7 @@ def batch_row(name, keytype, matches, bodyids=None):
                "cdm": matches["cdm"],
                "ppp": matches["ppp"]}
     if bodyids:
-        payload["bodyIDs"] = bodyids
+        payload["bodyIDs"] = build_bodyid_list(bodyids)
     if name not in KEYS:
         ITEMS.append(payload)
         COUNT[keytype] += 1
@@ -357,6 +365,11 @@ def update_dynamo():
         Returns:
           None
     '''
+    LOGGER.info("Finding PPP matches")
+    coll = DATABASE["NB"]["pppMatches"]
+    results = coll.distinct("sourceEmName")
+    for row in results:
+        KNOWN_PPP[row.split("-")[0]] = True
     coll = DATABASE["NB"]["neuronMetadata"]
     payload = {"$or": [{"processedTags.ColorDepthSearch": ARG.VERSION},
                        {"processedTags.PPPMatch": ARG.VERSION}]}
