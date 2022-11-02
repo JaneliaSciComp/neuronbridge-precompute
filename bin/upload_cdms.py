@@ -921,14 +921,10 @@ def check_image(smp):
             COUNT['Skipped release'] += 1
             return False
         smp['alpsRelease'] = RELEASE[sid]
-    # Check JACS
-    #if 'publicImageUrl' in smp and smp['publicImageUrl'] and not ARG.REWRITE:
-    #    COUNT['Already on JACS'] += 1
-    #    return False
     # Check Mongo
     coll = DBM.publishedURL
     result = coll.find_one({'_id': int(smp['_id'])})
-    if result:
+    if result and not ARG.REWRITE:
         COUNT['Already in Mongo'] += 1
         return False
     return True
@@ -993,9 +989,6 @@ def handle_primary(smp):
             LOGGER.error(err_text)
             ERR.write(err_text + "\n")
             return None
-        # PLUG - Dead code?
-        #if 'imageArchivePath' in smp and 'imageName' in smp:
-        #    smp['searchableNeuronsName'] = '/'.join([smp['imageArchivePath'], smp['imageName']])
     if not skip_primary:
         upload_primary(smp, newname)
     return newname
