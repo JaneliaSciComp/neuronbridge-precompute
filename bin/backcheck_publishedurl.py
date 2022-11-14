@@ -41,7 +41,7 @@ def call_responder(server, endpoint):
         endpoint = f"config/{endpoint}"
     url = (CONFIG[server]['url'] if server else '') + endpoint
     try:
-        req = requests.get(url)
+        req = requests.get(url, timeout=10)
     except requests.exceptions.RequestException as err:
         terminate_program(err)
     if req.status_code == 200:
@@ -65,7 +65,8 @@ def initialize_program():
     try:
         rset = 'rsProd' if ARG.MANIFOLD == 'prod' else 'rsDev'
         mongo = data[MONGODB][ARG.MANIFOLD]["read"]
-        client = MongoClient(mongo['host'], replicaSet=rset, username=mongo['user'], password=mongo['password'])
+        client = MongoClient(mongo['host'], replicaSet=rset, username=mongo['user'],
+                             password=mongo['password'])
         DATABASE["MONGO"] = client.neuronbridge
     except errors.ConnectionFailure as err:
         terminate_program(f"Could not connect to Mongo: {err}")
@@ -196,4 +197,3 @@ if __name__ == '__main__':
     initialize_program()
     mongo_check()
     terminate_program()
-

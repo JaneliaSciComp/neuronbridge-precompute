@@ -48,7 +48,7 @@ def call_responder(server, endpoint):
         endpoint = f"config/{endpoint}"
     url = (CONFIG[server]['url'] if server else '') + endpoint
     try:
-        req = requests.get(url)
+        req = requests.get(url, timeout=10)
     except requests.exceptions.RequestException as err:
         terminate_program(err)
     if req.status_code == 200:

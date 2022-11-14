@@ -103,12 +103,12 @@ def call_responder(server, endpoint, payload='', authenticate=False):
         if payload:
             headers['Accept'] = 'application/json'
             headers['host'] = socket.gethostname()
-            req = requests.put(url, headers=headers, json=payload)
+            req = requests.put(url, headers=headers, json=payload, timeout=10)
         else:
             if authenticate:
-                req = requests.get(url, headers=headers)
+                req = requests.get(url, headers=headers, timeout=10)
             else:
-                req = requests.get(url)
+                req = requests.get(url, timeout=10)
     except requests.exceptions.RequestException as err:
         terminate_program(err)
     if req.status_code == 200:
@@ -366,12 +366,10 @@ def initialize_program():
     LOGGER.info("Connecting to Mongo on %s", ARG.MONGO)
     rwp = 'write' if (ARG.WRITE or ARG.CONFIG) else 'read'
     try:
+        mongo = data[MONGODB][ARG.MONGO][rwp]
         rset = 'rsProd' if ARG.MONGO == 'prod' else 'rsDev'
-        client = MongoClient(data[MONGODB][ARG.MONGO][rwp]['host'],
-                             replicaSet=rset)
-        DBM = client.admin
-        DBM.authenticate(data[MONGODB][ARG.MONGO][rwp]['user'],
-                         data[MONGODB][ARG.MONGO][rwp]['password'])
+        client = MongoClient(mongo['host'], replicaSet=rset, username=mongo['user'],
+                             password=mongo['password'])
         DBM = client.neuronbridge
     except Exception as err:
         terminate_program(f"Could not connect to Mongo: {err}")

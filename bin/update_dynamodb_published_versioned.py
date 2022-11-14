@@ -52,7 +52,7 @@ def call_responder(server, endpoint):
     url = ((getattr(getattr(REST, server), "url") if server else "") if "REST" in globals() \
            else (os.environ.get('CONFIG_SERVER_URL') if server else "")) + endpoint
     try:
-        req = requests.get(url)
+        req = requests.get(url, timeout=10)
     except requests.exceptions.RequestException as err:
         terminate_program(err)
     if req.status_code == 200:
@@ -111,9 +111,8 @@ def initialize_program():
     try:
         dbc = getattr(getattr(dbconfig, "neuronbridge-mongo"), ARG.MONGO)
         rset = 'rsProd' if ARG.MONGO == 'prod' else 'rsDev'
-        client = MongoClient(dbc.read.host, replicaSet=rset)
-        dbm = client.admin
-        dbm.authenticate(dbc.read.user, dbc.read.password)
+        client = MongoClient(dbc.read.host, replicaSet=rset, username=dbc.read.user,
+                             password=dbc.read.password)
         DATABASE["NB"] = client.neuronbridge
     except Exception as err:
         terminate_program(f"Could not connect to Mongo: {err}")
@@ -324,7 +323,9 @@ def process_results(count, results):
     library = {}
     neurons = {"neuronInstance": {}, "neuronType": {}}
     for row in tqdm(results, desc="publishedName", total=count):
-        library[row["libraryName"]] = True
+        if row["libraryName"] not in library:
+            library[row["libraryName"]] = 0
+        library[row["libraryName"]] += 1
         COUNT["images"] += 1
         if not valid_row(row):
             continue
@@ -345,7 +346,15 @@ def process_results(count, results):
                     neurons[ntype][row[ntype]] = True
     if len(rlist) != len(matches):
         terminate_program(f"Unique primary list ({len(rlist)}) != match list({len(matches)})")
-    print(f"Libraries:          {', '.join(library)}")
+    print(f"Libraries:")
+    liblen = cntlen = 0
+    for lib in library:
+        if len(lib) > liblen:
+            liblen = len(lib)
+        if len(str(library[lib])) > cntlen:
+            cntlen = len(str(library[lib]))
+    for lib in library:
+        print(f"  {lib+':':<{liblen+1}} {library[lib]:>{cntlen}}")
     print(f"Neuron instances:   {len(neurons['neuronInstance'])}")
     print(f"Neuron types:       {len(neurons['neuronType'])}")
     match_count(matches)

@@ -83,9 +83,9 @@ def call_responder(server, endpoint, authenticate=False):
         if authenticate:
             headers = {"Content-Type": "application/json",
                        "Authorization": "Bearer " + os.environ["NEUPRINT_JWT"]}
-            req = requests.get(url, headers=headers)
+            req = requests.get(url, headers=headers, timeout=10)
         else:
-            req = requests.get(url)
+            req = requests.get(url, timeout=10)
     except requests.exceptions.RequestException as err:
         terminate_program(err)
     if req.status_code == 200:
@@ -159,12 +159,10 @@ def initialize_program():
     LOGGER.info("Connecting to Mongo on %s", ARG.MONGO)
     rwp = 'write' if ARG.WRITE else 'read'
     try:
+        mongo = data[MONGODB][ARG.MONGO][rwp]
         rset = 'rsProd' if ARG.MONGO == 'prod' else 'rsDev'
-        client = MongoClient(data[MONGODB][ARG.MONGO][rwp]['host'],
-                             replicaSet=rset)
-        dbm = client.admin
-        dbm.authenticate(data[MONGODB][ARG.MONGO][rwp]['user'],
-                         data[MONGODB][ARG.MONGO][rwp]['password'])
+        client = MongoClient(mongo['host'], replicaSet=rset, username=mongo['user'],
+                             password=mongo['password'])
         DATABASE["NB"] = client.neuronbridge
     except Exception as err:
         terminate_program(f"Could not connect to Mongo: {err}")

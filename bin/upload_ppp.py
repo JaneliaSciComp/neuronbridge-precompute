@@ -62,7 +62,7 @@ def call_responder(server, endpoint):
     url = ((getattr(getattr(REST, server), "url") if server else "") if "REST" in globals() \
            else (os.environ.get('CONFIG_SERVER_URL') if server else "")) + endpoint
     try:
-        req = requests.get(url)
+        req = requests.get(url, timeout=10)
     except requests.exceptions.RequestException as err:
         terminate_program(err)
     if req.status_code == 200:
@@ -94,12 +94,10 @@ def initialize_program():
     LOGGER.info("Connecting to neuronbridge MongoDB on %s", ARG.MONGO)
     rwp = 'write' if ARG.WRITE else 'read'
     try:
+        mongo = data[MONGODB][ARG.MONGO][rwp]
         rset = 'rsProd' if ARG.MONGO == 'prod' else 'rsDev'
-        client = MongoClient(data[MONGODB][ARG.MONGO][rwp]['host'],
-                             replicaSet=rset)
-        dbm = client.admin
-        dbm.authenticate(data[MONGODB][ARG.MONGO][rwp]['user'],
-                         data[MONGODB][ARG.MONGO][rwp]['password'])
+        client = MongoClient(mongo['host'], replicaSet=rset, username=mongo['user'],
+                             password=mongo['password'])
         DATABASE["NB"] = client.neuronbridge
         DATABASE["NB_count"] = 0
     except Exception as err:

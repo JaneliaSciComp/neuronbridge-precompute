@@ -103,9 +103,8 @@ def initialize_program():
     try:
         dbc = getattr(getattr(dbconfig, "neuronbridge-mongo"), ARG.MONGO)
         rset = 'rsProd' if ARG.MONGO == 'prod' else 'rsDev'
-        client = MongoClient(dbc.read.host, replicaSet=rset)
-        dbm = client.admin
-        dbm.authenticate(dbc.read.user, dbc.read.password)
+        client = MongoClient(dbc.read.host, replicaSet=rset, username=dbc.read.user,
+                             password=dbc.read.password)
         DATABASE["NB"] = client.neuronbridge
     except Exception as err:
         terminate_program(f"Could not connect to Mongo: {err}")

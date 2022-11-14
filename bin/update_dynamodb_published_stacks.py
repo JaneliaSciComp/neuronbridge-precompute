@@ -65,7 +65,7 @@ def call_responder(server, endpoint):
     """
     url = CONFIG[server]['url'] + endpoint
     try:
-        req = requests.get(url)
+        req = requests.get(url, timeout=10)
     except requests.exceptions.RequestException as err:
         LOGGER.critical(err)
         sys.exit(-1)
@@ -95,11 +95,9 @@ def initialize_program():
     rwp = 'write' if ARG.WRITE else 'read'
     try:
         rset = 'rsProd' if ARG.MANIFOLD == 'prod' else 'rsDev'
-        client = MongoClient(data[MONGODB][ARG.MANIFOLD][rwp]['host'],
-                             replicaSet=rset)
-        DBM = client.admin
-        DBM.authenticate(data[MONGODB][ARG.MANIFOLD][rwp]['user'],
-                         data[MONGODB][ARG.MANIFOLD][rwp]['password'])
+        mongo = data[MONGODB][ARG.MANIFOLD][rwp]
+        client = MongoClient(mongo['host'], replicaSet=rset, username=mongo['user'],
+                             password=mongo['password'])
         DBM = client.neuronbridge
     except Exception as err:
         terminate_program(f"Could not connect to Mongo: {err}")
