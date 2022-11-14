@@ -66,8 +66,6 @@ def initialize_program():
         rset = 'rsProd' if ARG.MANIFOLD == 'prod' else 'rsDev'
         mongo = data[MONGODB][ARG.MANIFOLD]["read"]
         client = MongoClient(mongo['host'], replicaSet=rset, username=mongo['user'], password=mongo['password'])
-        #DATABASE["MONGO"] = client.admin
-        #DATABASE["MONGO"].authenticate(mongo['user'], mongo['password'])
         DATABASE["MONGO"] = client.neuronbridge
     except errors.ConnectionFailure as err:
         terminate_program(f"Could not connect to Mongo: {err}")
