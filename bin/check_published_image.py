@@ -2,8 +2,10 @@
 '''
 
 import argparse
+import json
 import os
 import sys
+from types import SimpleNamespace
 from colorama import Fore, Style
 import colorlog
 import requests
@@ -13,12 +15,11 @@ from simple_term_menu import TerminalMenu
 
 
 # Configuration
-CONFIG = {'config': {'url': os.environ.get('CONFIG_SERVER_URL')}}
 TEMPLATE = "An exception of type %s occurred. Arguments:\n%s"
 # Database
-CONN = dict()
-CURSOR = dict()
-DBM = ''
+CONN = {}
+CURSOR = {}
+DBM = {}
 READ = {"IMG": "SELECT alps_release,COUNT(1) AS cnt FROM image_data_mv i JOIN secondary_image_vw s "
                + "ON (i.id=s.image_id) WHERE alignment_space_unisex IS NOT NULL "
                + "AND s.product='aligned_jrc2018_unisex_hr_stack' GROUP BY 1"
@@ -45,59 +46,59 @@ def sql_error(err):
           None
     """
     try:
-        msg = 'MySQL error [%d]: %s' % (err.args[0], err.args[1])
+        msg = f"MySQL error [{err.args[0]}]: { err.args[1]}"
     except IndexError:
-        msg = 'MySQL error: %s' % (err)
+        msg = f"MySQL error: {err}"
     terminate_program(msg)
 
 
-def db_connect(dbd):
+def db_connect(dbc):
     """ Connect to a database
         Keyword arguments:
-          dbd: database dictionary
+          dbc: database object
         Returns:
           connector and cursor
     """
-    LOGGER.info("Connecting to %s on %s", dbd['name'], dbd['host'])
+    LOGGER.info("Connecting to %s on %s", dbc.name, dbc.host)
     try:
-        conn = MySQLdb.connect(host=dbd['host'], user=dbd['user'],
-                               passwd=dbd['password'], db=dbd['name'])
+        conn = MySQLdb.connect(host=dbc.host, user=dbc.user,
+                               passwd=dbc.password, db=dbc.name)
     except MySQLdb.Error as err:
         sql_error(err)
     try:
         cursor = conn.cursor(MySQLdb.cursors.DictCursor)
-        return conn, cursor
     except MySQLdb.Error as err:
         sql_error(err)
+    return conn, cursor
 
 
 def call_responder(server, endpoint):
-    """ Call a responder and return JSON
+    ''' Call a responder
         Keyword arguments:
           server: server
-          endpoint: endpoint
+          endpoint: REST endpoint
         Returns:
-          JSON
-    """
-    url = CONFIG[server]['url'] + endpoint
+          JSON response
+    '''
+    url = ((getattr(getattr(REST, server), "url") if server else "") if "REST" in globals() \
+           else (os.environ.get('CONFIG_SERVER_URL') if server else "")) + endpoint
     try:
-        req = requests.get(url)
+        req = requests.get(url, timeout=10)
     except requests.exceptions.RequestException as err:
-        LOGGER.critical(err)
-        sys.exit(-1)
+        terminate_program(err)
     if req.status_code == 200:
         return req.json()
-    if req.status_code == 400:
-        try:
-            if "error" in req.json():
-                LOGGER.error("%s %s", url, req.json()["error"])
-        except Exception as err:
-            pass
-        return False
-    LOGGER.error('Status: %s', str(req.status_code))
-    sys.exit(-1)
+    terminate_program(f"Could not get response from {url}: {req.text}")
+    return False
+
 
 def get_parms():
+    """ Get parameters
+        Keyword arguments:
+          None
+        Returns:
+          None
+    """
     choices = ['mbew', 'gen1mcfo']
     if not ARG.DATABASE:
         terminal_menu = TerminalMenu(choices, title="Select a publishing database")
@@ -114,7 +115,7 @@ def get_parms():
             LOGGER.critical("You must select a manifold")
             terminate_program(-1)
         ARG.MANIFOLD = choices[chosen]
-    choices = ['dev', 'prod', 'local']
+    choices = ['prod', 'dev', 'local']
     if not ARG.MONGO:
         terminal_menu = TerminalMenu(choices, title="Select a MongoDB instance")
         chosen = terminal_menu.show()
@@ -124,36 +125,44 @@ def get_parms():
         ARG.MONGO = choices[chosen]
 
 
+def create_config_object(config):
+    """ Convert the JSON received from a configuration to an object
+        Keyword arguments:
+          config: configuration name
+        Returns:
+          Configuration object
+    """
+    data = (call_responder("config", f"config/{config}"))["config"]
+    return json.loads(json.dumps(data), object_hook=lambda dat: SimpleNamespace(**dat))
+
+
 def initialize_program():
     """ Initialize
     """
-    global CONFIG, DBM  # pylint: disable=W0603
-    data = call_responder('config', 'config/rest_services')
-    CONFIG = data['config']
     # Get parms
-    get_parms();
+    get_parms()
     # Databases
-    data = call_responder('config', 'config/db_config')
+    dbconfig = create_config_object("db_config")
     if not ARG.QUICK:
+        dbc = getattr(getattr(dbconfig, ARG.DATABASE), ARG.MANIFOLD)
         (CONN[ARG.DATABASE], CURSOR[ARG.DATABASE]) = \
-            db_connect(data['config'][ARG.DATABASE][ARG.MANIFOLD])
+            db_connect(dbc)
+            #db_connect(data['config'][ARG.DATABASE][ARG.MANIFOLD])
     # Connect to Mongo
     LOGGER.info("Connecting to Mongo on %s", ARG.MONGO)
-    rwp = 'read'
     try:
+        dbc = getattr(getattr(getattr(dbconfig, "jacs-mongo"), ARG.MONGO), "read")
         if ARG.MONGO == 'prod':
-            client = MongoClient(data['config']['jacs-mongo'][ARG.MONGO][rwp]['host'],
-                                 replicaSet='replWorkstation')
+            client = MongoClient(dbc.host, replicaSet=dbc.replicaset)
         elif ARG.MONGO == 'local':
             client = MongoClient()
         else:
-            client = MongoClient(data['config']['jacs-mongo'][ARG.MONGO][rwp]['host'])
-        DBM = client.jacs
+            client = MongoClient(dbc.host)
+        DBM["jacs"] = client.jacs
         if ARG.MONGO == 'prod':
-            DBM.authenticate(data['config']['jacs-mongo'][ARG.MONGO][rwp]['user'],
-                             data['config']['jacs-mongo'][ARG.MONGO][rwp]['password'])
+            DBM["jacs"].authenticate(dbc.user, dbc.password)
     except Exception as err:
-        terminate_program('Could not connect to Mongo: %s' % (err))
+        terminate_program(f"Could not connect to Mongo: {err}")
 
 
 def process_imagery():
@@ -163,19 +172,19 @@ def process_imagery():
         Returns:
           None
     """
-    coll = DBM.publishedImage
+    coll = DBM["jacs"].publishedImage
     result = coll.aggregate([{"$group" : {"_id":"$releaseName", "count": {"$sum":1}}}])
     mongo = {}
     for rel in result:
         mongo[rel['_id']] = rel['count']
     if ARG.QUICK:
-        print("%-26s  %-6s" % ("Release", "Mongo"))
+        print(f"{'Release':<26}  Mongo")
         total = 0
         for mkey in sorted(mongo):
-            print("%-26s  %6d" % (mkey, mongo[mkey]))
+            print(f"{mkey:<26}  {mongo[mkey]:>6}")
             total += mongo[mkey]
-        print("%-26s  %-6s" % ("-"*26, "-"*6))
-        print("%-26s  %6d" % ("TOTAL", total))
+        print(f"{'-'*26}  {'-'*6}")
+        print(f"{'TOTAL':<26}  {total:>6}")
     else:
         try:
             CURSOR[ARG.DATABASE].execute(READ["IMG"])
@@ -183,15 +192,15 @@ def process_imagery():
         except MySQLdb.Error as err:
             sql_error(err)
         total = {"mysql": 0, "mongo": 0}
-        print("%-26s  %-6s  %-6s" % ("Release", "MySQL", "Mongo"))
+        print(f"{'Release':<26}  {'MySQL':6}  {'Mongo':6}")
         for row in rows:
             mcnt = mongo[row["alps_release"]] if row["alps_release"] in mongo else 0
-            line = "%-26s  %6d  %6d" % (row["alps_release"], row["cnt"], mcnt)
+            line = f"{row['alps_release']:<26}  {row['cnt']:>6}  {mcnt:>6}"
             print((Fore.GREEN if row["cnt"] == mcnt else Fore.RED) + line)
             total["mysql"] += row["cnt"]
             total["mongo"] += mcnt
-        print(Style.RESET_ALL + "%-26s  %-6s  %-6s" % ("-"*26, "-"*6, "-"*6))
-        line = "%-26s  %6d  %6d" % ("TOTAL", total["mysql"], total["mongo"])
+        print(Style.RESET_ALL + f"{'-'*26}  {'-'*6}  {'-'*6}")
+        line = f"{'TOTAL':<26}  {total['mysql']:>6}  {total['mongo']:>6}"
         print((Fore.GREEN if total["mysql"] == total["mongo"] else Fore.RED) + line)
 
 
@@ -222,6 +231,7 @@ if __name__ == '__main__':
     HANDLER = colorlog.StreamHandler()
     HANDLER.setFormatter(colorlog.ColoredFormatter())
     LOGGER.addHandler(HANDLER)
+    REST = create_config_object("rest_services")
     initialize_program()
     process_imagery()
     sys.exit(0)
