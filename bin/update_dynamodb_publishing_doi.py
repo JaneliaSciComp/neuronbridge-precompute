@@ -7,9 +7,11 @@
 '''
 
 import argparse
+import json
 import os
 import re
 import sys
+from types import SimpleNamespace
 import boto3
 import colorlog
 import MySQLdb
@@ -21,12 +23,10 @@ from tqdm import tqdm
 # pylint: disable=R1710, W0703
 # Configuration
 GEN1_MCFO_DOI = "10.1101/2020.05.29.080473"
-CONFIG = {'config': {'url': os.environ.get('CONFIG_SERVER_URL')}}
 CITATION = {}
 DOI = {}
 EMDOI = {}
 MAPPING = {}
-SERVER = {}
 # Database
 ITEMS = []
 PUBLISHING_DATABASE = ["mbew", "gen1mcfo"]
@@ -78,7 +78,8 @@ def call_responder(server, endpoint, authenticate=False):
         Returns:
           JSON
     """
-    url = CONFIG[server]['url'] + endpoint
+    url = ((getattr(getattr(REST, server), "url") if server else "") if "REST" in globals() \
+           else (os.environ.get('CONFIG_SERVER_URL') if server else "")) + endpoint
     try:
         if authenticate:
             headers = {"Content-Type": "application/json",
@@ -93,15 +94,15 @@ def call_responder(server, endpoint, authenticate=False):
     terminate_program(f"Status: {str(req.status_code)}")
 
 
-def db_connect(dbd):
+def db_connect(dbc):
     """ Connect to a database
         Keyword arguments:
-          dbd: database dictionary
+          dbc: database object
     """
-    LOGGER.info("Connecting to %s on %s", dbd['name'], dbd['host'])
+    LOGGER.info("Connecting to %s on %s", dbc.name, dbc.host)
     try:
-        conn = MySQLdb.connect(host=dbd['host'], user=dbd['user'],
-                               passwd=dbd['password'], db=dbd['name'])
+        conn = MySQLdb.connect(host=dbc.host, user=dbc.user,
+                               passwd=dbc.password, db=dbc.name)
     except MySQLdb.Error as err:
         sql_error(err)
     try:
@@ -135,6 +136,17 @@ def create_dynamodb_table(dynamodb, table):
         table.wait_until_exists()
 
 
+def create_config_object(config):
+    """ Convert the JSON received from a configuration to an object
+        Keyword arguments:
+          config: configuration name
+        Returns:
+          Configuration object
+    """
+    data = (call_responder("config", f"config/{config}"))["config"]
+    return json.loads(json.dumps(data), object_hook=lambda dat: SimpleNamespace(**dat))
+
+
 def initialize_program():
     """ Initialize the program
         Keyword arguments:
@@ -142,27 +154,23 @@ def initialize_program():
         Returns:
           None
     """
-    for key, val in call_responder('config', 'config/rest_services')['config'].items():
-        CONFIG[key] = val
-    for key, val in call_responder('config', 'config/servers')['config'].items():
-        SERVER[key] = val
     for key, val in call_responder('config', 'config/dois')['config'].items():
         DOI[key] = val
     for key, val in call_responder('config', 'config/em_dois')['config'].items():
         EMDOI[key] = val
-    data = call_responder('config', 'config/db_config')["config"]
+    dbconfig = create_config_object("db_config")
     # MySQL
     if ARG.SOURCE != "em":
         for pdb in PUBLISHING_DATABASE:
-            (CONN[pdb], CURSOR[pdb]) = db_connect(data[pdb][ARG.MANIFOLD])
+            dbc = getattr(getattr(dbconfig, pdb), ARG.MANIFOLD)
+            (CONN[pdb], CURSOR[pdb]) = db_connect(dbc)
     # MongoDB
     LOGGER.info("Connecting to Mongo on %s", ARG.MONGO)
     rwp = 'write' if ARG.WRITE else 'read'
     try:
-        mongo = data[MONGODB][ARG.MONGO][rwp]
-        rset = 'rsProd' if ARG.MONGO == 'prod' else 'rsDev'
-        client = MongoClient(mongo['host'], replicaSet=rset, username=mongo['user'],
-                             password=mongo['password'])
+        dbc = getattr(getattr(getattr(dbconfig, MONGODB), ARG.MONGO), rwp)
+        client = MongoClient(dbc.host, replicaSet=dbc.replicaset, username=dbc.user,
+                             password=dbc.password)
         DATABASE["NB"] = client.neuronbridge
     except Exception as err:
         terminate_program(f"Could not connect to Mongo: {err}")
@@ -227,8 +235,8 @@ def setup_dataset(dataset):
         Returns:
           name: data set name
     """
-    LOGGER.info("Initializing Client for %s %s", SERVER["neuprint"]["address"], dataset)
-    npc = Client(SERVER["neuprint"]["address"], dataset=dataset)
+    LOGGER.info("Initializing Client for %s %s", SERVER.neuprint.address, dataset)
+    npc = Client(SERVER.neuprint.address, dataset=dataset)
     set_default_client(npc)
     version = ''
     if ':' in dataset:
@@ -263,7 +271,7 @@ def process_em_dataset(dataset):
         if bid not in MAPPING:
             MAPPING[bid] = doi
             payload = {"name": bid,
-                       "doi": [{"link": "/".join([SERVER["doi"]["address"], doi]),
+                       "doi": [{"link": "/".join([SERVER.doi.address, doi]),
                                 "citation": get_citation(doi)}]
                       }
             ITEMS.append(payload)
@@ -312,7 +320,7 @@ def process_em_library(coll, library, count):
         if bid not in MAPPING:
             MAPPING[bid] = doi
             payload = {"name": bid,
-                       "doi": [{"link": "/".join([SERVER["doi"]["address"], doi]),
+                       "doi": [{"link": "/".join([SERVER.doi.address, doi]),
                                 "citation": get_citation(doi)}]
                       }
             ITEMS.append(payload)
@@ -355,11 +363,11 @@ def process_single_lm_image(row, database):
         MAPPING[row['line']] = doi
         citation = get_citation(doi)
         payload = {"name": row['line'],
-                   "doi": [{"link": "/".join([SERVER["doi"]["address"], doi]),
+                   "doi": [{"link": "/".join([SERVER.doi.address, doi]),
                             "citation": citation}]
                   }
         if database == 'gen1mcfo' and doi != GEN1_MCFO_DOI:
-            payload["doi"].append({"link": "/".join([SERVER["doi"]["address"], GEN1_MCFO_DOI]),
+            payload["doi"].append({"link": "/".join([SERVER.doi.address, GEN1_MCFO_DOI]),
                                    "citation": get_citation(GEN1_MCFO_DOI)})
         ITEMS.append(payload)
 
@@ -444,6 +452,8 @@ if __name__ == '__main__':
     LOGGER.addHandler(HANDLER)
     if ARG.RELEASE and not ARG.SOURCE:
         terminate_program("If you specify a release, you must also specify a source")
+    REST = create_config_object("rest_services")
+    SERVER = create_config_object("servers")
     initialize_program()
     perform_mapping()
     terminate_program()

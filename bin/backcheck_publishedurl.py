@@ -37,8 +37,6 @@ def call_responder(server, endpoint):
         Returns:
           JSON response
     '''
-    #if server == "config" and endpoint:
-    #    endpoint = f"config/{endpoint}"
     url = ((getattr(getattr(REST, server), "url") if server else "") if "REST" in globals() \
            else (os.environ.get('CONFIG_SERVER_URL') if server else "")) + endpoint
     try:
