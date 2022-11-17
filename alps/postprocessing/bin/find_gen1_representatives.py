@@ -3,11 +3,13 @@
 
 import argparse
 from datetime import datetime
+import json
 from os.path import exists
 import os
 import re
 import sys
 import time
+from types import SimpleNamespace
 import colorlog
 import requests
 import MySQLdb
@@ -17,7 +19,6 @@ import neuronbridge_lib as NB
 
 
 # Configuration
-CONFIG = {'config': {'url': os.environ.get('CONFIG_SERVER_URL')}}
 TARGET = "s3://janelia-flylight-imagery/Gen1/CDM"
 TEMPLATE = "An exception of type %s occurred. Arguments:\n%s"
 # Database
@@ -65,17 +66,17 @@ def sql_error(err):
     terminate_program(msg)
 
 
-def db_connect(dbd):
+def db_connect(dbc):
     """ Connect to a database
         Keyword arguments:
-          dbd: database dictionary
+          dbd: database object
         Returns:
           connector and cursor
     """
-    LOGGER.info("Connecting to %s on %s", dbd['name'], dbd['host'])
+    LOGGER.info("Connecting to %s on %s", dbc.name, dbc.host)
     try:
-        conn = MySQLdb.connect(host=dbd['host'], user=dbd['user'],
-                               passwd=dbd['password'], db=dbd['name'])
+        conn = MySQLdb.connect(host=dbc.host, user=dbc.user,
+                               passwd=dbc.password, db=dbc.name)
     except MySQLdb.Error as err:
         sql_error(err)
     try:
@@ -93,7 +94,8 @@ def call_responder(server, endpoint):
         Returns:
           JSON
     """
-    url = CONFIG[server]['url'] + endpoint
+    url = ((getattr(getattr(REST, server), "url") if server else "") if "REST" in globals() \
+           else (os.environ.get('CONFIG_SERVER_URL') if server else "")) + endpoint
     try:
         req = requests.get(url, timeout=10)
     except requests.exceptions.RequestException as err:
@@ -108,45 +110,50 @@ def call_responder(server, endpoint):
         except Exception:
             pass
         return False
-    LOGGER.error('Status: %s', str(req.status_code))
-    sys.exit(-1)
+    terminate_program(f"Status: {str(req.status_code)}")
+
+
+def create_config_object(config):
+    """ Convert the JSON received from a configuration to an object
+        Keyword arguments:
+          config: configuration name
+        Returns:
+          Configuration object
+    """
+    data = (call_responder("config", f"config/{config}"))["config"]
+    return json.loads(json.dumps(data), object_hook=lambda dat: SimpleNamespace(**dat))
 
 
 def initialize_program():
     """ Initialize
     """
-    global CONFIG, DBM, PRODUCT  # pylint: disable=W0603
-    data = call_responder('config', 'config/rest_services')
-    CONFIG = data['config']
-    data = call_responder('config', 'config/imagery_product')
-    PRODUCT = data['config']
+    global DBM # pylint: disable=W0603
     # Databases
-    data = call_responder('config', 'config/db_config')
-    (CONN['flew'], CURSOR['flew']) = db_connect(data['config']['flew'][ARG.MANIFOLD])
-    (CONN['sage'], CURSOR['sage']) = db_connect(data['config']['sage']['prod'])
+    dbconfig = create_config_object("db_config")
+    dbc = getattr(getattr(dbconfig, "flew"), ARG.MANIFOLD)
+    (CONN['flew'], CURSOR['flew']) = db_connect(dbc)
+    dbc = getattr(getattr(dbconfig, "sage"), "prod")
+    (CONN['sage'], CURSOR['sage']) = db_connect(dbc)
     # Connect to Mongo
     LOGGER.info("Connecting to Mongo on %s", ARG.MONGO)
     rwp = 'write' if ARG.WRITE else 'read'
     try:
+        dbc = getattr(getattr(getattr(dbconfig, MONGODB), ARG.MONGO), rwp)
         if ARG.MONGO == 'prod':
             if MONGODB == 'neuronbridge-mongo':
-                client = MongoClient(data['config'][MONGODB][ARG.MONGO][rwp]['host'],
-                                     replicaSet='rsProd')
+                client = MongoClient(dbc.host, replicaSet=dbc.replicaset)
             else:
-                client = MongoClient(data['config'][MONGODB][ARG.MONGO][rwp]['host'],
-                                     replicaSet='replWorkstation')
+                client = MongoClient(dbc.host, replicaSet=dbc.replicaset)
         elif ARG.MONGO == 'local':
             client = MongoClient()
         else:
             if MONGODB == 'neuronbridge-mongo':
-                client = MongoClient(data['config'][MONGODB][ARG.MONGO][rwp]['host'],
-                                     replicaSet='rsDev')
+                client = MongoClient(dbc.host, replicaSet=dbc.replicaset)
             else:
-                client = MongoClient(data['config'][MONGODB][ARG.MONGO][rwp]['host'])
+                client = MongoClient(dbc.host)
         DBM = client.jacs if MONGODB == 'jacs-mongo' else client.admin
         if ARG.MONGO == 'prod' or MONGODB == 'neuronbridge-mongo':
-            DBM.authenticate(data['config'][MONGODB][ARG.MONGO][rwp]['user'],
-                             data['config'][MONGODB][ARG.MONGO][rwp]['password'])
+            DBM.authenticate(dbc.user, dbc.password)
         if MONGODB == 'neuronbridge-mongo':
             DBM = client.neuronbridge
     except Exception as err:
@@ -202,7 +209,7 @@ def get_jacs_data(row):
           Results (or None for error)
     """
     query = row["name"].split("/")[-1].replace(".bz2", "")
-    endpoint = CONFIG['jacs']['query']['LSMImages'] + '?name=' + query
+    endpoint = REST.jacs.query.LSMImages + '?name=' + query
     result = call_responder('jacs', endpoint)
     if (not result) or ("sample" not in result):
         ERROR.write(f"Could not find LSM {query} in JACS\n")
@@ -210,7 +217,7 @@ def get_jacs_data(row):
         return None
     # Check result
     sample = result['sample'].split("#")[-1]
-    endpoint = CONFIG['jacs']['query']['SampleJSON'] + '?sampleId=' + sample
+    endpoint = REST.jacs.query.SampleJSON + '?sampleId=' + sample
     #print(CONFIG['jacs']['url'], endpoint)
     result = call_responder('jacs', endpoint)
     if not result:
@@ -351,7 +358,7 @@ def process_sample_result(result, pname, tile):
         for iprod in ("Color Depth Projection ch1", "Visually Lossless Stack (e.g. H5J)"):
             if iprod in prr["files"]:
                 file = "/".join([prr["filepath"], prr["files"][iprod]])
-                filepath[PRODUCT["jacs"][iprod]] = file
+                filepath[getattr(PRODUCT.jacs, iprod)] = file
                 if not exists(file):
                     LOGGER.error("File %s does not exist", file)
         if filepath:
@@ -499,6 +506,8 @@ if __name__ == '__main__':
     HANDLER = colorlog.StreamHandler()
     HANDLER.setFormatter(colorlog.ColoredFormatter())
     LOGGER.addHandler(HANDLER)
+    REST = create_config_object("rest_services")
+    PRODUCT = create_config_object("imagery_product")
     initialize_program()
     TIMESTAMP = time.strftime("%Y%m%dT%H%M%S")
     COPY = open(f"rep_{TIMESTAMP}_copy.order", 'w', encoding='ascii')
