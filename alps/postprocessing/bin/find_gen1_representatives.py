@@ -21,8 +21,8 @@ CONFIG = {'config': {'url': os.environ.get('CONFIG_SERVER_URL')}}
 TARGET = "s3://janelia-flylight-imagery/Gen1/CDM"
 TEMPLATE = "An exception of type %s occurred. Arguments:\n%s"
 # Database
-CONN = dict()
-CURSOR = dict()
+CONN = {}
+CURSOR = {}
 DBM = PRODUCT = ''
 MONGODB = 'neuronbridge-mongo'
 INSERT_BATCH = 1000
@@ -31,7 +31,7 @@ READ = {"EXT": "SELECT line,name FROM image_data_mv WHERE "
         "IMG": "SELECT * FROM image_data_mv WHERE line=%s AND name LIKE %s"
        }
 # General
-JACS_KEYS = dict()
+JACS_KEYS = {}
 LAST_UID = None
 COUNT = {"publishing": 0, "sage": 0, "jacs": 0, "missing_cdm": 0,
          "missing_obj": 0, "missing_unisex": 0,
@@ -59,9 +59,9 @@ def sql_error(err):
           None
     """
     try:
-        msg = 'MySQL error [%d]: %s' % (err.args[0], err.args[1])
+        msg = f"MySQL error [{err.args[0]}]: {err.args[1]}"
     except IndexError:
-        msg = 'MySQL error: %s' % (err)
+        msg = f"MySQL error: {err}"
     terminate_program(msg)
 
 
@@ -80,9 +80,9 @@ def db_connect(dbd):
         sql_error(err)
     try:
         cursor = conn.cursor(MySQLdb.cursors.DictCursor)
-        return conn, cursor
     except MySQLdb.Error as err:
         sql_error(err)
+    return conn, cursor
 
 
 def call_responder(server, endpoint):
@@ -95,7 +95,7 @@ def call_responder(server, endpoint):
     """
     url = CONFIG[server]['url'] + endpoint
     try:
-        req = requests.get(url)
+        req = requests.get(url, timeout=10)
     except requests.exceptions.RequestException as err:
         LOGGER.critical(err)
         sys.exit(-1)
@@ -105,7 +105,7 @@ def call_responder(server, endpoint):
         try:
             if "error" in req.json():
                 LOGGER.error("%s %s", url, req.json()["error"])
-        except Exception as err:
+        except Exception:
             pass
         return False
     LOGGER.error('Status: %s', str(req.status_code))
@@ -150,7 +150,7 @@ def initialize_program():
         if MONGODB == 'neuronbridge-mongo':
             DBM = client.neuronbridge
     except Exception as err:
-        terminate_program('Could not connect to Mongo: %s' % (err))
+        terminate_program(f"Could not connect to Mongo: {err}")
 
 
 def delete_existing(coll):
@@ -162,7 +162,7 @@ def delete_existing(coll):
           None
     """
     result = coll.delete_many({"releaseName": {"$in": ["Gen1 GAL4", "Gen1 LexA"]}})
-    LOGGER.info("Records deleted from Mongo: %d", result.deleted_count)
+    LOGGER.info("Records deleted from Mongo: %s", result.deleted_count)
 
 
 def get_sage_rows(line, file):
@@ -180,15 +180,15 @@ def get_sage_rows(line, file):
     except MySQLdb.Error as err:
         sql_error(err)
     if not rows:
-        ERROR.write("Line %s %s was not found in SAGE\n" % (line, file))
+        ERROR.write(f"Line {line} {file} was not found in SAGE\n")
         COUNT["sage_error"] += 1
         return None
     if len(rows) > 1:
-        ERROR.write("Line %s %s has multiple entries in SAGE\n" % (line, file))
+        ERROR.write(f"Line {line} {file} has multiple entries in SAGE\n")
         COUNT["sage_error"] += 1
         return None
     if not rows[0]["area"]:
-        ERROR.write("No area for %s %s\n" % (line, rows[0]["name"]))
+        ERROR.write(f"No area for {line} {rows[0]['name']}\n")
         COUNT["sage_error"] += 1
         return None
     return rows
@@ -205,7 +205,7 @@ def get_jacs_data(row):
     endpoint = CONFIG['jacs']['query']['LSMImages'] + '?name=' + query
     result = call_responder('jacs', endpoint)
     if (not result) or ("sample" not in result):
-        ERROR.write("Could not find LSM %s in JACS\n" % (query))
+        ERROR.write(f"Could not find LSM {query} in JACS\n")
         COUNT["jacs_error"] += 1
         return None
     # Check result
@@ -214,7 +214,7 @@ def get_jacs_data(row):
     #print(CONFIG['jacs']['url'], endpoint)
     result = call_responder('jacs', endpoint)
     if not result:
-        ERROR.write("Could not find sample %s in JACS\n" % (sample))
+        ERROR.write(f"Could not find sample {sample} in JACS\n")
         COUNT["jacs_error"] += 1
         return None
     return result
@@ -229,18 +229,17 @@ def get_objective(result, sample):
           Objective record (or None if not found)
     """
     if not isinstance(result, list) or len(result) != 1:
-        ERROR.write("Could not find sample list %s in JACS\n" % (sample))
+        ERROR.write(f"Could not find sample list {sample} in JACS\n")
         COUNT["jacs_error"] += 1
         return None
     if "objectiveSamples" not in result[0]:
-        ERROR.write("Could not find sample %s in JACS\n" % (sample))
+        ERROR.write(f"Could not find sample {sample} in JACS\n")
         COUNT["jacs_error"] += 1
         return None
-    obj = None
     for obj_dict in result[0]['objectiveSamples']:
         if "20x" in obj_dict["objective"]:
             return obj_dict
-    ERROR.write("No 20x objective in sample %s\n" % (sample))
+    ERROR.write(f"No 20x objective in sample {sample}\n")
     COUNT["missing_obj"] += 1
     return None
 
@@ -260,7 +259,7 @@ def get_pipeline_run_result(obj, sample):
                 if re.search(r"JRC\d\d\d\d_.*Unisex_.*CMTK", res_dict["name"]):
                     prr = res_dict
     if not prr:
-        ERROR.write("No Unisex pipeline run in sample %s\n" % (sample))
+        ERROR.write(f"No Unisex pipeline run in sample {sample}\n")
         COUNT["missing_unisex"] += 1
     return prr
 
@@ -282,7 +281,7 @@ def set_payload(pname, result, obj):
     dtm = datetime.now()
     next_uid = NB.generate_jacs_uid(last_uid=LAST_UID)
     if next_uid in JACS_KEYS:
-        terminate_program("%d is a duplicate key" % (next_uid))
+        terminate_program(f"{next_uid} is a duplicate key")
     else:
         JACS_KEYS[next_uid] = True
         LAST_UID = next_uid
@@ -299,6 +298,24 @@ def set_payload(pname, result, obj):
                "class": "org.janelia.colormipsearch.model.PublishedLMImage",
                "creationDate": dtm, "updateDate": dtm}
     return payload
+
+
+def check_for_missing(result, obj):
+    """ Check for missing data
+        Keyword arguments:
+          result: JACS result
+          obj: objective data
+        Returns:
+          List of missing data
+    """
+    missing = []
+    for req in ["driver", "gender", "slideCode"]:
+        if req not in result[0]:
+            missing.append(req)
+    for req in ["anatomicalArea", "ownerKey", "readers", "writers"]:
+        if req not in obj["tiles"][0]["lsmReferences"][0]:
+            missing.append(req)
+    return missing
 
 
 def process_sample_result(result, pname, tile):
@@ -319,20 +336,14 @@ def process_sample_result(result, pname, tile):
     prr = get_pipeline_run_result(obj, sample)
     if not prr:
         return [None] * 2
-    missing = []
-    for req in ["driver", "gender", "slideCode"]:
-        if req not in result[0]:
-            missing.append(req)
-    for req in ["anatomicalArea", "ownerKey", "readers", "writers"]:
-        if req not in obj["tiles"][0]["lsmReferences"][0]:
-            missing.append(req)
+    missing = check_for_missing(result, obj)
     if missing:
-        ERROR.write("Missing data from JACS for %s: %s\n" % (sample, ", ".join(missing)))
+        ERROR.write(f"Missing data from JACS for {sample}: {', '.join(missing)}\n")
         return [None] * 2
     payload = set_payload(pname, result, obj)
     payload["alignmentSpace"] = prr["name"].replace(" (CMTK)", "")
     if "Unisex_VNC" in payload["alignmentSpace"]:
-        LOGGER.error(f"{payload['alignmentSpace']}")
+        LOGGER.error(payload['alignmentSpace'])
     payload["tile"] = tile
     payload["sampleRef"] = "Sample#" + sample
     filepath = {}
@@ -345,7 +356,7 @@ def process_sample_result(result, pname, tile):
                     LOGGER.error("File %s does not exist", file)
         if filepath:
             return payload, filepath
-    ERROR.write("No Unisex Color Depth MIP in sample %s\n" % (sample))
+    ERROR.write(f"No Unisex Color Depth MIP in sample {sample}\n")
     COUNT["missing_cdm"] += 1
     return [None] * 2
 
@@ -370,7 +381,7 @@ def get_file_dict(files, publishing_name, result, payload, tile):
                             payload["objective"], tile, payload["alignmentSpace"],
                             "aligned_stack.h5j"])
         target = "/".join([TARGET, publishing_name, obj])
-        COPY.write("%s\t%s\n" % (files[file], target))
+        COPY.write(f"{files[file]}\t{target}\n")
         fdict[file] = target.replace("s3://", "https://s3.amazonaws.com/")
     return fdict
 
@@ -401,7 +412,7 @@ def process_flew_rows(coll, flew_rows):
           None
     """
     icounter = 0
-    payload_list = list()
+    payload_list = []
     for flew in tqdm(flew_rows):
         publishing_name = flew['line']
         file = flew['name'].split('/')[-1]
@@ -425,7 +436,7 @@ def process_flew_rows(coll, flew_rows):
         if icounter == INSERT_BATCH:
             write_collection(coll, payload_list, icounter)
             icounter = 0
-            payload_list = list()
+            payload_list = []
         payload_list.append(payload)
         icounter += 1
     if icounter:
@@ -451,15 +462,15 @@ def process_imagery():
         sql_error(err)
     COUNT["publishing"] = len(flew_rows)
     process_flew_rows(coll, flew_rows)
-    print("Read from publishing:     %d" % (COUNT["publishing"]))
-    print("Present in SAGE:          %d" % (COUNT["sage"]))
-    print("Present in JACS:          %d" % (COUNT["jacs"]))
-    print("Written to Mongo:         %d" % (COUNT["insert"]))
-    print("SAGE errors:              %d" % (COUNT["sage_error"]))
-    print("Missing objectives:       %d" % (COUNT["missing_obj"]))
-    print("JACS errors:              %d" % (COUNT["jacs_error"]))
-    print("Missing Unisex alignment: %d" % (COUNT["missing_unisex"]))
-    print("Missing CDM:              %d" % (COUNT["missing_cdm"]))
+    print(f"Read from publishing:     {COUNT['publishing']}")
+    print(f"Present in SAGE:          {COUNT['sage']}")
+    print(f"Present in JACS:          {COUNT['jacs']}")
+    print(f"Written to Mongo:         {COUNT['insert']}")
+    print(f"SAGE errors:              {COUNT['sage_error']}")
+    print(f"Missing objectives:       {COUNT['missing_obj']}")
+    print(f"JACS errors:              {COUNT['jacs_error']}")
+    print(f"Missing Unisex alignment: {COUNT['missing_unisex']}")
+    print(f"Missing CDM:              {COUNT['missing_cdm']}")
 
 
 if __name__ == '__main__':
@@ -490,7 +501,7 @@ if __name__ == '__main__':
     LOGGER.addHandler(HANDLER)
     initialize_program()
     TIMESTAMP = time.strftime("%Y%m%dT%H%M%S")
-    COPY = open("rep_%s_copy.order" % (TIMESTAMP), 'w')
-    ERROR = open("rep_%s_error.txt" % (TIMESTAMP), 'w')
+    COPY = open(f"rep_{TIMESTAMP}_copy.order", 'w', encoding='ascii')
+    ERROR = open(f"rep_{TIMESTAMP}_error.txt", 'w', encoding='ascii')
     process_imagery()
     sys.exit(0)
