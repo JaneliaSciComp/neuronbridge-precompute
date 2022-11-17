@@ -50,9 +50,9 @@ def sql_error(err):
           None
     """
     try:
-        msg = 'MySQL error [%d]: %s' % (err.args[0], err.args[1])
+        msg = f"MySQL error [{err.args[0]}]: {err.args[1]}"
     except IndexError:
-        msg = 'MySQL error: %s' % (err)
+        msg = f"MySQL error: {err}"
     terminate_program(msg)
 
 
@@ -69,7 +69,7 @@ def call_responder(server, endpoint):
     try:
         req = requests.get(url, timeout=10)
     except requests.exceptions.RequestException as err:
-        LOGGER.critical(TEMPLATE % (type(err).__name__, err.args))
+        LOGGER.critical(TEMPLATE, type(err).__name__, err.args)
         sys.exit(-1)
     if req.status_code == 200:
         return req.json()
@@ -77,7 +77,7 @@ def call_responder(server, endpoint):
         try:
             if "error" in req.json():
                 LOGGER.error("%s %s", url, req.json()["error"])
-        except Exception as err:
+        except Exception:
             pass
         return False
     LOGGER.error('Status: %s', str(req.status_code))
@@ -127,7 +127,7 @@ def set_payload(row):
     skey = "-".join([row["objective"], row["alignmentSpace"]])
     ckey = "-".join([key, skey])
     if ckey in INSERTED:
-        terminate_program("Key %s is already in table" % (ckey))
+        terminate_program(f"Key {ckey} is already in table")
     SLIDE_CODE[row["slideCode"]] = True
     INSERTED[ckey] = True
     payload = {"itemType": ckey.lower(),
@@ -174,9 +174,9 @@ def process_mongo():
     else:
         COUNT["write"] = count
     tcolor = Fore.GREEN if count == COUNT["write"] else Fore.RED
-    print("Items read:    %s" % (tcolor + str(count) + Style.RESET_ALL))
-    print("Slide codes:   %d" % (len(SLIDE_CODE)))
-    print("Items written: %s" % (tcolor + str(COUNT["write"]) + Style.RESET_ALL))
+    print(f"Items read:    {tcolor + str(count) + Style.RESET_ALL}")
+    print(f"Slide codes:   {len(SLIDE_CODE)}")
+    print(f"Items written: {tcolor + str(COUNT['write']) + Style.RESET_ALL}")
 
 
 if __name__ == '__main__':
