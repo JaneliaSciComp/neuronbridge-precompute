@@ -3,15 +3,15 @@
 '''
 
 import argparse
+import json
 import os
 import sys
+from types import SimpleNamespace
 from colorama import Fore, Style
 import colorlog
 from pymongo import errors, MongoClient
 import requests
 
-# Configuration
-CONFIG = {'config': {'url': os.environ.get('CONFIG_SERVER_URL')}}
 # Database
 MONGODB = 'neuronbridge-mongo'
 DATABASE = {}
@@ -37,9 +37,10 @@ def call_responder(server, endpoint):
         Returns:
           JSON response
     '''
-    if server == "config" and endpoint:
-        endpoint = f"config/{endpoint}"
-    url = (CONFIG[server]['url'] if server else '') + endpoint
+    #if server == "config" and endpoint:
+    #    endpoint = f"config/{endpoint}"
+    url = ((getattr(getattr(REST, server), "url") if server else "") if "REST" in globals() \
+           else (os.environ.get('CONFIG_SERVER_URL') if server else "")) + endpoint
     try:
         req = requests.get(url, timeout=10)
     except requests.exceptions.RequestException as err:
@@ -50,6 +51,17 @@ def call_responder(server, endpoint):
     return False
 
 
+def create_config_object(config):
+    """ Convert the JSON received from a configuration to an object
+        Keyword arguments:
+          config: configuration name
+        Returns:
+          Configuration object
+    """
+    data = (call_responder("config", f"config/{config}"))["config"]
+    return json.loads(json.dumps(data), object_hook=lambda dat: SimpleNamespace(**dat))
+
+
 def initialize_program():
     ''' Initialize program
         Keyword arguments:
@@ -57,16 +69,13 @@ def initialize_program():
         Returns:
           None
     '''
-    for key, val in call_responder('config', 'rest_services')['config'].items():
-        CONFIG[key] = val
+    dbconfig = create_config_object("db_config")
     # MongoDB
-    data = (call_responder('config', 'db_config'))["config"]
     LOGGER.info("Connecting to Mongo on %s", ARG.MANIFOLD)
+    dbc = getattr(getattr(getattr(dbconfig, MONGODB), ARG.MANIFOLD), "read")
     try:
-        rset = 'rsProd' if ARG.MANIFOLD == 'prod' else 'rsDev'
-        mongo = data[MONGODB][ARG.MANIFOLD]["read"]
-        client = MongoClient(mongo['host'], replicaSet=rset, username=mongo['user'],
-                             password=mongo['password'])
+        client = MongoClient(dbc.host, replicaSet=dbc.replicaset, username=dbc.user,
+                             password=dbc.password)
         DATABASE["MONGO"] = client.neuronbridge
     except errors.ConnectionFailure as err:
         terminate_program(f"Could not connect to Mongo: {err}")
@@ -194,6 +203,7 @@ if __name__ == '__main__':
     HANDLER = colorlog.StreamHandler()
     HANDLER.setFormatter(colorlog.ColoredFormatter())
     LOGGER.addHandler(HANDLER)
+    REST = create_config_object("rest_services")
     initialize_program()
     mongo_check()
     terminate_program()
