@@ -3,8 +3,10 @@
 '''
 
 import argparse
+import json
 import os
 import sys
+from types import SimpleNamespace
 import colorlog
 import inquirer
 from pymongo import errors, MongoClient
@@ -12,7 +14,6 @@ import requests
 from tqdm import tqdm
 
 # Configuration
-CONFIG = {'config': {'url': os.environ.get('CONFIG_SERVER_URL')}}
 EDEFAULT = ["fib19", "hemibrain", "hemibrain:v0.9",
             "hemibrain:v1.0.1", "hemibrain:v1.1"]
 EXCLUDE = {}
@@ -44,9 +45,8 @@ def call_responder(server, endpoint):
         Returns:
           JSON response
     '''
-    if server == "config" and endpoint:
-        endpoint = f"config/{endpoint}"
-    url = (CONFIG[server]['url'] if server else '') + endpoint
+    url = ((getattr(getattr(REST, server), "url") if server else "") if "REST" in globals() \
+           else (os.environ.get('CONFIG_SERVER_URL') if server else "")) + endpoint
     try:
         req = requests.get(url, timeout=10)
     except requests.exceptions.RequestException as err:
@@ -57,6 +57,17 @@ def call_responder(server, endpoint):
     return False
 
 
+def create_config_object(config):
+    """ Convert the JSON received from a configuration to an object
+        Keyword arguments:
+          config: configuration name
+        Returns:
+          Configuration object
+    """
+    data = (call_responder("config", f"config/{config}"))["config"]
+    return json.loads(json.dumps(data), object_hook=lambda dat: SimpleNamespace(**dat))
+
+
 def initialize_program():
     ''' Initialize program
         Keyword arguments:
@@ -64,27 +75,27 @@ def initialize_program():
         Returns:
           None
     '''
-    for key, val in call_responder('config', 'rest_services')['config'].items():
-        CONFIG[key] = val
     # MongoDB
-    data = (call_responder('config', 'db_config'))["config"]
+    dbconfig = create_config_object("db_config")
     LOGGER.info("Connecting to Mongo neuronbridge on %s", ARG.MANIFOLD)
+    dbc = getattr(getattr(getattr(dbconfig, NEURONBRIDGE), ARG.MANIFOLD), "read")
     try:
-        rset = 'rsProd' if ARG.MANIFOLD == 'prod' else 'rsDev'
-        mongo = data[NEURONBRIDGE][ARG.MANIFOLD]["read"]
-        client = MongoClient(mongo['host'], replicaSet=rset)
+        client = MongoClient(dbc.host, replicaSet=dbc.replicaset)
         DATABASE["NB"] = client.admin
-        DATABASE["NB"].authenticate(mongo['user'], mongo['password'])
+        DATABASE["NB"].authenticate(dbc.user, dbc.password)
         DATABASE["NB"] = client.neuronbridge
     except errors.ConnectionFailure as err:
         terminate_program(f"Could not connect to Mongo: {err}")
     LOGGER.info("Connecting to Mongo jacs on %s", ARG.MANIFOLD)
     try:
-        rset = "replWorkstation"
-        mongo = data[JACS][ARG.MANIFOLD]["read"]
-        client = MongoClient(mongo['host'], replicaSet=rset)
+        dbc = getattr(getattr(getattr(dbconfig, JACS), ARG.MANIFOLD), "read")
+        if ARG.MANIFOLD == "prod":
+            client = MongoClient(dbc.host, replicaSet=dbc.replicaset)
+        else:
+            client = MongoClient(dbc.host)
         DATABASE["JACS"] = client.jacs
-        DATABASE["JACS"].authenticate(mongo['user'], mongo['password'])
+        if ARG.MANIFOLD == "prod":
+            DATABASE["JACS"].authenticate(dbc.user, dbc.password)
     except errors.ConnectionFailure as err:
         terminate_program(f"Could not connect to Mongo: {err}")
 
@@ -185,6 +196,7 @@ if __name__ == '__main__':
     HANDLER = colorlog.StreamHandler()
     HANDLER.setFormatter(colorlog.ColoredFormatter())
     LOGGER.addHandler(HANDLER)
+    REST = create_config_object("rest_services")
     initialize_program()
     mongo_check()
     terminate_program()
