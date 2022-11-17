@@ -16,7 +16,6 @@ from tqdm import tqdm
 
 
 # Configuration
-CONFIG = {'config': {'url': os.environ.get('CONFIG_SERVER_URL')}}
 TEMPLATE = "An exception of type %s occurred. Arguments:\n%s"
 KEY = "searchString"
 INSERTED = {}
