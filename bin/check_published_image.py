@@ -85,7 +85,7 @@ def call_responder(server, endpoint):
     try:
         req = requests.get(url, timeout=10)
     except requests.exceptions.RequestException as err:
-        terminate_program(err)
+        terminate_program(TEMPLATE % (type(err).__name__, err.args))
     if req.status_code == 200:
         return req.json()
     terminate_program(f"Could not get response from {url}: {req.text}")
@@ -145,9 +145,7 @@ def initialize_program():
     dbconfig = create_config_object("db_config")
     if not ARG.QUICK:
         dbc = getattr(getattr(dbconfig, ARG.DATABASE), ARG.MANIFOLD)
-        (CONN[ARG.DATABASE], CURSOR[ARG.DATABASE]) = \
-            db_connect(dbc)
-            #db_connect(data['config'][ARG.DATABASE][ARG.MANIFOLD])
+        (CONN[ARG.DATABASE], CURSOR[ARG.DATABASE]) = db_connect(dbc)
     # Connect to Mongo
     LOGGER.info("Connecting to Mongo on %s", ARG.MONGO)
     try:
@@ -162,7 +160,7 @@ def initialize_program():
         if ARG.MONGO == 'prod':
             DBM["jacs"].authenticate(dbc.user, dbc.password)
     except Exception as err:
-        terminate_program(f"Could not connect to Mongo: {err}")
+        terminate_program(TEMPLATE % (type(err).__name__, err.args))
 
 
 def process_imagery():
@@ -172,8 +170,11 @@ def process_imagery():
         Returns:
           None
     """
-    coll = DBM["jacs"].publishedImage
-    result = coll.aggregate([{"$group" : {"_id":"$releaseName", "count": {"$sum":1}}}])
+    try:
+        coll = DBM["jacs"].publishedImage
+        result = coll.aggregate([{"$group" : {"_id":"$releaseName", "count": {"$sum":1}}}])
+    except Exception as err:
+        terminate_program(TEMPLATE % (type(err).__name__, err.args))
     mongo = {}
     for rel in result:
         mongo[rel['_id']] = rel['count']
