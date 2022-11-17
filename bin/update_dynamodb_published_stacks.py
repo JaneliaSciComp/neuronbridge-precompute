@@ -3,8 +3,10 @@
 
 import argparse
 from copy import deepcopy
+import json
 import os
 import sys
+from types import SimpleNamespace
 import boto3
 from colorama import Fore, Style
 import colorlog
@@ -21,8 +23,7 @@ INSERTED = {}
 SLIDE_CODE = {}
 # Database
 MONGODB = 'neuronbridge-mongo'
-DBM = ''
-TABLE = ''
+DBASE = {}
 ITEMS = []
 # General
 COUNT = {"write": 0}
@@ -63,11 +64,12 @@ def call_responder(server, endpoint):
         Returns:
           JSON
     """
-    url = CONFIG[server]['url'] + endpoint
+    url = ((getattr(getattr(REST, server), "url") if server else "") if "REST" in globals() \
+           else (os.environ.get('CONFIG_SERVER_URL') if server else "")) + endpoint
     try:
         req = requests.get(url, timeout=10)
     except requests.exceptions.RequestException as err:
-        LOGGER.critical(err)
+        LOGGER.critical(TEMPLATE % (type(err).__name__, err.args))
         sys.exit(-1)
     if req.status_code == 200:
         return req.json()
@@ -82,30 +84,36 @@ def call_responder(server, endpoint):
     sys.exit(-1)
 
 
+def create_config_object(config):
+    """ Convert the JSON received from a configuration to an object
+        Keyword arguments:
+          config: configuration name
+        Returns:
+          Configuration object
+    """
+    data = (call_responder("config", f"config/{config}"))["config"]
+    return json.loads(json.dumps(data), object_hook=lambda dat: SimpleNamespace(**dat))
+
+
 def initialize_program():
     """ Initialize
     """
-    global CONFIG, DBM, TABLE  # pylint: disable=W0603
-    data = call_responder('config', 'config/rest_services')
-    CONFIG = data['config']
-    data = call_responder('config', 'config/db_config')
+    dbconfig = create_config_object("db_config")
     # MongoDB
-    data = (call_responder('config', 'config/db_config'))["config"]
     LOGGER.info("Connecting to Mongo on %s", ARG.MANIFOLD)
     rwp = 'write' if ARG.WRITE else 'read'
+    dbc = getattr(getattr(getattr(dbconfig, MONGODB), ARG.MANIFOLD), rwp)
     try:
-        rset = 'rsProd' if ARG.MANIFOLD == 'prod' else 'rsDev'
-        mongo = data[MONGODB][ARG.MANIFOLD][rwp]
-        client = MongoClient(mongo['host'], replicaSet=rset, username=mongo['user'],
-                             password=mongo['password'])
-        DBM = client.neuronbridge
+        client = MongoClient(dbc.host, replicaSet=dbc.replicaset, username=dbc.user,
+                             password=dbc.password)
+        DBASE["mongo"] = client.neuronbridge
     except Exception as err:
-        terminate_program(f"Could not connect to Mongo: {err}")
+        terminate_program(TEMPLATE % (type(err).__name__, err.args))
     # DynamoDB
     dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
     ddt = "janelia-neuronbridge-published-stacks"
     LOGGER.info("Connecting to %s", ddt)
-    TABLE = dynamodb.Table(ddt)
+    DBASE["ddb"] = dynamodb.Table(ddt)
 
 
 def set_payload(row):
@@ -138,7 +146,7 @@ def write_dynamodb():
           None
     '''
     LOGGER.info("Batch writing %s items to DynamoDB", len(ITEMS))
-    with TABLE.batch_writer() as writer:
+    with DBASE["ddb"].batch_writer() as writer:
         for item in tqdm(ITEMS, desc="DynamoDB"):
             writer.put_item(Item=item)
             COUNT["write"] += 1
@@ -151,9 +159,12 @@ def process_mongo():
         Returns:
           None
     """
-    coll = DBM.publishedLMImage
-    rows = coll.find()
-    count = coll.count_documents({})
+    try:
+        coll = DBASE["mongo"].publishedLMImage
+        rows = coll.find()
+        count = coll.count_documents({})
+    except Exception as err:
+        terminate_program(TEMPLATE % (type(err).__name__, err.args))
     LOGGER.info("Records in Mongo publishedLMImage: %d", count)
     for row in tqdm(rows, total=count):
         payload = set_payload(row)
@@ -192,6 +203,7 @@ if __name__ == '__main__':
     HANDLER = colorlog.StreamHandler()
     HANDLER.setFormatter(colorlog.ColoredFormatter())
     LOGGER.addHandler(HANDLER)
+    REST = create_config_object("rest_services")
     initialize_program()
     process_mongo()
     sys.exit(0)
