@@ -80,9 +80,8 @@ def initialize_program():
     LOGGER.info("Connecting to Mongo neuronbridge on %s", ARG.MANIFOLD)
     dbc = getattr(getattr(getattr(dbconfig, NEURONBRIDGE), ARG.MANIFOLD), "read")
     try:
-        client = MongoClient(dbc.host, replicaSet=dbc.replicaset)
-        DATABASE["NB"] = client.admin
-        DATABASE["NB"].authenticate(dbc.user, dbc.password)
+        client = MongoClient(dbc.host, replicaSet=dbc.replicaset, username=dbc.user,
+                             password=dbc.password)
         DATABASE["NB"] = client.neuronbridge
     except errors.ConnectionFailure as err:
         terminate_program(f"Could not connect to Mongo: {err}")
