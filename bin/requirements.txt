@@ -1,5 +1,6 @@
 boto3
 botocore
+colorama
 colorlog
 dask[delayed]
 inquirer
