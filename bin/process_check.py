@@ -10,10 +10,9 @@ import sys
 from types import SimpleNamespace
 from colorama import Fore, Style
 import colorlog
-from pymongo import MongoClient
+from pymongo import errors, MongoClient
 import requests
 from aws_s3_lib import get_prefixes
-from neuprint import Client, fetch_custom, set_default_client
 
 # pylint: disable=R1710, W0703
 # Database
@@ -99,22 +98,31 @@ def initialize_program():
 
 
 def process_em_neuprint():
-    """ Process specified EM datasets
+    """ Process EM datasets from pre and prod
         Keyword arguments:
           None
         Returns:
-          None
+          Dataset dictionary
     """
     dset = {}
     for server in ("neuprint-pre", "neuprint"):
         response = call_responder(server, 'dbmeta/datasets', True)
         datasets = list(response.keys())
         for dataset in datasets:
-            dset[dataset] = True
+            if server == "neuprint-pre":
+                dset[dataset] = Fore.YELLOW + f"{'pre':>4}"
+            else:
+                dset[dataset] = Fore.GREEN + "prod"
     return dset
 
 
 def process_jacs_sync():
+    """ Process libraries in JACS emDataSet
+        Keyword arguments:
+          None
+        Returns:
+          JACS dictionary
+    """
     coll = DBM["JACS"].emDataSet
     results = coll.find({})
     dset = {}
@@ -128,6 +136,12 @@ def process_jacs_sync():
 
 
 def process_neuronbridge(nb_coll):
+    """ Process libraries in NeuronBridge collection
+        Keyword arguments:
+          nb_coll: NeuronBridge collection
+        Returns:
+          NeuronBridge dictionary
+    """
     if nb_coll == "neuronMetadata":
         coll = DBM["NB"].neuronMetadata
     else:
@@ -136,7 +150,7 @@ def process_neuronbridge(nb_coll):
     results = coll.distinct("libraryName")
     for row in results:
         if "flyem_" in row:
-            regex = re.search(r"flyem_([^_]+)_(.+)", row)            
+            regex = re.search(r"flyem_([^_]+)_(.+)", row)
             dset[":v".join([regex[1], regex[2].replace("_", ".")])] = True
         else:
             dset[row] = True
@@ -144,6 +158,12 @@ def process_neuronbridge(nb_coll):
 
 
 def process_aws():
+    """ Process library prefixes in AWS S3
+        Keyword arguments:
+          None
+        Returns:
+          AWS dictionary
+    """
     awslib = {}
     for awsman in ("devpre", "prodpre", ""):
         bucket = "janelia-flylight-color-depth"
@@ -161,18 +181,22 @@ def process_aws():
                 if newlib.startswith("flylight_"):
                     newlib = newlib.replace("_drivers", "").replace("-", "_")
                     newlib += "_published"
-                awslib[newlib] = manifold
+                awslib[newlib] = f"{manifold:>7}"
     return awslib
 
 
 def check_process():
-    step = {}
-    datasets = process_em_neuprint()
-    step["neuprint"] = process_em_neuprint()
-    step["sync"] = process_jacs_sync()
-    step["metadata"] = process_neuronbridge("neuronMetadata")
-    step["published"] = process_neuronbridge("publishedURL")
-    step["aws"] = process_aws()
+    """ Report on NeuronBridge backend process
+        Keyword arguments:
+          None
+        Returns:
+          None
+    """
+    step = {"neuprint": process_em_neuprint(),
+            "sync": process_jacs_sync(),
+            "metadata": process_neuronbridge("neuronMetadata"),
+            "published": process_neuronbridge("publishedURL"),
+            "aws": process_aws()}
     master = {}
     width = 0
     for src in ("neuprint", "sync", "metadata", "published"):
@@ -180,16 +204,18 @@ def check_process():
             if len(dset) > width:
                 width = len(dset)
             master[dset] = True
-    print(f"{'Data set':<{width}}  {'NeuPrint':<8}  {'JACS':<4}  {'Metadata':<8}  {'Published':<9}  {'AWS loc':<7}")
+    print(f"{'Data set':<{width}}  {'NeuPrint':<8}  {'JACS':<4}  {'Metadata':<8}  "
+          + f"{'Published':<9}  {'AWS loc':<7}")
     first = "-"*width
     print(f"{first}  {'-'*8}  {'-'*4}  {'-'*8}  {'-'*9}  {'-'*7}")
     for dset in sorted(master):
-        nprint = Fore.GREEN + "Yes" if dset in step["neuprint"] else Fore.RED + " No"
-        sync = Fore.GREEN + "Yes" if dset in step["sync"] else Fore.RED + " No"
-        mdata = Fore.GREEN + "Yes" if dset in step["metadata"] else Fore.RED + " No"
-        pub = Fore.GREEN + "Yes" if dset in step["published"] else Fore.RED + " No"
+        nprint = step["neuprint"][dset] if dset in step["neuprint"] else Fore.RED + f"{'No':>4}"
+        sync = Fore.GREEN + "Yes" if dset in step["sync"] else Fore.RED + f"{'No':>3}"
+        mdata = Fore.GREEN + "Yes" if dset in step["metadata"] else Fore.RED + f"{'No':>3}"
+        pub = Fore.GREEN + "Yes" if dset in step["published"] else Fore.RED + f"{'No':>3}"
         aws = Fore.GREEN + step["aws"][dset] if dset in step["aws"] else ""
-        print(f"{dset:<{width}}     {nprint:>8}     {sync:>4}     {mdata:>8}       {pub:>9}     {aws:>7}{Style.RESET_ALL}")
+        print(f"{dset:<{width}}     {nprint:>8}    {sync:>4}     {mdata:>8}      "
+              + f"{pub:>9}     {aws:>7}{Style.RESET_ALL}")
 
 # -----------------------------------------------------------------------------
 
