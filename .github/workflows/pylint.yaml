@@ -12,5 +12,5 @@ jobs:
       with:
         python-version: 3.x
     - run: pip install --upgrade pip
-    - run: pip install pylint==v3.0.0a3
+    - run: pip install pylint
     - run: pylint bin/backcheck_publishedurl.py
