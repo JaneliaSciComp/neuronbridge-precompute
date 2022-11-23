@@ -12,5 +12,5 @@ python-rapidjson
 requests
 simple_term_menu
 tqdm
-MySQLdb
+mysqlclient
 PIL
