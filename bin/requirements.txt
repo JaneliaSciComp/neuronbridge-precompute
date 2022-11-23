@@ -5,7 +5,7 @@ colorlog
 dask[delayed]
 inquirer
 mysqlclient
-neuprint
+neuprint-python
 pillow
 pyjwt
 pymongo==3.12.0
