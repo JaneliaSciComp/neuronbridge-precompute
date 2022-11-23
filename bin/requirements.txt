@@ -13,4 +13,3 @@ requests
 simple_term_menu
 tqdm
 mysqlclient
-PIL
