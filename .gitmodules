@@ -1,0 +1,4 @@
+[submodule "neuron-search-tools"]
+	path = neuron-search-tools
+	url = git@github.com:JaneliaSciComp/colormipsearch.git
+	branch = main
