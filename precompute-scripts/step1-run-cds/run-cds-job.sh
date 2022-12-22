@@ -3,9 +3,9 @@
 function run_cds_job {
     # job index is 1-based index that should be passed either as the first arg
     # or in the LSB_JOBINDEX env var
-    one_based_job_index=$((${LSB_JOBINDEX:-$1}))
+    declare -i one_based_job_index=$1
     # convert the 1-based index to 0-based
-    job_index=$((one_based_job_index - 1))
+    declare -i job_index=$((one_based_job_index - 1))
     
     masks_partition_index=$((job_index / MASKS_PER_JOB))
     targets_partition_index=$((job_index % MASKS_PER_JOB))
@@ -29,6 +29,13 @@ function run_cds_job {
             ;;
     esac
 
+    if [[ -n ${DB_CONFIG} && -f ${DB_CONFIG} ]]; then
+        CONFIG_ARG="--config ${DB_CONFIG}"
+    else
+        echo "No database configuration set or found! Will use a default local database"
+        CONFIG_ARG=""
+    fi
+
     MASKS_ARG="-m ${MASKS_LIBRARY}:${masks_offset}:${MASKS_PER_JOB}"
     TARGETS_ARG="-i ${TARGETS_LIBRARY}:${targets_offset}:${TARGETS_PER_JOB}"
 
@@ -48,11 +55,12 @@ function run_cds_job {
         --xyShift ${XY_SHIFT} \
         --pctPositivePixels ${PIX_PCT_MATCH} \
         -ps ${PROCESSING_PARTITION_SIZE} \
-        $*"
+        "
     echo "$HOSTNAME $(date):> ${cds_cmd}"
     ($cds_cmd)
 }
 
-job_index=$1
+job_index=$((${LSB_JOBINDEX:-$1}))
+
 echo "$(date) Run Job ${job_index} (Logs are located at ${JOB_LOGPREFIX})"
 run_cds_job ${job_index} > ${JOB_LOGPREFIX}/cds_${job_index}.log 2>&1

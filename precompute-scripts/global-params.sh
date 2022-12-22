@@ -12,13 +12,6 @@ LOGS_DIR=${LOGS_DIR:="./logs"}
 # Config
 DB_CONFIG=${DB_CONFIG=""}
 
-if [[ -n ${DB_CONFIG} && -f ${DB_CONFIG} ]]; then
-    CONFIG_ARG="--config ${DB_CONFIG}"
-else
-    echo "No database configuration set or found! Will use a default local database"
-    CONFIG_ARG=""
-fi
-
 case ${AREA} in
     brain)
         ALIGNMENT_SPACE="JRC2018_Unisex_20x_HR"
