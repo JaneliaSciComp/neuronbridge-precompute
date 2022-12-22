@@ -61,6 +61,6 @@ function run_cds_job {
 }
 
 job_index=$((${LSB_JOBINDEX:-$1}))
-
-echo "$(date) Run Job ${job_index} (Logs are located at ${JOB_LOGPREFIX})"
-run_cds_job ${job_index} > ${JOB_LOGPREFIX}/cds_${job_index}.log 2>&1
+output_log=${JOB_LOGPREFIX}/cds_${job_index}.log
+echo "$(date) Run Job ${job_index} (Output log: ${output_log})"
+run_cds_job ${job_index} > ${output_log} 2>&1
