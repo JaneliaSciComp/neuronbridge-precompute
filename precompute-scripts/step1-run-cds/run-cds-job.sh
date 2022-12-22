@@ -3,8 +3,6 @@
 function run_cds_job {
     # job index is 1-based index that should be passed either as the first arg
     # or in the LSB_JOBINDEX env var
-    echo "ARG - $1"
-
     one_based_job_index=$((${LSB_JOBINDEX:-$1}))
     # convert the 1-based index to 0-based
     job_index=$((one_based_job_index - 1))
@@ -14,6 +12,12 @@ function run_cds_job {
 
     masks_offset=$((masks_partition_index * MASKS_PER_JOB))
     targets_offset=$((targets_partition_index * TARGETS_PER_JOB))
+
+    if [[ -n ${CDS_TAG} ]]; then
+        PROCESS_TAG_ARG="--processing-tag ${CDS_TAG}"
+    else
+        PROCESS_TAG_ARG=""
+    fi
 
     case ${ALIGNMENT_SPACE} in
         JRC2018_Unisex_20x_HR|JRC2018_VNC_Unisex_40x_DS)
@@ -33,6 +37,7 @@ function run_cds_job {
         -jar ${NEURONSEARCH_TOOLS_JAR} \
         colorDepthSearch \
         ${CONFIG_ARG} \
+        ${PROCESS_TAG_ARG} \
         ${AS_ARG} \
         ${MASKS_ARG} \
         ${TARGETS_ARG}
