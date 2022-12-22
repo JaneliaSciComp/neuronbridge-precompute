@@ -1,12 +1,7 @@
 anatomical_area=$1
 
+# Precompute tools location
 SCRIPT_DIR=$(dirname ${BASH_SOURCE[0]})
-
-if [[ -f "${SCRIPT_DIR}/../.env" ]]; then
-    # read the session specific environment variables
-    echo "Source ${SCRIPT_DIR}/../.env"
-    source "${SCRIPT_DIR}/../.env"
-fi
 
 source "${SCRIPT_DIR}/../global-params.sh" ${anatomical_area}
 source "${SCRIPT_DIR}/cds-params.sh"

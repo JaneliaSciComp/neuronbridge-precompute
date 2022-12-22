@@ -1,6 +1,17 @@
 #!/bin/bash
 
-AREA=${AREA:-$1}
+PRECOMPUTE_SCRIPTS_BASEDIR=${PRECOMPUTE_SCRIPTS_BASEDIR:=${SCRIPT_DIR}}
+
+if [[ -f "${PRECOMPUTE_SCRIPTS_BASEDIR}/../.env" ]]; then
+    # read the session specific environment variables
+    echo "Source ${PRECOMPUTE_SCRIPTS_BASEDIR}/../.env"
+    source "${PRECOMPUTE_SCRIPTS_BASEDIR}/../.env"
+fi
+
+if [[ $# -ge 1 ]] ; then
+    AREA=$1
+    shift
+fi
 
 MASKS_LIBRARY=${MASKS_LIBRARY:=""}
 TARGETS_LIBRARY=${TARGETS_LIBRARY:=""}
@@ -54,8 +65,6 @@ JAVA_OPTS="${JAVA_MEM_OPTS} ${JAVA_GC_OPTS}"
 CLUSTER_PROJECT_CODE=${CLUSTER_PROJECT_CODE:=scicompsoft}
 OTHER_BSUB_OPTIONS=
 
-# Precompute tools location
-PRECOMPUTE_SCRIPTS_BASEDIR="$(dirname "$0")"
 NEURONSEARCH_TOOLS_DIR="${PRECOMPUTE_SCRIPTS_BASEDIR}/../neuron-search-tools"
 JAR_VERSION=3.0.0
 NEURONSEARCH_TOOLS_JAR="${NEURONSEARCH_TOOLS_DIR}/target/colormipsearch-${JAR_VERSION}-jar-with-dependencies.jar"
