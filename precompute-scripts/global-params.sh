@@ -2,10 +2,14 @@
 
 PRECOMPUTE_SCRIPTS_BASEDIR=${PRECOMPUTE_SCRIPTS_BASEDIR:=${SCRIPT_DIR}}
 
-if [[ -f "${PRECOMPUTE_SCRIPTS_BASEDIR}/../.env" ]]; then
+# This allows running this in parallel on different machines
+# and use different environment
+ENV_FILENAME=${ENV_FILENAME:="${PRECOMPUTE_SCRIPTS_BASEDIR}/../.env"}
+
+if [[ -f "${ENV_FILENAME}" ]]; then
     # read the session specific environment variables
-    echo "Source ${PRECOMPUTE_SCRIPTS_BASEDIR}/../.env"
-    source "${PRECOMPUTE_SCRIPTS_BASEDIR}/../.env"
+    echo "Source ${ENV_FILENAME}"
+    source "${ENV_FILENAME}"
 fi
 
 if [[ $# -ge 1 ]] ; then
