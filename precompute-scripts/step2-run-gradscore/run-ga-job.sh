@@ -36,6 +36,12 @@ function run_ga_job {
         CONFIG_ARG=""
     fi
 
+    if [[ ${AVAILABLE_THREADS} -gt 0 ]] ; then
+        CONCURRENCY_ARG="--task-concurrency ${AVAILABLE_THREADS}"
+    else
+        CONCURRENCY_ARG=
+    fi
+
     MASKS_ARG="-m ${MASKS_LIBRARY}:${masks_offset}:${MASKS_PER_JOB}"
     TARGETS_ARG="-i ${TARGETS_LIBRARY}:${targets_offset}:${TARGETS_PER_JOB}"
 

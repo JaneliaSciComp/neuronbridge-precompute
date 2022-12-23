@@ -13,6 +13,9 @@ function run_cds_job {
     masks_offset=$((masks_partition_index * MASKS_PER_JOB))
     targets_offset=$((targets_partition_index * TARGETS_PER_JOB))
 
+    MASKS_ARG="-m ${MASKS_LIBRARY}:${masks_offset}:${MASKS_PER_JOB}"
+    TARGETS_ARG="-i ${TARGETS_LIBRARY}:${targets_offset}:${TARGETS_PER_JOB}"
+
     if [[ -n ${CDS_TAG} ]]; then
         PROCESS_TAG_ARG="--processing-tag ${CDS_TAG}"
     else
@@ -41,9 +44,6 @@ function run_cds_job {
     else
         CONCURRENCY_ARG=
     fi
-
-    MASKS_ARG="-m ${MASKS_LIBRARY}:${masks_offset}:${MASKS_PER_JOB}"
-    TARGETS_ARG="-i ${TARGETS_LIBRARY}:${targets_offset}:${TARGETS_PER_JOB}"
 
     cds_cmd="${JAVA_EXEC} \
         ${JAVA_OPTS} ${JAVA_MEM_OPTS} ${JAVA_GC_OPTS} \
