@@ -36,6 +36,12 @@ function run_cds_job {
         CONFIG_ARG=""
     fi
 
+    if [[ ${AVAILABLE_THREADS} -gt 0 ]] ; then
+        CONCURRENCY_ARG="--task-concurrency ${AVAILABLE_THREADS}"
+    else
+        CONCURRENCY_ARG=
+    fi
+
     MASKS_ARG="-m ${MASKS_LIBRARY}:${masks_offset}:${MASKS_PER_JOB}"
     TARGETS_ARG="-i ${TARGETS_LIBRARY}:${targets_offset}:${TARGETS_PER_JOB}"
 
@@ -43,6 +49,7 @@ function run_cds_job {
         ${JAVA_OPTS} ${JAVA_MEM_OPTS} ${JAVA_GC_OPTS} \
         -jar ${NEURONSEARCH_TOOLS_JAR} \
         colorDepthSearch \
+        ${CONCURRENCY_ARG} \
         ${CONFIG_ARG} \
         ${PROCESS_TAG_ARG} \
         ${AS_ARG} \
