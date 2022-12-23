@@ -7,11 +7,19 @@ function run_cds_job {
     # convert the 1-based index to 0-based
     declare -i job_index=$((one_based_job_index - 1))
     
-    masks_partition_index=$((job_index / MASKS_PER_JOB))
-    targets_partition_index=$((job_index % MASKS_PER_JOB))
+    masks_partition_index=$((job_index / MASKS_PARTITIONS))
+    targets_partition_index=$((job_index % TARGETS_PARTITIONS))
 
     masks_offset=$((masks_partition_index * MASKS_PER_JOB))
     targets_offset=$((targets_partition_index * TARGETS_PER_JOB))
+
+    echo "
+    Job index: ${job_index};
+    Masks partition index: ${masks_partition_index};
+    Targets partition index: ${targets_partition_index};
+    Masks offset: ${masks_offset};
+    Targets offset: ${targets_offset};
+    "
 
     MASKS_ARG="-m ${MASKS_LIBRARY}:${masks_offset}:${MASKS_PER_JOB}"
     TARGETS_ARG="-i ${TARGETS_LIBRARY}:${targets_offset}:${TARGETS_PER_JOB}"
