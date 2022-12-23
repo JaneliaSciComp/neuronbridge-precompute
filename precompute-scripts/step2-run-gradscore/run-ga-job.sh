@@ -6,18 +6,6 @@ function run_ga_job {
     declare -i one_based_job_index=$1
     # convert the 1-based index to 0-based
     declare -i job_index=$((one_based_job_index - 1))
-    
-    masks_partition_index=$((job_index / MASKS_PER_JOB))
-    targets_partition_index=$((job_index % MASKS_PER_JOB))
-
-    masks_offset=$((masks_partition_index * MASKS_PER_JOB))
-    targets_offset=$((targets_partition_index * TARGETS_PER_JOB))
-
-    if [[ -n ${CDS_TAG} ]]; then
-        PROCESS_TAG_ARG="--processing-tag ${CDS_TAG}"
-    else
-        PROCESS_TAG_ARG=""
-    fi
 
     case ${ALIGNMENT_SPACE} in
         JRC2018_Unisex_20x_HR|JRC2018_VNC_Unisex_40x_DS)
@@ -36,6 +24,8 @@ function run_ga_job {
         CONFIG_ARG=""
     fi
 
+    CACHE_SIZE_ARG="--cacheSize ${CACHE_SIZE}"
+
     if [[ ${AVAILABLE_THREADS} -gt 0 ]] ; then
         CONCURRENCY_ARG="--task-concurrency ${AVAILABLE_THREADS}"
     else
@@ -48,18 +38,14 @@ function run_ga_job {
     cds_cmd="${JAVA_EXEC} \
         ${JAVA_OPTS} ${JAVA_MEM_OPTS} ${JAVA_GC_OPTS} \
         -jar ${NEURONSEARCH_TOOLS_JAR} \
+        ${CACHE_SIZE_ARG} \
         gradientScores \
         ${CONFIG_ARG} \
-        ${PROCESS_TAG_ARG} \
+        ${CONCURRENCY_ARG} \
         ${AS_ARG} \
         ${MASKS_ARG} \
         ${TARGETS_ARG}
-        --mirrorMask \
-        --dataThreshold ${MASK_THRESHOLD} \
-        --maskThreshold ${DATA_THRESHOLD} \
-        --pixColorFluctuation ${PIX_FLUCTUATION} \
-        --xyShift ${XY_SHIFT} \
-        --pctPositivePixels ${PIX_PCT_MATCH} \
+        --nBestLines ${TOP_RESULTS} \
         -ps ${PROCESSING_PARTITION_SIZE} \
         "
     echo "$HOSTNAME $(date):> ${cds_cmd}"
