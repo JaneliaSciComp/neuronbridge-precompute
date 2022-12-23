@@ -23,6 +23,26 @@ function run_cds_job {
 
     declare MASKS_ARG="-m ${MASKS_LIBRARY}:${MASKS_OFFSET}:${MASKS_PER_JOB}"
     declare TARGETS_ARG="-i ${TARGETS_LIBRARY}:${TARGETS_OFFSET}:${TARGETS_PER_JOB}"
+    if [[ -n ${MASK_NEURONS_FILTER} ]]; then
+        MASK_NEURONS_FILTER_ARG="--masks-published-names ${MASK_NEURONS_FILTER}"
+    else
+        MASK_NEURONS_FILTER_ARG=""
+    fi
+    if [[ -n ${MASKS_TAGS} ]]; then
+        MASKS_TAGS_ARG="--masks-tags ${MASKS_TAGS}"
+    else
+        MASKS_TAGS_ARG=""
+    fi
+    if [[ -n ${TARGET_NEURONS_FILTER} ]]; then
+        TARGET_NEURONS_FILTER_ARG="--targets-published-names ${TARGET_NEURONS_FILTER}"
+    else
+        TARGET_NEURONS_FILTER_ARG=""
+    fi
+    if [[ -n ${TARGETS_TAGS} ]]; then
+        TARGETS_TAGS_ARG="--targets-tags ${TARGETS_TAGS}"
+    else
+        TARGETS_TAGS_ARG=""
+    fi
 
     if [[ -n ${CDS_TAG} ]]; then
         PROCESS_TAG_ARG="--processing-tag ${CDS_TAG}"
@@ -62,7 +82,11 @@ function run_cds_job {
         ${PROCESS_TAG_ARG} \
         ${AS_ARG} \
         ${MASKS_ARG} \
-        ${TARGETS_ARG}
+        ${MASK_NEURONS_FILTER_ARG} \
+        ${MASKS_TAGS_ARG} \
+        ${TARGETS_ARG} \
+        ${TARGET_NEURONS_FILTER_ARG} \
+        ${TARGETS_TAGS_ARG} \
         --mirrorMask \
         --dataThreshold ${MASK_THRESHOLD} \
         --maskThreshold ${DATA_THRESHOLD} \
