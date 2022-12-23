@@ -3,26 +3,26 @@
 function run_cds_job {
     # job index is 1-based index that should be passed either as the first arg
     # or in the LSB_JOBINDEX env var
-    declare -i one_based_job_index=$1
+    declare -i ONE_BASED_JOB_INDEX=$1
     # convert the 1-based index to 0-based
-    declare -i job_index=$((one_based_job_index - 1))
-    
-    masks_partition_index=$((job_index % MASKS_PARTITIONS))
-    targets_partition_index=$((job_index / MASKS_PARTITIONS))
+    declare -i JOB_INDEX=$((ONE_BASED_JOB_INDEX - 1))
 
-    masks_offset=$((masks_partition_index * MASKS_PER_JOB))
-    targets_offset=$((targets_partition_index * TARGETS_PER_JOB))
+    declare -i MASKS_PARTITION_INDEX=$((JOB_INDEX % MASKS_PARTITIONS))
+    declare -i TARGETS_PARTITION_INDEX=$((JOB_INDEX / MASKS_PARTITIONS))
+
+    declare -i MASKS_OFFSET=$((MASKS_PARTITION_INDEX * MASKS_PER_JOB))
+    declare -i TARGETS_OFFSET=$((TARGETS_PARTITION_INDEX * TARGETS_PER_JOB))
 
     echo "
-    Job index: ${job_index};
-    Masks partition index: ${masks_partition_index};
-    Targets partition index: ${targets_partition_index};
-    Masks offset: ${masks_offset};
-    Targets offset: ${targets_offset};
+    Job index: ${JOB_INDEX};
+    Masks partition index: ${MASKS_PARTITION_INDEX};
+    Targets partition index: ${TARGETS_PARTITION_INDEX};
+    Masks offset: ${MASKS_OFFSET};
+    Targets offset: ${TARGETS_OFFSET};
     "
 
-    MASKS_ARG="-m ${MASKS_LIBRARY}:${masks_offset}:${MASKS_PER_JOB}"
-    TARGETS_ARG="-i ${TARGETS_LIBRARY}:${targets_offset}:${TARGETS_PER_JOB}"
+    declare MASKS_ARG="-m ${MASKS_LIBRARY}:${MASKS_OFFSET}:${MASKS_PER_JOB}"
+    declare TARGETS_ARG="-i ${TARGETS_LIBRARY}:${TARGETS_OFFSET}:${TARGETS_PER_JOB}"
 
     if [[ -n ${CDS_TAG} ]]; then
         PROCESS_TAG_ARG="--processing-tag ${CDS_TAG}"
@@ -75,7 +75,7 @@ function run_cds_job {
     ($cds_cmd)
 }
 
-job_index=$((${LSB_JOBINDEX:-$1}))
-output_log=${JOB_LOGPREFIX}/cds_${job_index}.log
-echo "$(date) Run Job ${job_index} (Output log: ${output_log})"
-run_cds_job ${job_index} > ${output_log} 2>&1
+JOB_INDEX=$((${LSB_JOBINDEX:-$1}))
+OUTPUT_LOG=${JOB_LOGPREFIX}/cds_${JOB_INDEX}.log
+echo "$(date) Run Job ${JOB_INDEX} (Output log: ${OUTPUT_LOG})"
+run_cds_job ${JOB_INDEX} > ${OUTPUT_LOG} 2>&1
