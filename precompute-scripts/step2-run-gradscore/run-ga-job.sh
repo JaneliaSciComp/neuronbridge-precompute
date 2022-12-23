@@ -3,9 +3,40 @@
 function run_ga_job {
     # job index is 1-based index that should be passed either as the first arg
     # or in the LSB_JOBINDEX env var
-    declare -i one_based_job_index=$1
+    declare -i ONE_BASED_JOB_INDEX=$1
     # convert the 1-based index to 0-based
-    declare -i job_index=$((one_based_job_index - 1))
+    declare -i JOB_INDEX=$((ONE_BASED_JOB_INDEX - 1))
+
+    declare MASK_NEURONS_OFFSET=$((JOB_INDEX * NEURONS_PER_JOB + START_MASK_NEURON_INDEX))
+
+    echo "
+    Job index: ${JOB_INDEX};
+    Masks neurons offset: ${MASK_NEURONS_OFFSET};
+    "
+
+    MASKS_ARG="--masks-libraries ${MASKS_LIBRARY}:${MASK_NEURONS_OFFSET}:${NEURONS_PER_JOB}"
+    TARGETS_ARG="--targets-libraries ${TARGETS_LIBRARY}"
+
+    if [[ -n ${MASK_NEURONS_FILTER} ]]; then
+        MASK_NEURONS_FILTER_ARG="--masks-published-names ${MASK_NEURONS_FILTER}"
+    else
+        MASK_NEURONS_FILTER_ARG=""
+    fi
+    if [[ -n ${MASK_TAGS} ]]; then
+        MASK_TAGS_ARG="--mask-tags ${MASK_TAGS}"
+    else
+        MASK_TAGS_ARG=""
+    fi
+    if [[ -n ${TARGET_NEURONS_FILTER} ]]; then
+        TARGET_NEURONS_FILTER_ARG="--targets-published-names ${TARGET_NEURONS_FILTER}"
+    else
+        TARGET_NEURONS_FILTER_ARG=""
+    fi
+    if [[ -n ${MATCHES_TAGS} ]]; then
+        MATCHES_TAGS_ARG="--match-tags ${MATCHES_TAGS}"
+    else
+        MATCHES_TAGS_ARG=""
+    fi
 
     case ${ALIGNMENT_SPACE} in
         JRC2018_Unisex_20x_HR|JRC2018_VNC_Unisex_40x_DS)
@@ -32,8 +63,6 @@ function run_ga_job {
         CONCURRENCY_ARG=
     fi
 
-    MASKS_ARG="-m ${MASKS_LIBRARY}:${masks_offset}:${MASKS_PER_JOB}"
-    TARGETS_ARG="-i ${TARGETS_LIBRARY}:${targets_offset}:${TARGETS_PER_JOB}"
 
     cds_cmd="${JAVA_EXEC} \
         ${JAVA_OPTS} ${JAVA_MEM_OPTS} ${JAVA_GC_OPTS} \
@@ -44,15 +73,21 @@ function run_ga_job {
         ${CONCURRENCY_ARG} \
         ${AS_ARG} \
         ${MASKS_ARG} \
-        ${TARGETS_ARG}
+        ${MASK_NEURONS_FILTER_ARG} \
+        ${MASK_TAGS_ARG} \
+        ${TARGETS_ARG} \
+        ${TARGET_NEURONS_FILTER_ARG} \
+        ${MATCHES_TAGS_ARG} \
         --nBestLines ${TOP_RESULTS} \
+        --nBestSamplesPerLine ${SAMPLES_PER_LINE} \
+        --nBestMatchesPerSample ${BEST_MATCHES_PER_SAMPLE} \
         -ps ${PROCESSING_PARTITION_SIZE} \
         "
     echo "$HOSTNAME $(date):> ${cds_cmd}"
     ($cds_cmd)
 }
 
-job_index=$((${LSB_JOBINDEX:-$1}))
-output_log=${JOB_LOGPREFIX}/ga_${job_index}.log
-echo "$(date) Run Job ${job_index} (Output log: ${output_log})"
-run_ga_job ${job_index} > ${output_log} 2>&1
+JOB_INDEX=$((${LSB_JOBINDEX:-$1}))
+OUTPUT_LOG=${JOB_LOGPREFIX}/ga_${JOB_INDEX}.log
+echo "$(date) Run Job ${JOB_INDEX} (Output log: ${OUTPUT_LOG})"
+run_ga_job ${JOB_INDEX} > ${OUTPUT_LOG} 2>&1
