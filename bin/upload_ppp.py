@@ -185,11 +185,10 @@ def handle_single_entry(row):
     filedict = {}
     thumbdict = {}
     for file in files:
-        #newname = '%s-%s-%s-%s' % tuple([row[key] for key in RENAME_COMPONENTS])
-        newname = '%s-%s-%s-%s-%s' % tuple([row[key] for key in RENAME_COMPONENTS])
-        newname += "-%s.png" % (file.lower())
+        newname = "-".join(row[key] for key in RENAME_COMPONENTS)
+        newname += f"-{file.lower()}.png"
         if newname in KEYS:
-            terminate_program(f"Fuplicate file {newname} for {row['_id']}")
+            terminate_program(f"Duplicate file {newname} for {row['_id']}")
         KEYS[newname] = True
         copydict[file] = f"{fs_prefix}/{newname}"
         filedict[file] = f"{s3_prefix}/{newname}"
