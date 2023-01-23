@@ -185,11 +185,10 @@ def handle_single_entry(row):
     filedict = {}
     thumbdict = {}
     for file in files:
-        #newname = '%s-%s-%s-%s' % tuple([row[key] for key in RENAME_COMPONENTS])
-        newname = '%s-%s-%s-%s-%s' % tuple([row[key] for key in RENAME_COMPONENTS])
-        newname += "-%s.png" % (file.lower())
+        newname = "-".join(row[key] for key in RENAME_COMPONENTS)
+        newname += f"-{file.lower()}.png"
         if newname in KEYS:
-            terminate_program(f"Fuplicate file {newname} for {row['_id']}")
+            terminate_program(f"Duplicate file {newname} for {row['_id']}")
         KEYS[newname] = True
         copydict[file] = f"{fs_prefix}/{newname}"
         filedict[file] = f"{s3_prefix}/{newname}"
@@ -212,6 +211,8 @@ def handle_matches():
     coll = DATABASE["NB"].pppMatches
     payload = {"tags": ARG.NEURONBRIDGE,
                "sourceImageFiles": {"$ne": None}}
+    if ARG.ID:
+        payload["_id"] = int(ARG.ID)
     LOGGER.info("Getting match count for version %s", ARG.NEURONBRIDGE)
     count = coll.count_documents(payload)
     LOGGER.info("Getting matches for version %s", ARG.NEURONBRIDGE)
@@ -233,12 +234,14 @@ if __name__ == '__main__':
     PARSER.add_argument('--library', dest='LIBRARY', action='store', help='Library')
     PARSER.add_argument('--neuronbridge', dest='NEURONBRIDGE', default='',
                         help='NeuronBridge data version')
+    PARSER.add_argument('--id', dest='ID', default='',
+                        help='Single MongoDB _id to process')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         default='prod', choices=['dev', 'prod', 'devpre', 'prodpre'],
-                        help='AWS S3 manifold')
+                        help='AWS S3 manifold (prod)')
     PARSER.add_argument('--mongo', dest='MONGO', action='store',
                         default='prod', choices=['dev', 'prod'],
-                        help='MongoDB manifold [dev, prod]')
+                        help='MongoDB manifold [dev, prod] (prod)')
     PARSER.add_argument('--write', action='store_true', dest='WRITE',
                         default=False, help='Write to DynamoDB')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
