@@ -66,7 +66,7 @@ function run_export_job {
     "
 
     export_cmd="${JAVA_EXEC} \
-        ${JAVA_OPTS} ${JAVA_MEM_OPTS} ${JAVA_GC_OPTS} \
+        ${JAVA_OPTS} \
         -jar ${NEURONSEARCH_TOOLS_JAR} \
         exportData \
         ${CONFIG_ARG} \
