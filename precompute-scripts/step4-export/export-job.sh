@@ -1,13 +1,6 @@
 #!/bin/bash
 
 function run_export_job {
-    declare AREA=$1
-    shift
-
-    # EXPORT_TYPE can be one of [EM_MIPS, LM_MIPS, EM_CD_MATCHES, LM_CD_MATCHES, EM_PPP_MATCHES]
-    declare EXPORT_TYPE=$1
-    shift
-
     # Supported LM Libraries
     declare LM_LIBS="\
         ${SGAL4_LIB} \
@@ -26,27 +19,22 @@ function run_export_job {
         EM_CD_MATCHES)
             LIBNAME="${EM_LIBS}"
             SUBDIR=cdmatches/em-vs-lm
-            JOB_TYPE=em-cds
             ;;
         LM_CD_MATCHES)
             LIBNAME="${LM_LIBS}"
             SUBDIR=cdmatches/lm-vs-em
-            JOB_TYPE=lm-cds
             ;;
         EM_PPP_MATCHES)
             LIBNAME="${EM_LIBS}"
             SUBDIR=pppmatches/em-vs-lm
-            JOB_TYPE=em-pppm
             ;;
         EM_MIPS)
             LIBNAME="${EM_LIBS}"
             SUBDIR=mips/embodies
-            JOB_TYPE=em-mips
             ;;
         LM_MIPS)
             LIBNAME="${LM_LIBS}"
             SUBDIR=mips/lmlines
-            JOB_TYPE=lm-mips
             ;;
         *)
             echo "Invalid export type: ${EXPORT_TYPE}"

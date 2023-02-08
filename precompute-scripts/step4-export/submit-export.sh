@@ -26,11 +26,34 @@ if [[ -z ${EXPORT_TYPE} ]]; then
     fi
 fi
 
+case $EXPORT_TYPE in
+    EM_CD_MATCHES)
+        JOB_TYPE=em-cds
+        ;;
+    LM_CD_MATCHES)
+        JOB_TYPE=lm-cds
+        ;;
+    EM_PPP_MATCHES)
+        JOB_TYPE=em-pppm
+        ;;
+    EM_MIPS)
+        JOB_TYPE=em-mips
+        ;;
+    LM_MIPS)
+        JOB_TYPE=lm-mips
+        ;;
+    *)
+        echo "Invalid export type: ${EXPORT_TYPE}"
+        exit 1
+        ;;
+esac
+
 source "${SCRIPT_DIR}/../global-params.sh" ${AREA}
 source "${SCRIPT_DIR}/export-params.sh"
 
 export AREA
 export EXPORT_TYPE
+export JOB_TYPE
 
 mkdir -p $JOB_LOGPREFIX
 
