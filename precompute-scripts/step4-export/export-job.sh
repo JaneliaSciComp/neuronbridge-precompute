@@ -61,8 +61,8 @@ function run_export_job {
 
     # store name based on alignment space
     declare DATA_STORE_ARG="\
-    --default-image-store \"${BRAIN_STORE}\" \
-    --image-stores-per-neuron-meta \"JRC2018_VNC_Unisex_40x_DS:${VNC_STORE}\" \
+    --default-image-store ${BRAIN_STORE} \
+    --image-stores-per-neuron-meta JRC2018_VNC_Unisex_40x_DS:${VNC_STORE} \
     "
 
     export_cmd="${JAVA_EXEC} \
@@ -73,8 +73,7 @@ function run_export_job {
         ${AS_ARG} \
         --exported-result-type ${EXPORT_TYPE} \
         ${DATA_STORE_ARG} \
-        --jacs-url '${JACS_URL}' \
-        --authorization '${JACS_AUTH_TYPE} ${JACS_AUTH_TOKEN}' \
+        --jacs-url ${JACS_URL} \
         -l ${LIBNAME} \
         --read-batch-size ${READ_BATCH_SIZE} \
         -ps ${PROCESSING_PARTITION_SIZE} \
@@ -85,7 +84,7 @@ function run_export_job {
         "
 
     echo "$HOSTNAME $(date):> ${export_cmd}"
-    $export_cmd
+    $export_cmd --authorization "${JACS_AUTH_TYPE} ${JACS_AUTH_TOKEN}"
 }
 
 OUTPUT_LOG=${JOB_LOGPREFIX}/export-${AREA}-${JOB_TYPE}.log
