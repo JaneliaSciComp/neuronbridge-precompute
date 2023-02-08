@@ -3,21 +3,27 @@
 SCRIPT_DIR=$(dirname ${BASH_SOURCE[0]})
 
 # AREA: brain, vnc, brain+vnc, vnc+brain
-AREA=${AREA:=$1}
-
-if [ "$#" -ge 1 ]; then
-    shift
+if [[ -z ${AREA} ]]; then
+    if [ "$#" -ge 1 ]; then
+        AREA=$1
+        shift
+    else
+        echo "Anatomical area must be specified either as an env var (AREA) or first arg"
+        echo "Valid values: {brain | vnc | brain+vnc}"
+        exit 1
+    fi
 fi
 
-EXPORT_TYPE=${EXPORT_TYPE:=$1}
+# EXPORT_TYPE: EM_MIPS, LM_MIPS, EM_CD_MATCHES, LM_CD_MATCHES, EM_PPP_MATCHES
+if [[ -z ${EXPORT_TYPE} ]]; then
+    if [ "$#" -ge 1 ]; then
+        EXPORT_TYPE=$1
+        shift
+    else
+        echo "Export type must be specified either as an env var (EXPORT_TYPE) or first arg"
+        echo "Valid values: {EM_MIPS | LM_MIPS | EM_CD_MATCHES | LM_CD_MATCHES | EM_PPP_MATCHES}"
+        exit 1
+    fi
+fi
 
-sh ${SCRIPT_DIR}/export-job.sh brain+vnc EM_MIPS
-sh ${SCRIPT_DIR}/export-job.sh brain+vnc LM_MIPS
-
-sh ${SCRIPT_DIR}/export-job.sh brain EM_CD_MATCHES
-sh ${SCRIPT_DIR}/export-job.sh brain LM_CD_MATCHES
-sh ${SCRIPT_DIR}/export-job.sh brain EM_PPP_MATCHES
-
-sh ${SCRIPT_DIR}/export-job.sh vnc EM_CD_MATCHES
-sh ${SCRIPT_DIR}/export-job.sh vnc LM_CD_MATCHES
-sh ${SCRIPT_DIR}/export-job.sh vnc EM_PPP_MATCHES
+sh ${SCRIPT_DIR}/export-job.sh ${AREA} ${EXPORT_TYPE}
