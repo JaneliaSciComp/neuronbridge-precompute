@@ -2,8 +2,8 @@ BASE_EXPORT_FOLDER=${BASE_EXPORT_FOLDER:=/nrs/neuronbridge}
 DATA_VERSION=${DATA_VERSION:=v3.0.0}
 
 EXPORT_DIR=${EXPORT_DIR:=${BASE_EXPORT_FOLDER}/${DATA_VERSION}}
-JACS_URL=${JACS_URL:="http://e03u04.int.janelia.org:8800/api/rest-v2"}
-JACS_AUTH=${JACS_AUTH:="APIKEY MyKey"}
+JACS_URL=${JACS_URL:="http://<host>/api/rest-v2"}
+JACS_AUTH=${JACS_AUTH:="APIKEY thekeyvalue"}
 
 BRAIN_STORE=fl:open_data:brain
 VNC_STORE=fl:pre_release:vnc

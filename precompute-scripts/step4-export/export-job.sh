@@ -105,4 +105,7 @@ mkdir -p $JOB_LOGPREFIX
 
 OUTPUT_LOG=${JOB_LOGPREFIX}/export-${AREA}-${JOB_TYPE}.log
 
-$export_cmd 2>&1 | tee ${OUTPUT_LOG}
+echo "$HOSTNAME $(date) :> Export $AREA $EXPORT_TYPE (Output log: ${OUTPUT_LOG})"
+
+$export_cmd > ${OUTPUT_LOG} 2>&1
+
