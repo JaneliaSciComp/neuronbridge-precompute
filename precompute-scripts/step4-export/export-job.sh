@@ -65,6 +65,8 @@ function run_export_job {
     --image-stores-per-neuron-meta JRC2018_VNC_Unisex_40x_DS:${VNC_STORE} \
     "
 
+    declare OUTPUT_DIR=${EXPORT_DIR}/${AREA}
+
     export_cmd="${JAVA_EXEC} \
         ${JAVA_OPTS} \
         -jar ${NEURONSEARCH_TOOLS_JAR} \
