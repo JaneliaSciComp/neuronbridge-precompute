@@ -78,8 +78,8 @@ fi
 
 # store name based on alignment space
 DATA_STORE_ARG="\
---default-image-store ${BRAIN_STORE} \
---image-stores-per-neuron-meta JRC2018_VNC_Unisex_40x_DS:${VNC_STORE} \
+--default-image-store \"${BRAIN_STORE}\" \
+--image-stores-per-neuron-meta \"JRC2018_VNC_Unisex_40x_DS:${VNC_STORE}\" \
 "
 
 export_cmd="${JAVA_EXEC} \
