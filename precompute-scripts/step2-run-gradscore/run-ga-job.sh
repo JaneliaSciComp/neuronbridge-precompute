@@ -64,7 +64,7 @@ function run_ga_job {
     fi
 
 
-    cds_cmd="${JAVA_EXEC} \
+    gradscore_cmd="${JAVA_EXEC} \
         ${JAVA_OPTS} ${JAVA_MEM_OPTS} ${JAVA_GC_OPTS} \
         -jar ${NEURONSEARCH_TOOLS_JAR} \
         ${CACHE_SIZE_ARG} \
@@ -83,8 +83,8 @@ function run_ga_job {
         --nBestMatchesPerSample ${BEST_MATCHES_PER_SAMPLE} \
         -ps ${PROCESSING_PARTITION_SIZE} \
         "
-    echo "$HOSTNAME $(date):> ${cds_cmd}"
-    ($cds_cmd)
+    echo "$HOSTNAME $(date):> ${gradscore_cmd}"
+    ($gradscore_cmd)
 }
 
 JOB_INDEX=$((${LSB_JOBINDEX:-$1}))

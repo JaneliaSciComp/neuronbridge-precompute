@@ -8,4 +8,5 @@ JACS_AUTH=${JACS_AUTH:="APIKEY thekeyvalue"}
 BRAIN_STORE=fl:open_data:brain
 VNC_STORE=fl:pre_release:vnc
 
+JOB_LOGPREFIX=${JOB_LOGPREFIX:=${LOGS_DIR}/exports}
 READ_BATCH_SIZE=2000

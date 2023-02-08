@@ -26,4 +26,9 @@ if [[ -z ${EXPORT_TYPE} ]]; then
     fi
 fi
 
+source "${SCRIPT_DIR}/../global-params.sh" ${AREA}
+source "${SCRIPT_DIR}/export-params.sh"
+
+mkdir -p $JOB_LOGPREFIX
+
 sh ${SCRIPT_DIR}/export-job.sh ${AREA} ${EXPORT_TYPE}
