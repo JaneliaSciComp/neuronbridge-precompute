@@ -26,6 +26,9 @@ if [[ -z ${EXPORT_TYPE} ]]; then
     fi
 fi
 
+source "${SCRIPT_DIR}/../global-params.sh" ${AREA}
+source "${SCRIPT_DIR}/export-params.sh"
+
 case $EXPORT_TYPE in
     EM_CD_MATCHES)
         JOB_TYPE=em-cds
@@ -47,9 +50,6 @@ case $EXPORT_TYPE in
         exit 1
         ;;
 esac
-
-source "${SCRIPT_DIR}/../global-params.sh" ${AREA}
-source "${SCRIPT_DIR}/export-params.sh"
 
 export AREA
 export EXPORT_TYPE
