@@ -29,6 +29,9 @@ fi
 source "${SCRIPT_DIR}/../global-params.sh" ${AREA}
 source "${SCRIPT_DIR}/export-params.sh"
 
+export AREA
+export EXPORT_TYPE
+
 mkdir -p $JOB_LOGPREFIX
 
 sh ${SCRIPT_DIR}/export-job.sh ${AREA} ${EXPORT_TYPE}

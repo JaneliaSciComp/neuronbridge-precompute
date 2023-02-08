@@ -79,7 +79,6 @@ if [[ -z ${AREA} ]]; then
 fi
 
 # export variables used in the called scripts
-export AREA
 export MASKS_LIBRARY
 export TARGETS_LIBRARY
 export DB_CONFIG
