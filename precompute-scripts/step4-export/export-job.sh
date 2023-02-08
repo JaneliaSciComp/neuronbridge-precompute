@@ -73,8 +73,8 @@ function run_export_job {
         ${AS_ARG} \
         --exported-result-type ${EXPORT_TYPE} \
         ${DATA_STORE_ARG} \
-        --jacs-url \"${JACS_URL}\" \
-        --authorization \"${JACS_AUTH}\" \
+        --jacs-url '${JACS_URL}' \
+        --authorization '${JACS_AUTH_TYPE} ${JACS_AUTH_TOKEN}' \
         -l ${LIBNAME} \
         --read-batch-size ${READ_BATCH_SIZE} \
         -ps ${PROCESSING_PARTITION_SIZE} \
