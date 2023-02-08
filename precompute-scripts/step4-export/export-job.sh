@@ -85,8 +85,7 @@ function run_export_job {
         "
 
     echo "$HOSTNAME $(date):> ${export_cmd}"
-    ($export_cmd)
-
+    $export_cmd
 }
 
 OUTPUT_LOG=${JOB_LOGPREFIX}/export-${AREA}-${JOB_TYPE}.log
