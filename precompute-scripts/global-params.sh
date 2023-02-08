@@ -50,15 +50,15 @@ if (( ${AVAILABLE_THREADS} < 0 )) ; then
 fi
 
 # Supported EM Libraries
-EM_HEMIBRAIN_LIB=flyem_hemibrain_1_2_1
+EM_HEMIBRAIN_1_2_1_LIB=flyem_hemibrain_1_2_1
 EM_VNC_0_5_LIB=flyem_vnc_0_5
 EM_VNC_0_6_LIB=flyem_vnc_0_6
 EM_VNC_0_9_LIB=flyem_vnc_0_9
 
 # Supported LM Libraries
-SGAL4_LIB=flylight_split_gal4_published
-MCFO_LIB=flylight_gen1_mcfo_published
-ANNOTATOR_MCFO_LIB=flylight_annotator_gen1_mcfo_published
+LM_SGAL4_LIB=flylight_split_gal4_published
+LM_MCFO_LIB=flylight_gen1_mcfo_published
+LM_ANNOTATOR_MCFO_LIB=flylight_annotator_gen1_mcfo_published
 
 # Runtime
 JAVA_EXEC=${JAVA_EXEC:-java}
@@ -79,6 +79,13 @@ if [[ -z ${AREA} ]]; then
 fi
 
 # export variables used in the called scripts
+export EM_HEMIBRAIN_1_2_1_LIB
+export EM_VNC_0_5_LIB
+export EM_VNC_0_6_LIB
+export EM_VNC_0_9_LIB
+export LM_SGAL4_LIB
+export LM_MCFO_LIB
+export LM_ANNOTATOR_MCFO_LIB
 export MASKS_LIBRARY
 export TARGETS_LIBRARY
 export DB_CONFIG

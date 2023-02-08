@@ -3,13 +3,13 @@
 function run_export_job {
     # Supported LM Libraries
     declare LM_LIBS="\
-        ${SGAL4_LIB} \
-        ${MCFO_LIB} \
-        ${ANNOTATOR_MCFO_LIB} \
+        ${LM_SGAL4_LIB} \
+        ${LM_MCFO_LIB} \
+        ${LM_ANNOTATOR_MCFO_LIB} \
         "
     # Supported EM Libraries
     declare EM_LIBS="\
-        ${EM_HEMIBRAIN_LIB} \
+        ${EM_HEMIBRAIN_1_2_1_LIB} \
         ${EM_VNC_0_5_LIB} \
         ${EM_VNC_0_6_LIB} \
         ${EM_VNC_0_9_LIB} \
