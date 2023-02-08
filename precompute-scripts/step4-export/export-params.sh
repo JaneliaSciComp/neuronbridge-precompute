@@ -10,3 +10,5 @@ VNC_STORE=fl:pre_release:vnc
 
 JOB_LOGPREFIX=${JOB_LOGPREFIX:=${LOGS_DIR}/exports}
 READ_BATCH_SIZE=2000
+
+export JOB_LOGPREFIX
