@@ -7,9 +7,11 @@ import json
 import os
 import re
 import sys
+import time
 from types import SimpleNamespace
 import boto3
 import colorlog
+import inquirer
 from pymongo import MongoClient
 import requests
 from tqdm import tqdm
@@ -126,7 +128,10 @@ def initialize_program():
             terminate_program(f"{ARG.DDBVERSION} is not a valid version")
         table = "janelia-neuronbridge-published-" + ARG.DDBVERSION
     else:
-        table = "janelia-neuronbridge-published-" + ARG.VERSION
+        ver = ARG.VERSION
+        if not ver.startswith("v"):
+            ver = f"v{ARG.VERSION}"
+        table = "janelia-neuronbridge-published-" + ver
     if ARG.MANIFOLD != "prod":
         table += f"-{ARG.MANIFOLD}"
     try:
@@ -151,7 +156,7 @@ def valid_row(row):
           True for valis, False for invalid
     '''
     if "publishedName" not in row or not row["publishedName"]:
-        LOGGER.error("Missing publishedName for %s", row['_id'])
+        LOGGER.error("Missing publishedName for %s in %s", row['_id'], row['libraryName'])
         COUNT["missing"] += 1
         return False
     if row["publishedName"].lower() == "no consensus":
@@ -287,6 +292,8 @@ def write_dynamodb():
     LOGGER.info("Batch writing %s items to DynamoDB", len(ITEMS))
     with DATABASE["DYN"].batch_writer() as writer:
         for item in tqdm(ITEMS, desc="DynamoDB"):
+            if ARG.THROTTLE and (not COUNT["insertions"] % ARG.THROTTLE):
+                time.sleep(2)
             writer.put_item(Item=item)
             COUNT["insertions"] += 1
 
@@ -374,14 +381,20 @@ def update_dynamo():
         Returns:
           None
     '''
-    LOGGER.info("Finding PPP matches")
-    coll = DATABASE["NB"]["pppMatches"]
-    results = coll.distinct("sourceEmName")
-    for row in results:
-        KNOWN_PPP[row.split("-")[0]] = True
     coll = DATABASE["NB"]["neuronMetadata"]
     payload = {"$or": [{"processedTags.ColorDepthSearch": ARG.VERSION},
                        {"processedTags.PPPMatch": ARG.VERSION}]}
+    results = coll.distinct("libraryName", payload)
+    if not results:
+        terminate_program(f"There are no processed tags for version {ARG.VERSION}")
+    questions = [inquirer.Checkbox("to_include",
+                                   message="Choose libraries to include",
+                                   choices=results,
+                                   default=results,
+                                  )]
+    answers = inquirer.prompt(questions)
+    if answers["to_include"]:
+        payload["libraryName"] = {"$in": answers["to_include"]}
     project = {"libraryName": 1, "publishedName": 1, "processedTags": 1,
                "neuronInstance": 1, "neuronType": 1}
     count = coll.count_documents(payload)
@@ -390,6 +403,11 @@ def update_dynamo():
         results = {}
     else:
         results = coll.find(payload, project)
+    LOGGER.info("Finding PPP matches")
+    coll = DATABASE["NB"]["pppMatches"]
+    pppresults = coll.distinct("sourceEmName")
+    for row in pppresults:
+        KNOWN_PPP[row.split("-")[0]] = True
     process_results(count, results)
 
 
@@ -406,6 +424,8 @@ if __name__ == '__main__':
                         help='DynamoDB manifold')
     PARSER.add_argument('--write', action='store_true', dest='WRITE',
                         default=False, help='Write to DynamoDB')
+    PARSER.add_argument('--throttle', type=int, dest='THROTTLE',
+                        default=0, help='DynamoDB batch write throttle (# items)')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
                         default=False, help='Flag, Chatty')
     PARSER.add_argument('--debug', dest='DEBUG', action='store_true',
