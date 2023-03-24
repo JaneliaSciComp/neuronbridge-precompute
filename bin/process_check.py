@@ -204,13 +204,16 @@ def check_process():
             if len(dset) > width:
                 width = len(dset)
             master[dset] = True
-    print(f"{'Data set':<{width}}  {'NeuPrint':<8}  {'JACS':<4}  {'Metadata':<8}  "
+    print(f"{'Data set':<{width}}  {'NeuPrint':<8}  {'emData':<6}  {'Metadata':<8}  "
           + f"{'Published':<9}  {'AWS loc':<7}")
     first = "-"*width
-    print(f"{first}  {'-'*8}  {'-'*4}  {'-'*8}  {'-'*9}  {'-'*7}")
+    print(f"{first}  {'-'*8}  {'-'*6}  {'-'*8}  {'-'*9}  {'-'*7}")
     for dset in sorted(master):
-        nprint = step["neuprint"][dset] if dset in step["neuprint"] else Fore.RED + f"{'No':>4}"
-        sync = Fore.GREEN + "Yes" if dset in step["sync"] else Fore.RED + f"{'No':>3}"
+        if "flylight" in dset:
+            nprint = sync = Fore.RED + f"{'N/A':>4}"
+        else:
+            nprint = step["neuprint"][dset] if dset in step["neuprint"] else Fore.RED + f"{'No':>4}"
+            sync = Fore.GREEN + " Yes" if dset in step["sync"] else Fore.RED + f"{'No':>4}"
         mdata = Fore.GREEN + "Yes" if dset in step["metadata"] else Fore.RED + f"{'No':>3}"
         pub = Fore.GREEN + "Yes" if dset in step["published"] else Fore.RED + f"{'No':>3}"
         aws = Fore.GREEN + step["aws"][dset] if dset in step["aws"] else ""

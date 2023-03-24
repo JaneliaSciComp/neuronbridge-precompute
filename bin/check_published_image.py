@@ -195,6 +195,8 @@ def process_imagery():
         total = {"mysql": 0, "mongo": 0}
         print(f"{'Release':<26}  {'MySQL':6}  {'Mongo':6}")
         for row in rows:
+            if not row["alps_release"]:
+                continue
             mcnt = mongo[row["alps_release"]] if row["alps_release"] in mongo else 0
             line = f"{row['alps_release']:<26}  {row['cnt']:>6}  {mcnt:>6}"
             print((Fore.GREEN if row["cnt"] == mcnt else Fore.RED) + line)
