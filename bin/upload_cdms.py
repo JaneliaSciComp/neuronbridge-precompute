@@ -1224,6 +1224,11 @@ def update_library_config():
                                     manifold=ARG.MANIFOLD,
                                     method=method,
                                     source=source,
+                                    dataset=ARG.DATASET,
+                                    neuprint=ARG.NEUPRINT,
+                                    neuronbridge=ARG.NEURONBRIDGE,
+                                    release=ARG.RELEASE,
+                                    tag=ARG.TAG,
                                     images=COUNT['Images processed'],
                                     samples=COUNT['Samples'],
                                     updatedBy=CONF['FULL_NAME']):
