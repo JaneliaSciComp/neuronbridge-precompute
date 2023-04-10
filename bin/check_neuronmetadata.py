@@ -89,12 +89,11 @@ def initialize_program():
     try:
         dbc = getattr(getattr(getattr(dbconfig, JACS), ARG.MANIFOLD), "read")
         if ARG.MANIFOLD == "prod":
-            client = MongoClient(dbc.host, replicaSet=dbc.replicaset)
+            client = MongoClient(dbc.host, replicaSet=dbc.replicaset,
+                                 username=dbc.user, password=dbc.password)
         else:
             client = MongoClient(dbc.host)
         DATABASE["JACS"] = client.jacs
-        if ARG.MANIFOLD == "prod":
-            DATABASE["JACS"].authenticate(dbc.user, dbc.password)
     except errors.ConnectionFailure as err:
         terminate_program(f"Could not connect to Mongo: {err}")
 
@@ -143,7 +142,7 @@ def mongo_check():
         in_np[bid].append(row["dataSetIdentifier"])
     # neuronMetadata
     coll = DATABASE["NB"].neuronMetadata
-    payload = {"libraryName": {"$regex": u"flyem"}}
+    payload = {"libraryName": {"$regex": "flyem"}}
     project = {"libraryName": 1, "publishedName": 1}
     count = coll.count_documents(payload)
     results = coll.find(payload, project)
