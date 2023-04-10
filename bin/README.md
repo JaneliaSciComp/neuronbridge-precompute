@@ -10,6 +10,7 @@ Utility programs for indexing and transferring of NeuronBridge-related files.
 | ------- | ----------- |
 | denormalize_s3.py | Create denormalization files for imagery in AWS S3 bucket |
 | create_ppp_sync_submitter.py | Create a shell script to submit AWS S3 sync jobs to the cluster |
+| find_gen1_representatives.py | Update publishedLMImage with imagery from FLEW |
 | update_dynamodb_published_skeletons.py | Update the janelia-neuronbridge-skeletons DynamoDB table |
 | update_dynamodb_published_stacks.py | Update janelia-neuronbridge-published-stacks DynamoDB table |
 | update_dynamodb_published_versioned.py | Update janelia-neuronbridge-published-* DynamoDB table |
