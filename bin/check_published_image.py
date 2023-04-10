@@ -151,14 +151,13 @@ def initialize_program():
     try:
         dbc = getattr(getattr(getattr(dbconfig, "jacs-mongo"), ARG.MONGO), "read")
         if ARG.MONGO == 'prod':
-            client = MongoClient(dbc.host, replicaSet=dbc.replicaset)
+            client = MongoClient(dbc.host, replicaSet=dbc.replicaset,
+                                 username=dbc.user, password=dbc.password)
         elif ARG.MONGO == 'local':
             client = MongoClient()
         else:
             client = MongoClient(dbc.host)
         DBM["jacs"] = client.jacs
-        if ARG.MONGO == 'prod':
-            DBM["jacs"].authenticate(dbc.user, dbc.password)
     except Exception as err:
         terminate_program(TEMPLATE % (type(err).__name__, err.args))
 

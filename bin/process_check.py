@@ -87,12 +87,11 @@ def initialize_program():
     try:
         dbc = getattr(getattr(getattr(dbconfig, "jacs-mongo"), ARG.MANIFOLD), "read")
         if ARG.MANIFOLD == "prod":
-            client = MongoClient(dbc.host, replicaSet=dbc.replicaset)
+            client = MongoClient(dbc.host, replicaSet=dbc.replicaset,
+                                 username=dbc.user, password=dbc.password)
         else:
             client = MongoClient(dbc.host)
         DBM["JACS"] = client.jacs
-        if ARG.MANIFOLD == "prod":
-            DBM["JACS"].authenticate(dbc.user, dbc.password)
     except errors.ConnectionFailure as err:
         terminate_program(f"Could not connect to Mongo: {err}")
 
