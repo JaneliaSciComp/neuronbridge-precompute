@@ -1,5 +1,7 @@
 #!/bin/bash
 
+echo "Run submit_export.sh"
+
 SCRIPT_DIR=$(dirname ${BASH_SOURCE[0]})
 
 # AREA: brain, vnc, brain+vnc, vnc+brain
@@ -26,7 +28,9 @@ if [[ -z ${EXPORT_TYPE} ]]; then
     fi
 fi
 
+echo "Source global_params from ${SCRIPT_DIR}/../global-params.sh"
 source "${SCRIPT_DIR}/../global-params.sh" ${AREA}
+echo "Source export_params from ${SCRIPT_DIR}/export-params.sh"
 source "${SCRIPT_DIR}/export-params.sh"
 
 case $EXPORT_TYPE in

@@ -6,6 +6,7 @@ PRECOMPUTE_SCRIPTS_BASEDIR=${PRECOMPUTE_SCRIPTS_BASEDIR:=${SCRIPT_DIR}}
 # and use different environment
 ENV_FILENAME=${ENV_FILENAME:="${PRECOMPUTE_SCRIPTS_BASEDIR}/../.env"}
 
+echo "ENV file: ${ENV_FILENAME}"
 if [[ -f "${ENV_FILENAME}" ]]; then
     # read the session specific environment variables
     echo "Source ${ENV_FILENAME}"

@@ -52,6 +52,7 @@ function run_export_job {
             ;;
     esac
 
+    echo "DB_CONFIG: ${DB_CONFIG}"
     if [[ -n ${DB_CONFIG} && -f ${DB_CONFIG} ]]; then
         declare CONFIG_ARG="--config ${DB_CONFIG}"
     else
