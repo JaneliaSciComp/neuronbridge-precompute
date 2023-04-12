@@ -221,6 +221,9 @@ def update_library_status(coll, **kwargs):
     for arg in ["images", "library", "manifold", "method",
                 "samples", "source"]:
         payload[arg] = kwargs[arg]
+    for arg in ["dataset", "neuprint", "neuronbridge", "release", "tag"]:
+        if arg in kwargs and kwargs[arg]:
+            payload[arg] = kwargs[arg]
     for arg in ["updateDate", "updatedBy"]:
         if arg in kwargs:
             payload[arg] = kwargs[arg]

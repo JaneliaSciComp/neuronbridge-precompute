@@ -1069,7 +1069,9 @@ def read_json():
     else:
         print(f"Loading JSON from Mongo for {ARG.LIBRARY}")
         coll = DBM.neuronMetadata
-        payload = {"libraryName": ARG.LIBRARY, "tags": ARG.NEURONBRIDGE.replace("v", "")}
+        tagged = ARG.TAG if ARG.TAG else ARG.NEURONBRIDGE.replace("v", "")
+        payload = {"libraryName": ARG.LIBRARY, "tags": tagged}
+        LOGGER.info("Chacking neuronMetadata for %s library entries tagged as %s", ARG.LIBRARY, tagged)
         data = list(coll.find(payload))
         time_diff = (datetime.now() - stime)
         LOGGER.info("JSON read in %fsec", time_diff.total_seconds())
@@ -1222,6 +1224,11 @@ def update_library_config():
                                     manifold=ARG.MANIFOLD,
                                     method=method,
                                     source=source,
+                                    dataset=ARG.DATASET,
+                                    neuprint=ARG.NEUPRINT,
+                                    neuronbridge=ARG.NEURONBRIDGE,
+                                    release=ARG.RELEASE,
+                                    tag=ARG.TAG,
                                     images=COUNT['Images processed'],
                                     samples=COUNT['Samples'],
                                     updatedBy=CONF['FULL_NAME']):
@@ -1238,6 +1245,8 @@ if __name__ == '__main__':
                         help='JSON source [file, mongo]')
     PARSER.add_argument('--library', dest='LIBRARY', action='store',
                         default='', help='color depth library')
+    PARSER.add_argument('--tag', dest='TAG', action='store',
+                        default='', help='MongoDB neuronMetadata tag')
     PARSER.add_argument('--release', dest='RELEASE', action='store',
                         default='', help='ALPS release')
     PARSER.add_argument('--neuronbridge', dest='NEURONBRIDGE', action='store',

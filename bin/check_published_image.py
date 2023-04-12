@@ -151,14 +151,13 @@ def initialize_program():
     try:
         dbc = getattr(getattr(getattr(dbconfig, "jacs-mongo"), ARG.MONGO), "read")
         if ARG.MONGO == 'prod':
-            client = MongoClient(dbc.host, replicaSet=dbc.replicaset)
+            client = MongoClient(dbc.host, replicaSet=dbc.replicaset,
+                                 username=dbc.user, password=dbc.password)
         elif ARG.MONGO == 'local':
             client = MongoClient()
         else:
             client = MongoClient(dbc.host)
         DBM["jacs"] = client.jacs
-        if ARG.MONGO == 'prod':
-            DBM["jacs"].authenticate(dbc.user, dbc.password)
     except Exception as err:
         terminate_program(TEMPLATE % (type(err).__name__, err.args))
 
@@ -195,6 +194,8 @@ def process_imagery():
         total = {"mysql": 0, "mongo": 0}
         print(f"{'Release':<26}  {'MySQL':6}  {'Mongo':6}")
         for row in rows:
+            if not row["alps_release"]:
+                continue
             mcnt = mongo[row["alps_release"]] if row["alps_release"] in mongo else 0
             line = f"{row['alps_release']:<26}  {row['cnt']:>6}  {mcnt:>6}"
             print((Fore.GREEN if row["cnt"] == mcnt else Fore.RED) + line)

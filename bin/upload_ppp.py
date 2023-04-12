@@ -231,7 +231,6 @@ def handle_matches():
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
         description="Upload PPP matches")
-    PARSER.add_argument('--library', dest='LIBRARY', action='store', help='Library')
     PARSER.add_argument('--neuronbridge', dest='NEURONBRIDGE', default='',
                         help='NeuronBridge data version')
     PARSER.add_argument('--id', dest='ID', default='',
