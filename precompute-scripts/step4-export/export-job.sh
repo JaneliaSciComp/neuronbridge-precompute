@@ -72,11 +72,12 @@ function run_export_job {
         ${JAVA_OPTS} \
         -jar ${NEURONSEARCH_TOOLS_JAR} \
         exportData \
+        --jacs-url ${JACS_URL} \
+        --authorization \"${JACS_AUTH_TYPE} ${JACS_AUTH_TOKEN}\" \
         ${CONFIG_ARG} \
         ${AS_ARG} \
         --exported-result-type ${EXPORT_TYPE} \
         ${DATA_STORE_ARG} \
-        --jacs-url ${JACS_URL} \
         -l ${LIBNAME} \
         --read-batch-size ${READ_BATCH_SIZE} \
         -ps ${PROCESSING_PARTITION_SIZE} \
@@ -87,7 +88,7 @@ function run_export_job {
         "
 
     echo "$HOSTNAME $(date):> ${export_cmd}"
-    $export_cmd --authorization "${JACS_AUTH_TYPE} ${JACS_AUTH_TOKEN}"
+    $export_cmd
 }
 
 OUTPUT_LOG=${JOB_LOGPREFIX}/export-${AREA}-${JOB_TYPE}.log
