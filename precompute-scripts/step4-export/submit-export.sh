@@ -5,27 +5,23 @@ echo "Run submit_export.sh"
 SCRIPT_DIR=$(dirname ${BASH_SOURCE[0]})
 
 # AREA: brain, vnc, brain+vnc, vnc+brain
-if [[ -z ${AREA} ]]; then
-    if [ "$#" -ge 1 ]; then
-        AREA=$1
-        shift
-    else
-        echo "Anatomical area must be specified either as an env var (AREA) or first arg"
-        echo "Valid values: {brain | vnc | brain+vnc}"
-        exit 1
-    fi
+if [ "$#" -ge 1 ]; then
+    AREA=$1
+    shift
+else
+    echo "Anatomical area must be specified: submit_export.sh <anatomical_area> <export_type>"
+    echo "Valid values: {brain | vnc | brain+vnc}"
+    exit 1
 fi
 
 # EXPORT_TYPE: EM_MIPS, LM_MIPS, EM_CD_MATCHES, LM_CD_MATCHES, EM_PPP_MATCHES
-if [[ -z ${EXPORT_TYPE} ]]; then
-    if [ "$#" -ge 1 ]; then
-        EXPORT_TYPE=$1
-        shift
-    else
-        echo "Export type must be specified either as an env var (EXPORT_TYPE) or first arg"
-        echo "Valid values: {EM_MIPS | LM_MIPS | EM_CD_MATCHES | LM_CD_MATCHES | EM_PPP_MATCHES}"
-        exit 1
-    fi
+if [ "$#" -ge 1 ]; then
+    EXPORT_TYPE=$1
+    shift
+else
+    echo "Export type must be specified: submit_export.sh <anatomical_area> <export_type>"
+    echo "Valid values: {EM_MIPS | LM_MIPS | EM_CD_MATCHES | LM_CD_MATCHES | EM_PPP_MATCHES}"
+    exit 1
 fi
 
 echo "Source global_params from ${SCRIPT_DIR}/../global-params.sh"
