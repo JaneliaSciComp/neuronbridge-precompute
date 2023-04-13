@@ -25,27 +25,28 @@ function run_import_job {
     if [[ -n ${PUBLISHED_NAMES_FILTER} ]]; then
         declare PUBLISHED_NAMES_FILTER_ARG="--included-published-names ${PUBLISHED_NAMES_FILTER}"
     else
-        declare PUBLISHED_NAMES_FILTER_ARG=""
+        declare PUBLISHED_NAMES_FILTER_ARG=
     fi
 
-    import_cmd="${JAVA_EXEC} \
-        ${JAVA_OPTS} \
-        -jar ${NEURONSEARCH_TOOLS_JAR} \
-        createColorDepthSearchDataInput \
-        ${CONFIG_ARG} \
-        --jacs-url ${JACS_URL} \
-        --authorization \"${JACS_AUTH_TYPE} ${JACS_AUTH_TOKEN}\" \
-        -as ${ALIGNMENT_SPACE} \
-        -l ${LIBNAME} \
-        --librariesVariants ${SEARCHABLE_MIPS} ${GRAD_MIPS} ${ZGAP_MIPS} \
-        ${EXCLUDED_LIBS_ARG} \
-        ${PUBLISHED_NAMES_FILTER_ARG} \
-        ${TAG_ARG} \
-        --for-update \
-        "
+    declare JACS_AUTH="${JACS_AUTH_TYPE} ${JACS_AUTH_TOKEN}"
 
-    echo "$HOSTNAME $(date):> ${import_cmd}"
-    $import_cmd
+    import_cmd_args=(
+        "${JAVA_OPTS}"
+        -jar "${NEURONSEARCH_TOOLS_JAR}"
+        createColorDepthSearchDataInput
+        ${CONFIG_ARG}
+        --jacs-url ${JACS_URL}
+        -as ${ALIGNMENT_SPACE}
+        -l ${LIBNAME}
+        --librariesVariants ${SEARCHABLE_MIPS} ${GRAD_MIPS} ${ZGAP_MIPS}
+        ${EXCLUDED_LIBS_ARG}
+        ${PUBLISHED_NAMES_FILTER_ARG}
+        ${TAG_ARG}
+        --for-update
+    )
+
+    echo "$HOSTNAME $(date):> ${JAVA_EXEC} ${import_cmd_args[@]} --authorization \"${JACS_AUTH}\""
+    ${JAVA_EXEC} ${import_cmd_args[@]} --authorization "${JACS_AUTH}"
 }
 
 OUTPUT_LOG=${JOB_LOGPREFIX}/import-${AREA}-${JOB_TYPE}.log

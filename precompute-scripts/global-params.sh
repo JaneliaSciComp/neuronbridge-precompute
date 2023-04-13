@@ -29,10 +29,10 @@ LOGS_DIR=${LOGS_DIR:="./logs"}
 DB_CONFIG=${DB_CONFIG=""}
 
 case ${AREA} in
-    brain)
+    brain|Brain)
         ALIGNMENT_SPACE="JRC2018_Unisex_20x_HR"
         ;;
-    vnc)
+    vnc|VNC)
         ALIGNMENT_SPACE="JRC2018_VNC_Unisex_40x_DS"
         ;;
     *)

@@ -70,7 +70,7 @@ function run_export_job() {
         ${CONFIG_ARG}
         ${AS_ARG}
         --exported-result-type ${EXPORT_TYPE}
-	--default-image-store "${BRAIN_STORE}"
+        --default-image-store "${BRAIN_STORE}"
         --image-stores-per-neuron-meta "JRC2018_VNC_Unisex_40x_DS:${VNC_STORE}"
         -l ${LIBNAMES[@]}
         --read-batch-size ${READ_BATCH_SIZE}

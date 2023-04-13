@@ -1,5 +1,6 @@
+LIBNAME=$1
+
 JACS_LIB_DIR=/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs
-export LIBNAME=${LIBNAME:=}
 
 export LIBDIR=${LIBDIR:=${JACS_LIB_DIR}/${ALIGNMENT_SPACE}/${LIBNAME}}
 
