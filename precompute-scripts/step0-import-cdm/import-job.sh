@@ -49,7 +49,7 @@ function run_import_job {
     ${JAVA_EXEC} ${import_cmd_args[@]} --authorization "${JACS_AUTH}"
 }
 
-OUTPUT_LOG=${JOB_LOGPREFIX}/import-${AREA}-${JOB_TYPE}.log
+OUTPUT_LOG=${JOB_LOGPREFIX}/import-${AREA}-${LIBNAME}.log
 echo "$HOSTNAME $(date) :> Import $ALIGNMENT_SPACE $LIBNAME (Output log: ${OUTPUT_LOG})"
 
 run_import_job > ${OUTPUT_LOG} 2>&1
