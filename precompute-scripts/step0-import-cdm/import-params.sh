@@ -14,7 +14,7 @@ export SEARCHABLE_MIPS=${SEARCHABLE_MIPS:=${LIBNAME}:searchable_neurons:${LIBDIR
 export GRAD_MIPS=${GRAD_MIPS:=${LIBNAME}:gradient:${LIBDIR}/grad}
 export ZGAP_MIPS=${ZGAP_MIPS:=${LIBNAME}:zgap:${LIBDIR}/zgap}
 
-export EXCLUDED_LIBS=${EXCLUDED_LIBS:=}
+export EXCLUDED_LIBS=${EXCLUDED_LIBS:=flylight_splitgal4_drivers}
 export PUBLISHED_NAMES_FILTER=${PUBLISHED_NAMES_FILTER:=}
 
 export JOB_LOGPREFIX=${JOB_LOGPREFIX:=${LOGS_DIR}/imports}
