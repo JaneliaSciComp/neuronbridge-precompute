@@ -1,3 +1,8 @@
+if [[ $# -eq 0 ]] ; then
+    echo "Missing anatomical area argument: use $0 <anatomical_area>`
+    exit 1
+fi
+
 anatomical_area=$1
 
 # Precompute tools location
