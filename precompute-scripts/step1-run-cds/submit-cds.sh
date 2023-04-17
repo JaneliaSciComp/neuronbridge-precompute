@@ -1,5 +1,5 @@
 if [[ $# -eq 0 ]] ; then
-    echo "Missing anatomical area argument: use $0 <anatomical_area>`
+    echo "Missing anatomical area argument: use $0 <anatomical_area>"
     exit 1
 fi
 
