@@ -74,9 +74,9 @@ function run_cds_job {
     fi
 
     if [[ "${UPDATE_RESULTS}" == "true" ]]; then
-        UPDATE_RESULTS_ARG=
-    else
         UPDATE_RESULTS_ARG="--update-matches"
+    else
+        UPDATE_RESULTS_ARG=
     fi
 
     cds_cmd="${JAVA_EXEC} \
