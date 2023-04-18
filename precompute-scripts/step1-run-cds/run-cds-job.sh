@@ -79,7 +79,7 @@ function run_cds_job {
         UPDATE_RESULTS_ARG=
     fi
 
-    if [[ ${MIPS_CACHE_SIZE} -gt 0 ]]; then
+    if (( ${MIPS_CACHE_SIZE} -gt 0 )); then
         CACHE_SIZE_ARG="--cacheSize ${MIPS_CACHE_SIZE}"
     else
         CACHE_SIZE_ARG=
