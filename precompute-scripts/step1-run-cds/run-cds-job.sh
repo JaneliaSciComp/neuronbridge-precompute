@@ -67,10 +67,16 @@ function run_cds_job {
         CONFIG_ARG=""
     fi
 
-    if [[ ${AVAILABLE_THREADS} -gt 0 ]] ; then
+    if [[ ${AVAILABLE_THREADS} -gt 0 ]]; then
         CONCURRENCY_ARG="--task-concurrency ${AVAILABLE_THREADS}"
     else
         CONCURRENCY_ARG=
+    fi
+
+    if [[ "${UPDATE_RESULTS}" == "true" ]]; then
+        UPDATE_RESULTS_ARG=
+    else
+        UPDATE_RESULTS_ARG="--update-matches"
     fi
 
     cds_cmd="${JAVA_EXEC} \
@@ -94,6 +100,7 @@ function run_cds_job {
         --xyShift ${XY_SHIFT} \
         --pctPositivePixels ${PIX_PCT_MATCH} \
         -ps ${PROCESSING_PARTITION_SIZE} \
+        ${UPDATE_RESULTS_ARG} \
         "
     echo "$HOSTNAME $(date):> ${cds_cmd}"
     ($cds_cmd)
