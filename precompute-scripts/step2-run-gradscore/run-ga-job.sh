@@ -55,14 +55,19 @@ function run_ga_job {
         CONFIG_ARG=""
     fi
 
-    CACHE_SIZE_ARG="--cacheSize ${CACHE_SIZE}"
-
     if [[ ${AVAILABLE_THREADS} -gt 0 ]] ; then
         CONCURRENCY_ARG="--task-concurrency ${AVAILABLE_THREADS}"
     else
         CONCURRENCY_ARG=
     fi
 
+    if (( ${MIPS_CACHE_SIZE} > 0 )); then
+        echo "Mips cache size: ${MIPS_CACHE_SIZE}"
+        CACHE_SIZE_ARG="--cacheSize ${MIPS_CACHE_SIZE}"
+    else
+        CACHE_SIZE_ARG=
+        echo "No MIPS cache"
+    fi
 
     gradscore_cmd="${JAVA_EXEC} \
         ${JAVA_OPTS} ${JAVA_MEM_OPTS} ${JAVA_GC_OPTS} \
