@@ -149,7 +149,7 @@ def initialize_program():
     # Connect to Mongo
     LOGGER.info("Connecting to Mongo on %s", ARG.MONGO)
     try:
-        dbc = getattr(getattr(getattr(dbconfig, "jacs-mongo"), ARG.MONGO), "read")
+        dbc = getattr(getattr(getattr(dbconfig, "neuronbridge-mongo"), ARG.MONGO), "read")
         if ARG.MONGO == 'prod':
             client = MongoClient(dbc.host, replicaSet=dbc.replicaset,
                                  username=dbc.user, password=dbc.password)

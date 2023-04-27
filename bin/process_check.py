@@ -85,7 +85,7 @@ def initialize_program():
         terminate_program(f"Could not connect to Mongo: {err}")
     LOGGER.info("Connecting to Mongo jacs on %s", ARG.MANIFOLD)
     try:
-        dbc = getattr(getattr(getattr(dbconfig, "jacs-mongo"), ARG.MANIFOLD), "read")
+        dbc = getattr(getattr(getattr(dbconfig, "neuronbridge-mongo"), ARG.MANIFOLD), "read")
         if ARG.MANIFOLD == "prod":
             client = MongoClient(dbc.host, replicaSet=dbc.replicaset,
                                  username=dbc.user, password=dbc.password)

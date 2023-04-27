@@ -19,7 +19,7 @@ EDEFAULT = ["fib19", "hemibrain", "hemibrain:v0.9",
 EXCLUDE = {}
 # Database
 NEURONBRIDGE = 'neuronbridge-mongo'
-JACS = 'jacs-mongo'
+JACS = 'neuronbridge-mongo'
 DATABASE = {}
 # Counts
 COUNT = {"missing": 0, "nb_bid": 0, "np_bid": 0, "nb": 0, "np": 0}
