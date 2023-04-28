@@ -3,16 +3,15 @@
 '''
 
 import argparse
-import json
+from operator import attrgetter
 import os
 import re
 import sys
-from types import SimpleNamespace
 from colorama import Fore, Style
-import colorlog
-from pymongo import errors, MongoClient
 import requests
 from aws_s3_lib import get_prefixes
+from common_lib import setup_logging, get_config, connect_database
+
 
 # pylint: disable=R1710, W0703
 # Database
@@ -39,8 +38,7 @@ def call_responder(server, endpoint, authenticate=False):
         Returns:
           JSON
     """
-    url = ((getattr(getattr(REST, server), "url") if server else "") if "REST" in globals() \
-           else (os.environ.get('CONFIG_SERVER_URL') if server else "")) + endpoint
+    url = attrgetter(f"{server}.url")(REST) + endpoint
     try:
         if authenticate:
             headers = {"Content-Type": "application/json",
@@ -55,17 +53,6 @@ def call_responder(server, endpoint, authenticate=False):
     terminate_program(f"Status: {str(req.status_code)}")
 
 
-def create_config_object(config):
-    """ Convert the JSON received from a configuration to an object
-        Keyword arguments:
-          config: configuration name
-        Returns:
-          Configuration object
-    """
-    data = (call_responder("config", f"config/{config}"))["config"]
-    return json.loads(json.dumps(data), object_hook=lambda dat: SimpleNamespace(**dat))
-
-
 def initialize_program():
     """ Initialize the program
         Keyword arguments:
@@ -73,27 +60,18 @@ def initialize_program():
         Returns:
           None
     """
-    dbconfig = create_config_object("db_config")
-    # MongoDB
-    LOGGER.info("Connecting to Mongo neuronbridge on %s", ARG.MANIFOLD)
+    # pylint: disable=broad-exception-caught)
     try:
-        dbc = getattr(getattr(getattr(dbconfig, "neuronbridge-mongo"), ARG.MANIFOLD), "read")
-        client = MongoClient(dbc.host, replicaSet=dbc.replicaset, username=dbc.user,
-                             password=dbc.password)
-        DBM["NB"] = client.neuronbridge
+        dbconfig = get_config("databases")
     except Exception as err:
-        terminate_program(f"Could not connect to Mongo: {err}")
-    LOGGER.info("Connecting to Mongo jacs on %s", ARG.MANIFOLD)
-    try:
-        dbc = getattr(getattr(getattr(dbconfig, "neuronbridge-mongo"), ARG.MANIFOLD), "read")
-        if ARG.MANIFOLD == "prod":
-            client = MongoClient(dbc.host, replicaSet=dbc.replicaset,
-                                 username=dbc.user, password=dbc.password)
-        else:
-            client = MongoClient(dbc.host)
-        DBM["JACS"] = client.jacs
-    except errors.ConnectionFailure as err:
-        terminate_program(f"Could not connect to Mongo: {err}")
+        terminate_program(err)
+    for source in ("jacs", "neuronbridge"):
+        dbo = attrgetter(f"{source}.{ARG.MANIFOLD}.read")(dbconfig)
+        LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, ARG.MANIFOLD, dbo.host, dbo.user)
+        try:
+            DBM[source] = connect_database(dbo)
+        except Exception as err:
+            terminate_program(err)
 
 
 def process_em_neuprint():
@@ -122,7 +100,7 @@ def process_jacs_sync():
         Returns:
           JACS dictionary
     """
-    coll = DBM["JACS"].emDataSet
+    coll = DBM["jacs"].emDataSet
     results = coll.find({})
     dset = {}
     for row in results:
@@ -142,9 +120,9 @@ def process_neuronbridge(nb_coll):
           NeuronBridge dictionary
     """
     if nb_coll == "neuronMetadata":
-        coll = DBM["NB"].neuronMetadata
+        coll = DBM["neuronbridge"].neuronMetadata
     else:
-        coll = DBM["NB"].publishedURL
+        coll = DBM["neuronbridge"].publishedURL
     dset = {}
     results = coll.distinct("libraryName")
     for row in results:
@@ -231,18 +209,8 @@ if __name__ == '__main__':
     PARSER.add_argument('--debug', action='store_true', dest='DEBUG',
                         default=False, help='Turn on debug output')
     ARG = PARSER.parse_args()
-    LOGGER = colorlog.getLogger()
-    ATTR = colorlog.colorlog.logging if "colorlog" in dir(colorlog) else colorlog
-    if ARG.DEBUG:
-        LOGGER.setLevel(ATTR.DEBUG)
-    elif ARG.VERBOSE:
-        LOGGER.setLevel(ATTR.INFO)
-    else:
-        LOGGER.setLevel(ATTR.WARNING)
-    HANDLER = colorlog.StreamHandler()
-    HANDLER.setFormatter(colorlog.ColoredFormatter())
-    LOGGER.addHandler(HANDLER)
-    REST = create_config_object("rest_services")
+    LOGGER = setup_logging(ARG)
+    REST = get_config("rest_services")
     initialize_program()
     check_process()
     terminate_program()
