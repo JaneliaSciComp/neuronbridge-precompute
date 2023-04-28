@@ -3,17 +3,13 @@
 '''
 
 import argparse
-import json
-import os
+from operator import attrgetter
 import sys
-from types import SimpleNamespace
 from colorama import Fore, Style
-import colorlog
-from pymongo import errors, MongoClient
-import requests
+from common_lib import setup_logging, get_config, connect_database
 
 # Database
-MONGODB = 'neuronbridge-mongo'
+MONGODB = 'neuronbridge'
 DATABASE = {}
 
 
@@ -29,37 +25,6 @@ def terminate_program(msg=None):
     sys.exit(-1 if msg else 0)
 
 
-def call_responder(server, endpoint):
-    ''' Call a responder
-        Keyword arguments:
-          server: server
-          endpoint: REST endpoint
-        Returns:
-          JSON response
-    '''
-    url = ((getattr(getattr(REST, server), "url") if server else "") if "REST" in globals() \
-           else (os.environ.get('CONFIG_SERVER_URL') if server else "")) + endpoint
-    try:
-        req = requests.get(url, timeout=10)
-    except requests.exceptions.RequestException as err:
-        terminate_program(err)
-    if req.status_code == 200:
-        return req.json()
-    terminate_program(f"Could not get response from {url}: {req.text}")
-    return False
-
-
-def create_config_object(config):
-    """ Convert the JSON received from a configuration to an object
-        Keyword arguments:
-          config: configuration name
-        Returns:
-          Configuration object
-    """
-    data = (call_responder("config", f"config/{config}"))["config"]
-    return json.loads(json.dumps(data), object_hook=lambda dat: SimpleNamespace(**dat))
-
-
 def initialize_program():
     ''' Initialize program
         Keyword arguments:
@@ -67,16 +32,16 @@ def initialize_program():
         Returns:
           None
     '''
-    dbconfig = create_config_object("db_config")
-    # MongoDB
-    LOGGER.info("Connecting to Mongo on %s", ARG.MANIFOLD)
-    dbc = getattr(getattr(getattr(dbconfig, MONGODB), ARG.MANIFOLD), "read")
+    # pylint: disable=broad-exception-caught)
     try:
-        client = MongoClient(dbc.host, replicaSet=dbc.replicaset, username=dbc.user,
-                             password=dbc.password)
-        DATABASE["MONGO"] = client.neuronbridge
-    except errors.ConnectionFailure as err:
-        terminate_program(f"Could not connect to Mongo: {err}")
+        dbconfig = get_config("databases")
+    except Exception as err:
+        terminate_program(err)
+    dbo = attrgetter(f"neuronbridge.{ARG.MANIFOLD}.read")(dbconfig)
+    try:
+        DATABASE["MONGO"] = connect_database(dbo)
+    except Exception as err:
+        terminate_program(err)
 
 
 def process_row(row, maxl, nonversion, libcount, primary):
@@ -190,18 +155,7 @@ if __name__ == '__main__':
     PARSER.add_argument('--debug', dest='DEBUG', action='store_true',
                         default=False, help='Flag, Very chatty')
     ARG = PARSER.parse_args()
-    LOGGER = colorlog.getLogger()
-    ATTR = colorlog.colorlog.logging if "colorlog" in dir(colorlog) else colorlog
-    if ARG.DEBUG:
-        LOGGER.setLevel(ATTR.DEBUG)
-    elif ARG.VERBOSE:
-        LOGGER.setLevel(ATTR.INFO)
-    else:
-        LOGGER.setLevel(ATTR.WARNING)
-    HANDLER = colorlog.StreamHandler()
-    HANDLER.setFormatter(colorlog.ColoredFormatter())
-    LOGGER.addHandler(HANDLER)
-    REST = create_config_object("rest_services")
+    LOGGER = setup_logging(ARG)
     initialize_program()
     mongo_check()
     terminate_program()
