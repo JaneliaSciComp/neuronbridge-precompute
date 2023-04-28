@@ -54,7 +54,7 @@ def initialize_program():
         dbconfig = get_config("databases")
     except Exception as err:
         terminate_program(err)
-    for manifold in ("staging",):
+    for manifold in ("prod", "staging",):
         for source in ("gen1mcfo", "mbew"):
             dbo = attrgetter(f"{source}.{manifold}.read")(dbconfig)
             LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, manifold, dbo.host, dbo.user)
@@ -62,7 +62,7 @@ def initialize_program():
                 DBM[f"{source}-{manifold}"] = connect_database(dbo)
             except MySQLdb.Error as err:
                 terminate_program(err)
-    dbo = attrgetter(f"neuronbridge.{ARG.MANIFOLD}.write")(dbconfig)
+    dbo = attrgetter(f"neuronbridge.{ARG.MANIFOLD}.{'write' if ARG.WRITE else 'read'}")(dbconfig)
     LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, ARG.MANIFOLD, dbo.host, dbo.user)
     try:
         DBM["neuronbridge"] = connect_database(dbo)
@@ -78,7 +78,7 @@ def process_releases():
           None
     """
     count = {}
-    for manifold in ("staging",):
+    for manifold in ("prod", "staging",):
         for source in ("gen1mcfo", "mbew"):
             dbn = f"{source}-{manifold}"
             try:
@@ -100,11 +100,11 @@ def process_releases():
         if len(release) > maxr:
             maxr = len(release)
     print(f"{'Release':<{maxr}}  {'Lines':<5}  {'Samples':<7}  {'Images':<6}  Public")
-    for release in count:
+    for release in sorted(count):
         pub = Fore.GREEN + "YES" if count[release]['public'] else Fore.YELLOW + "NO"
         print(f"{release:<{maxr}}  {count[release]['lines']:>5}  " \
               + f"{count[release]['samples']:>7}  {count[release]['images']:>6}    " \
-              + f"{pub:<3}{Style.RESET_ALL}")
+              + f"{pub:>3}{Style.RESET_ALL}")
         if not ARG.WRITE:
             continue
         payload = {"release": release}
