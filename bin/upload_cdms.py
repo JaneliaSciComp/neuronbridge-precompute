@@ -143,7 +143,7 @@ def db_connect(dbd):
         sql_error(err)
 
 
-def decode_token(token):
+def decode_token_old(token):
     ''' Decode a given JWT token
         Keyword arguments:
           token: JWT token
@@ -156,6 +156,25 @@ def decode_token(token):
         terminate_program("Token failed validation")
     except jwt.exceptions.InvalidTokenError:
         terminate_program("Could not decode token")
+    return response
+
+
+def decode_token(token):
+    ''' Decode a given JWT token (no signature)
+        Keyword arguments:
+          token: JWT token
+        Returns:
+          decoded token JSON or string error
+    '''
+    try:
+        response = jwt.decode(token, options={"verify_signature": False})
+        response = jwt.api_jwt.decode_complete(token, options={"verify_signature": False})
+    except jwt.exceptions.DecodeError:
+        terminate_program("JSON Web Token failed validation")
+    except jwt.exceptions.InvalidTokenError:
+        terminate_program("Could not decode JSON Web Token")
+    if int(time()) >= response['payload']['exp']:
+        terminate_program("Your JSON Web Token is expired")
     return response
 
 
@@ -349,10 +368,8 @@ def initialize_program():
         if tok not in os.environ:
             terminate_program(f"Missing token - set in {tok} environment variable")
         response = decode_token(os.environ[tok])
-        if int(time()) >= response['exp']:
-            terminate_program("Your token is expired")
         if tok == "JACS_JWT":
-            CONF['FULL_NAME'] = response['full_name']
+            CONF['FULL_NAME'] = response['payload']['full_name']
             LOGGER.info("Authenticated as %s", CONF['FULL_NAME'])
     if not ARG.MANIFOLD:
         print("Select a manifold")
@@ -1150,6 +1167,19 @@ def write_output_files(json_out, names_out):
                 namefile.write(f"{pname}\n")
 
 
+def get_published_samples():
+    ''' Build a dictionary of published samples from publishedLMImage
+        Keyword arguments:
+          None
+        Returns:
+          Dictionary of published samples
+    '''
+    coll = DBM.publishedLMImage
+    rows = coll.distinct("sampleRef")
+    LOGGER.info("Found %d published sample IDs", len(rows))
+    return dict.fromkeys(rows, True)
+
+
 def upload_cdms():
     ''' Upload color depth MIPs and other files to AWS S3.
         The list of color depth MIPs comes from a supplied JSON file.
@@ -1175,6 +1205,8 @@ def upload_cdms():
         get_image_mapping(publishing_db)
         if ARG.BACKCHECK:
             backcheck(data)
+        # Get published samples
+        published_sample = get_published_samples()
     set_searchable_subdivision(data[0])
     if not confirm_run():
         return
@@ -1182,6 +1214,9 @@ def upload_cdms():
     json_out = []
     names_out = {}
     for smp in tqdm(data):
+        if 'flyem_' not in ARG.LIBRARY and smp['sourceRefId'] not in published_sample:
+            LOGGER.warning("Sample %s is not published", smp['sourceRefId'])
+            continue
         remap_sample(smp)
         if ARG.SAMPLES and COUNT['Samples'] >= ARG.SAMPLES:
             break
