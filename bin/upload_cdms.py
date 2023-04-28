@@ -1,7 +1,7 @@
 ''' This program will use JSON data to update neuronbridge.publishedURL and create
     an order file to upload imagery to AWS S3.
 '''
-__version__ = '2.1.0'
+__version__ = '2.2.0'
 
 import argparse
 from copy import deepcopy
@@ -26,6 +26,7 @@ from tqdm import tqdm
 import MySQLdb
 from PIL import Image
 import neuronbridge_lib as NB
+from common_lib import check_token, setup_logging
 
 
 # Configuration
@@ -41,9 +42,6 @@ CURSOR = {}
 # AWS
 S3_CLIENT = S3_RESOURCE = ''
 S3_SECONDS = 60 * 60 * 12
-# Thumbnails
-CREATE_THUMBNAIL = False # Let a Lambda function create it
-MAX_SIZE = 500
 # Counters
 COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'Missing consensus': 0,
          'No sampleRef': 0, 'No publishing name': 0, 'No driver': 0, 'Sample not published': 0,
@@ -141,41 +139,6 @@ def db_connect(dbd):
         return conn, cursor
     except MySQLdb.Error as err:
         sql_error(err)
-
-
-def decode_token_old(token):
-    ''' Decode a given JWT token
-        Keyword arguments:
-          token: JWT token
-        Returns:
-          decoded token JSON
-    '''
-    try:
-        response = jwt.decode(token, verify=False)
-    except jwt.exceptions.DecodeError:
-        terminate_program("Token failed validation")
-    except jwt.exceptions.InvalidTokenError:
-        terminate_program("Could not decode token")
-    return response
-
-
-def decode_token(token):
-    ''' Decode a given JWT token (no signature)
-        Keyword arguments:
-          token: JWT token
-        Returns:
-          decoded token JSON or string error
-    '''
-    try:
-        response = jwt.decode(token, options={"verify_signature": False})
-        response = jwt.api_jwt.decode_complete(token, options={"verify_signature": False})
-    except jwt.exceptions.DecodeError:
-        terminate_program("JSON Web Token failed validation")
-    except jwt.exceptions.InvalidTokenError:
-        terminate_program("Could not decode JSON Web Token")
-    if int(time()) >= response['payload']['exp']:
-        terminate_program("Your JSON Web Token is expired")
-    return response
 
 
 def initialize_s3():
@@ -367,8 +330,10 @@ def initialize_program():
     for tok in ['JACS_JWT', 'NEUPRINT_JWT']:
         if tok not in os.environ:
             terminate_program(f"Missing token - set in {tok} environment variable")
-        response = decode_token(os.environ[tok])
-        if tok == "JACS_JWT":
+        response = check_token(tok)
+        if isinstance(response, str):
+            terminate_program(response)
+        elif tok == "JACS_JWT":
             CONF['FULL_NAME'] = response['payload']['full_name']
             LOGGER.info("Authenticated as %s", CONF['FULL_NAME'])
     if not ARG.MANIFOLD:
@@ -392,9 +357,9 @@ def initialize_program():
         terminate_program(f"Could not connect to Mongo: {err}")
     # Get parms
     get_parms()
-    select_uploads()
     if ARG.LIBRARY not in LIBRARY:
         terminate_program(f"Unknown library {ARG.LIBRARY}")
+    select_uploads()
     # AWS S3
     initialize_s3()
 
@@ -725,41 +690,8 @@ def process_light(smp):
     return newname
 
 
-def calculate_size(dim):
-    ''' Return the fnew dimensions for an image. The longest side will be scaled down to MAX_SIZE.
-        Keyword arguments:
-          dim: tuple with (X,Y) dimensions
-        Returns:
-          Tuple with new (X,Y) dimensions
-    '''
-    xdim, ydim = list(dim)
-    if xdim <= MAX_SIZE and ydim <= MAX_SIZE:
-        return dim
-    if xdim > ydim:
-        ratio = xdim / MAX_SIZE
-        xdim, ydim = [MAX_SIZE, int(ydim/ratio)]
-    else:
-        ratio = ydim / MAX_SIZE
-        xdim, ydim = [int(xdim/ratio), MAX_SIZE]
-    return tuple((xdim, ydim))
-
-
-def resize_image(image_path, resized_path):
-    ''' Read in an image, resize it, and write a copy.
-        Keyword arguments:
-          image_path: CDM image path
-          resized_path: path for resized image
-        Returns:
-          None
-    '''
-    with Image.open(image_path) as image:
-        new_size = calculate_size(image.size)
-        image.thumbnail(new_size)
-        image.save(resized_path, 'JPEG')
-
-
 def produce_thumbnail(dirpath, fname, newname, url):
-    ''' Transfer a file to Amazon S3
+    ''' Return the thumbnail path
         Keyword arguments:
           dirpath: source directory
           fname: file name
@@ -768,11 +700,6 @@ def produce_thumbnail(dirpath, fname, newname, url):
     '''
     turl = url.replace('.png', '.jpg')
     turl = turl.replace(AWS.s3_bucket.cdm, getattr(AWS.s3_bucket, "cdm-thumbnail"))
-    if CREATE_THUMBNAIL:
-        tname = newname.replace('.png', '.jpg')
-        complete_fpath = '/'.join([dirpath, fname])
-        resize_image(complete_fpath, '/tmp/' + tname)
-        turl, _ = upload_aws(getattr(AWS.s3_bucket, "cdm-thumbnail"), '/tmp', tname, tname)
     return turl
 
 
@@ -1043,8 +970,9 @@ def confirm_run():
         Returns:
           True or False
     '''
-    print(f"Manifold:             {ARG.MANIFOLD}")
-    print(f"MongoDB:              {ARG.MONGO}")
+    print(f"MySQL manifold:       {ARG.MYSQL}")
+    print(f"MongoDB manifold:     {ARG.MONGO}")
+    print(f"S3 manifold:          {ARG.MANIFOLD}")
     print(f"Library:              {ARG.LIBRARY}")
     if "flyem_" in ARG.LIBRARY:
         print(f"NeuPrint dataset:     {CONF['DATASET']}")
@@ -1329,19 +1257,7 @@ if __name__ == '__main__':
     ARG = PARSER.parse_args()
     if ARG.SOURCE == 'mongo':
         ARG.JSON = 'MongoDB'
-
-    LOGGER = colorlog.getLogger()
-    ATTR = colorlog.colorlog.logging if "colorlog" in dir(colorlog) else colorlog
-    if ARG.DEBUG:
-        LOGGER.setLevel(ATTR.DEBUG)
-    elif ARG.VERBOSE:
-        LOGGER.setLevel(ATTR.INFO)
-    else:
-        LOGGER.setLevel(ATTR.WARNING)
-    HANDLER = colorlog.StreamHandler()
-    HANDLER.setFormatter(colorlog.ColoredFormatter())
-    LOGGER.addHandler(HANDLER)
-
+    LOGGER = setup_logging(ARG)
     S3CP = ERR = ''
     REST = create_config_object("rest_services")
     AWS = create_config_object("aws")
