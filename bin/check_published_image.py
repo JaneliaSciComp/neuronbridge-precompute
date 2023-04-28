@@ -2,23 +2,17 @@
 '''
 
 import argparse
-import json
-import os
+from operator import attrgetter
 import sys
-from types import SimpleNamespace
 from colorama import Fore, Style
-import colorlog
-import requests
 import MySQLdb
-from pymongo import MongoClient
 from simple_term_menu import TerminalMenu
+from common_lib import setup_logging, get_config, connect_database
 
 
 # Configuration
 TEMPLATE = "An exception of type %s occurred. Arguments:\n%s"
 # Database
-CONN = {}
-CURSOR = {}
 DBM = {}
 READ = {"IMG": "SELECT alps_release,COUNT(1) AS cnt FROM image_data_mv i JOIN secondary_image_vw s "
                + "ON (i.id=s.image_id) WHERE alignment_space_unisex IS NOT NULL "
@@ -50,46 +44,6 @@ def sql_error(err):
     except IndexError:
         msg = f"MySQL error: {err}"
     terminate_program(msg)
-
-
-def db_connect(dbc):
-    """ Connect to a database
-        Keyword arguments:
-          dbc: database object
-        Returns:
-          connector and cursor
-    """
-    LOGGER.info("Connecting to %s on %s", dbc.name, dbc.host)
-    try:
-        conn = MySQLdb.connect(host=dbc.host, user=dbc.user,
-                               passwd=dbc.password, db=dbc.name)
-    except MySQLdb.Error as err:
-        sql_error(err)
-    try:
-        cursor = conn.cursor(MySQLdb.cursors.DictCursor)
-    except MySQLdb.Error as err:
-        sql_error(err)
-    return conn, cursor
-
-
-def call_responder(server, endpoint):
-    ''' Call a responder
-        Keyword arguments:
-          server: server
-          endpoint: REST endpoint
-        Returns:
-          JSON response
-    '''
-    url = ((getattr(getattr(REST, server), "url") if server else "") if "REST" in globals() \
-           else (os.environ.get('CONFIG_SERVER_URL') if server else "")) + endpoint
-    try:
-        req = requests.get(url, timeout=10)
-    except requests.exceptions.RequestException as err:
-        terminate_program(TEMPLATE % (type(err).__name__, err.args))
-    if req.status_code == 200:
-        return req.json()
-    terminate_program(f"Could not get response from {url}: {req.text}")
-    return False
 
 
 def get_parms():
@@ -125,41 +79,30 @@ def get_parms():
         ARG.MONGO = choices[chosen]
 
 
-def create_config_object(config):
-    """ Convert the JSON received from a configuration to an object
-        Keyword arguments:
-          config: configuration name
-        Returns:
-          Configuration object
-    """
-    data = (call_responder("config", f"config/{config}"))["config"]
-    return json.loads(json.dumps(data), object_hook=lambda dat: SimpleNamespace(**dat))
-
-
 def initialize_program():
     """ Initialize
     """
     # Get parms
     get_parms()
     # Databases
-    dbconfig = create_config_object("db_config")
-    if not ARG.QUICK:
-        dbc = getattr(getattr(dbconfig, ARG.DATABASE), ARG.MANIFOLD)
-        (CONN[ARG.DATABASE], CURSOR[ARG.DATABASE]) = db_connect(dbc)
-    # Connect to Mongo
-    LOGGER.info("Connecting to Mongo on %s", ARG.MONGO)
+    # pylint: disable=broad-exception-caught)
     try:
-        dbc = getattr(getattr(getattr(dbconfig, "neuronbridge-mongo"), ARG.MONGO), "read")
-        if ARG.MONGO == 'prod':
-            client = MongoClient(dbc.host, replicaSet=dbc.replicaset,
-                                 username=dbc.user, password=dbc.password)
-        elif ARG.MONGO == 'local':
-            client = MongoClient()
-        else:
-            client = MongoClient(dbc.host)
-        DBM["jacs"] = client.jacs
+        dbconfig = get_config("databases")
     except Exception as err:
-        terminate_program(TEMPLATE % (type(err).__name__, err.args))
+        terminate_program(err)
+    if not ARG.QUICK:
+        dbo = attrgetter(f"{ARG.DATABASE}.{ARG.MANIFOLD}.read")(dbconfig)
+        LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, ARG.MANIFOLD, dbo.host, dbo.user)
+        try:
+            DBM[ARG.DATABASE] = connect_database(dbo)
+        except MySQLdb.Error as err:
+            terminate_program(err)
+    dbo = attrgetter(f"jacs.{ARG.MONGO}.read")(dbconfig)
+    LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, ARG.MONGO, dbo.host, dbo.user)
+    try:
+        DBM["jacs"] = connect_database(dbo)
+    except Exception as err:
+        terminate_program(err)
 
 
 def process_imagery():
@@ -187,8 +130,8 @@ def process_imagery():
         print(f"{'TOTAL':<26}  {total:>6}")
     else:
         try:
-            CURSOR[ARG.DATABASE].execute(READ["IMG"])
-            rows = CURSOR[ARG.DATABASE].fetchall()
+            DBM[ARG.DATABASE]["cursor"].execute(READ["IMG"])
+            rows = DBM[ARG.DATABASE]["cursor"].fetchall()
         except MySQLdb.Error as err:
             sql_error(err)
         total = {"mysql": 0, "mongo": 0}
@@ -222,19 +165,7 @@ if __name__ == '__main__':
     PARSER.add_argument('--debug', dest='DEBUG', action='store_true',
                         default=False, help='Flag, Very chatty')
     ARG = PARSER.parse_args()
-
-    LOGGER = colorlog.getLogger()
-    ATTR = colorlog.colorlog.logging if "colorlog" in dir(colorlog) else colorlog
-    if ARG.DEBUG:
-        LOGGER.setLevel(ATTR.DEBUG)
-    elif ARG.VERBOSE:
-        LOGGER.setLevel(ATTR.INFO)
-    else:
-        LOGGER.setLevel(ATTR.WARNING)
-    HANDLER = colorlog.StreamHandler()
-    HANDLER.setFormatter(colorlog.ColoredFormatter())
-    LOGGER.addHandler(HANDLER)
-    REST = create_config_object("rest_services")
+    LOGGER = setup_logging(ARG)
     initialize_program()
     process_imagery()
     sys.exit(0)
