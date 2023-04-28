@@ -625,7 +625,7 @@ def get_smp_info(smp):
         return None, None
     sid = (smp['sampleRef'].split('#'))[-1]
     LOGGER.debug(sid)
-    if ARG.LIBRARY in ['flylight_splitgal4_drivers']:
+    if 'flylight' in ARG.LIBRARY:
         if sid not in RELEASE:
             COUNT['Sample not published'] += 1
             err_text = f"Sample {sid} was not published"
@@ -1214,7 +1214,8 @@ def upload_cdms():
     json_out = []
     names_out = {}
     for smp in tqdm(data):
-        if 'flyem_' not in ARG.LIBRARY and smp['sourceRefId'] not in published_sample:
+        if 'flylight' in ARG.LIBRARY and smp['sourceRefId'] not in published_sample:
+            COUNT['Sample not published'] += 1
             LOGGER.warning("Sample %s is not published", smp['sourceRefId'])
             continue
         remap_sample(smp)
