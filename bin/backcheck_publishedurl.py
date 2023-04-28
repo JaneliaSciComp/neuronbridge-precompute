@@ -38,6 +38,7 @@ def initialize_program():
     except Exception as err:
         terminate_program(err)
     dbo = attrgetter(f"neuronbridge.{ARG.MANIFOLD}.read")(dbconfig)
+    LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, ARG.MANIFOLD, dbo.host, dbo.user)
     try:
         DATABASE["MONGO"] = connect_database(dbo)
     except Exception as err:
