@@ -1015,9 +1015,13 @@ def read_json():
         print(f"Loading JSON from Mongo for {ARG.LIBRARY}")
         coll = DBM.neuronMetadata
         tagged = ARG.TAG if ARG.TAG else ARG.NEURONBRIDGE.replace("v", "")
-        payload = {"libraryName": ARG.LIBRARY, "tags": tagged}
-        LOGGER.info("Chacking neuronMetadata for %s library entries tagged as %s", ARG.LIBRARY, tagged)
-        data = list(coll.find(payload))
+        payload = {"libraryName": ARG.LIBRARY, "tags": tagged, "publishedName": {"$exists": True}}
+        if ARG.PUBLISHED:
+            payload["publishedName"] = ARG.PUBLISHED
+        elif ARG.SLIDE:
+            payload["slideCode"] = ARG.SLIDE
+        LOGGER.info("Checking neuronMetadata for %s library entries tagged as %s", ARG.LIBRARY, tagged)
+        data = list(coll.find(payload, sort=[( "slideCode", 1)]))
         time_diff = (datetime.now() - stime)
         LOGGER.info("JSON read in %fsec", time_diff.total_seconds())
         print(f"Documents read from Mongo: {len(data)}")
@@ -1232,6 +1236,10 @@ if __name__ == '__main__':
                         default=False, help='Write files to AWS')
     PARSER.add_argument('--config', dest='CONFIG', action='store_true',
                         default=False, help='Update configuration')
+    PARSER.add_argument('--published', dest='PUBLISHED', action='store',
+                        help='publishedName')
+    PARSER.add_argument('--slide', dest='SLIDE', action='store',
+                        help='slideCode')
     PARSER.add_argument('--samples', dest='SAMPLES', action='store', type=int,
                         default=0, help='Number of samples to transfer')
     PARSER.add_argument('--version', dest='VERSION', action='store',
