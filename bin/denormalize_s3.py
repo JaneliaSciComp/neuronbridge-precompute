@@ -336,7 +336,8 @@ if __name__ == '__main__':
     PARSER.add_argument('--library', dest='LIBRARY', action='store',
                         default='', help='Library')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
-                        default='prod', help='S3 manifold')
+                        default='prod', choices=['dev', 'devpre', 'prod', 'prodpre'],
+                        help='S3 manifold')
     PARSER.add_argument('--exclusion', dest='EXCLUSION', action='store',
                         help='Exclusion file')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',

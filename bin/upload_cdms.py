@@ -16,9 +16,7 @@ from time import strftime, time
 from types import SimpleNamespace
 import boto3
 from botocore.exceptions import ClientError
-import colorlog
 import inquirer
-import jwt
 from pymongo import MongoClient
 import requests
 from simple_term_menu import TerminalMenu
