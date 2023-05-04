@@ -146,7 +146,7 @@ def process_imagery():
             total["mongo"] += mcnt
         print(Style.RESET_ALL + f"{'-'*26}  {'-'*6}  {'-'*6}")
         line = f"{'TOTAL':<26}  {total['mysql']:>6}  {total['mongo']:>6}"
-        print((Fore.GREEN if total["mysql"] == total["mongo"] else Fore.RED) + line)
+        print((Fore.GREEN if total["mysql"] == total["mongo"] else Fore.RED) + line + Style.RESET_ALL)
 
 
 if __name__ == '__main__':
