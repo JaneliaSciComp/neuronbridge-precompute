@@ -153,10 +153,10 @@ def valid_row(row):
         Keyword arguments:
           row: single row from neuronMetadata
         Returns:
-          True for valis, False for invalid
+          True for valid, False for invalid
     '''
     if "publishedName" not in row or not row["publishedName"]:
-        LOGGER.error("Missing publishedName for %s in %s", row['_id'], row['libraryName'])
+        LOGGER.error("Missing publishedName for %s (%s) in %s", row['_id'], row['sourceRefId'], row['libraryName'])
         COUNT["missing"] += 1
         return False
     if row["publishedName"].lower() == "no consensus":
@@ -395,8 +395,8 @@ def update_dynamo():
     answers = inquirer.prompt(questions)
     if answers["to_include"]:
         payload["libraryName"] = {"$in": answers["to_include"]}
-    project = {"libraryName": 1, "publishedName": 1, "processedTags": 1,
-               "neuronInstance": 1, "neuronType": 1}
+    project = {"libraryName": 1, "publishedName": 1, "sourceRefId": 1,
+               "processedTags": 1, "neuronInstance": 1, "neuronType": 1}
     count = coll.count_documents(payload)
     if not count:
         LOGGER.error("There are no processed tags for version %s", ARG.VERSION)
