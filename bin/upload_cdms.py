@@ -24,7 +24,7 @@ from tqdm import tqdm
 import MySQLdb
 from PIL import Image
 import neuronbridge_lib as NB
-from common_lib import check_token, setup_logging
+import jrc_common.jrc_common as JRC
 
 
 # Configuration
@@ -328,7 +328,7 @@ def initialize_program():
     for tok in ['JACS_JWT', 'NEUPRINT_JWT']:
         if tok not in os.environ:
             terminate_program(f"Missing token - set in {tok} environment variable")
-        response = check_token(tok)
+        response = JRC.check_token(tok)
         if isinstance(response, str):
             terminate_program(response)
         elif tok == "JACS_JWT":
@@ -1263,7 +1263,7 @@ if __name__ == '__main__':
     ARG = PARSER.parse_args()
     if ARG.SOURCE == 'mongo':
         ARG.JSON = 'MongoDB'
-    LOGGER = setup_logging(ARG)
+    LOGGER = JRC.setup_logging(ARG)
     S3CP = ERR = ''
     REST = create_config_object("rest_services")
     AWS = create_config_object("aws")
