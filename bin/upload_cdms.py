@@ -53,8 +53,9 @@ SUBDIVISION = {'prefix': 1, 'counter': 0, 'limit': 100}
 REC = {'line': '', 'slide_code': '', 'gender': '', 'objective': '', 'area': ''}
 # General use
 CONF = {}
-DRIVER = {}
+DRIVER = {} # Driver by line
 KEY_LIST = []
+NON_PUBLIC = {}
 NO_RELEASE = {}
 PNAME = {}
 RELEASE = {}
@@ -360,6 +361,17 @@ def initialize_program():
     select_uploads()
     # AWS S3
     initialize_s3()
+    # Get non-public slide codes
+    coll = DBM['lmRelease']
+    results = coll.find({"public": False})
+    non_public = [row['release'] for row in results]
+    sql = "SELECT DISTINCT slide_code,alps_release FROM image_data_mv WHERE alps_release IN (%s)"
+    sql = sql % ('"' + '","'.join(non_public) + '"',)
+    LOGGER.info("Finding non-public images in SAGE")
+    CURSOR['sage'].execute(sql)
+    rows =  CURSOR['sage'].fetchall()
+    for row in rows:
+        NON_PUBLIC[row['slide_code']] = row['alps_release']
 
 
 def log_error(err_text):
@@ -1134,6 +1146,7 @@ def upload_cdms():
         dbdata = (call_responder('config', 'config/db_config'))["config"]
         publishing_db = 'gen1mcfo' if 'gen1_mcfo' in ARG.LIBRARY else 'mbew'
         (CONN[publishing_db], CURSOR[publishing_db]) = db_connect(dbdata[publishing_db][ARG.MYSQL])
+        (CONN['sage'], CURSOR['sage']) = db_connect(dbdata['sage']['prod'])
         print("Getting image mapping")
         get_line_mapping(publishing_db)
         get_image_mapping(publishing_db)
@@ -1148,6 +1161,11 @@ def upload_cdms():
     json_out = []
     names_out = {}
     for smp in tqdm(data):
+        if smp['slideCode'] in NON_PUBLIC:
+            COUNT['Sample not published'] += 1
+            LOGGER.warning("Sample %s is in non-public release %s", smp['sourceRefId'],
+                           NON_PUBLIC[smp['slideCode']])
+            continue
         if 'flylight' in ARG.LIBRARY and smp['sourceRefId'] not in published_sample:
             COUNT['Sample not published'] += 1
             LOGGER.warning("Sample %s is not published", smp['sourceRefId'])
