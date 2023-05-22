@@ -368,10 +368,13 @@ def initialize_program():
     sql = "SELECT DISTINCT slide_code,alps_release FROM image_data_mv WHERE alps_release IN (%s)"
     sql = sql % ('"' + '","'.join(non_public) + '"',)
     LOGGER.info("Finding non-public images in SAGE")
+    dbdata = (call_responder('config', 'config/db_config'))["config"]
+    (CONN['sage'], CURSOR['sage']) = db_connect(dbdata['sage']['prod'])
     CURSOR['sage'].execute(sql)
     rows =  CURSOR['sage'].fetchall()
     for row in rows:
         NON_PUBLIC[row['slide_code']] = row['alps_release']
+    LOGGER.info("%d slide codes in non-public releases: %s", len(rows), ", ".join(non_public))
 
 
 def log_error(err_text):
@@ -476,7 +479,7 @@ def get_line_mapping(publishing_db):
           None
     '''
     LOGGER.info("Getting line/driver mapping")
-    stmt = "SELECT DISTINCT line,driver FROM image_data_mv " \
+    stmt = "SELECT DISTINCT publishing_name,driver FROM image_data_mv " \
            + "WHERE publishing_name IS NOT NULL"
     if ARG.RELEASE and ARG.BACKCHECK:
         stmt += f" AND alps_release='{ARG.RELEASE}'"
@@ -487,7 +490,7 @@ def get_line_mapping(publishing_db):
         sql_error(err)
     for row in rows:
         if row['driver']:
-            DRIVER[row['line']] = \
+            DRIVER[row['publishing_name']] = \
                 row['driver'].replace("_Collection", "").replace("-", "_")
 
 
@@ -614,13 +617,12 @@ def get_smp_info(smp):
         ERR.write(err_text + "\n")
         return None, None
     publishing_name = smp['publishedName']
-    if publishing_name == 'Missing consensus':
+    if publishing_name in ['Missing consensus', 'No Consensus']:
         COUNT['Missing consensus'] += 1
         err_text = f"No consensus line for sample {sid} ({publishing_name})"
         LOGGER.error(err_text)
         ERR.write(err_text + "\n")
-        if ARG.WRITE:
-            return False
+        return None, None
     if publishing_name not in PNAME:
         PNAME[publishing_name] = 1
     else:
@@ -654,7 +656,7 @@ def driver_check(publishing_name, sid):
             return False
     else:
         COUNT['Line not published'] += 1
-        err_text = f"Sample {sid} ({publishing_name}) is not published"
+        err_text = f"Sample {sid} ({publishing_name}) is not published in FlyLight external"
         LOGGER.error(err_text)
         ERR.write(err_text + "\n")
         #if ARG.WRITE: PLUG
@@ -1146,7 +1148,6 @@ def upload_cdms():
         dbdata = (call_responder('config', 'config/db_config'))["config"]
         publishing_db = 'gen1mcfo' if 'gen1_mcfo' in ARG.LIBRARY else 'mbew'
         (CONN[publishing_db], CURSOR[publishing_db]) = db_connect(dbdata[publishing_db][ARG.MYSQL])
-        (CONN['sage'], CURSOR['sage']) = db_connect(dbdata['sage']['prod'])
         print("Getting image mapping")
         get_line_mapping(publishing_db)
         get_image_mapping(publishing_db)
@@ -1168,7 +1169,7 @@ def upload_cdms():
             continue
         if 'flylight' in ARG.LIBRARY and smp['sourceRefId'] not in published_sample:
             COUNT['Sample not published'] += 1
-            LOGGER.warning("Sample %s is not published", smp['sourceRefId'])
+            LOGGER.warning("Sample %s is not published in publishedLMImage", smp['sourceRefId'])
             continue
         remap_sample(smp)
         if ARG.SAMPLES and COUNT['Samples'] >= ARG.SAMPLES:
