@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import boto3
 import colorlog
 import inquirer
+import MySQLdb
 from pymongo import MongoClient
 import requests
 from tqdm import tqdm
@@ -27,6 +28,7 @@ ITEMS = []
 COUNT = {"bodyID": 0, "publishingName": 0, "neuronInstance": 0, "neuronType": 0,
          "images": 0, "missing": 0, "consensus": 0,
          "insertions": 0}
+FAILURE = {}
 KEYS = {}
 KNOWN_PPP = {}
 
@@ -100,6 +102,40 @@ def create_dynamodb_table(dynamodb, table):
         table.wait_until_exists()
 
 
+def sql_error(err):
+    """ Log a critical SQL error and exit
+        Keyword arguments:
+          err: error object
+        Returns:
+          None
+    """
+    try:
+        msg = f"MySQL error [{err.args[0]}]: {err.args[1]}"
+    except IndexError:
+        msg = f"MySQL error: {err}"
+    return msg
+
+
+def db_connect(dbc):
+    """ Connect to a database
+        Keyword arguments:
+          dbd: database object
+        Returns:
+          connector and cursor
+    """
+    LOGGER.info("Connecting to %s on %s", dbc.name, dbc.host)
+    try:
+        conn = MySQLdb.connect(host=dbc.host, user=dbc.user,
+                               passwd=dbc.password, db=dbc.name)
+    except MySQLdb.Error as err:
+        terminate_program(sql_error(err))
+    try:
+        cursor = conn.cursor(MySQLdb.cursors.DictCursor)
+    except MySQLdb.Error as err:
+        terminate_program(sql_error(err))
+    return conn, cursor
+
+
 def initialize_program():
     """ Initialize the program
         Keyword arguments:
@@ -108,6 +144,11 @@ def initialize_program():
           None
     """
     dbconfig = create_config_object("db_config")
+    # MySQL
+    LOGGER.info("Connecting to SAGE")
+    dbc = getattr(getattr(dbconfig, "sage"), "prod")
+    DATABASE['sage'] = {"conn": "", "cursor": ""}
+    DATABASE['sage']['conn'], DATABASE['sage']['cursor'] = db_connect(dbc)
     # MongoDB
     LOGGER.info("Connecting to neuronbridge MongoDB on %s", ARG.MONGO)
     try:
@@ -148,6 +189,19 @@ def initialize_program():
     DATABASE["DYN"] = dynamodb.Table(table)
 
 
+def get_release(slide_code):
+    sql = "SELECT DISTINCT alps_release FROM image_data_mv WHERE slide_code=%s"
+    try:
+        DATABASE['sage']['cursor'].execute(sql, (slide_code,))
+        row = DATABASE['sage']['cursor'].fetchone()
+    except MySQLdb.Error as err:
+        sql_error(err)
+    if row and row['alps_release']:
+        FAILURE[slide_code] = f"Slide code {slide_code} is published to {row['alps_release']} in SAGE"
+    else:
+        FAILURE[slide_code] = f"Slide code {slide_code} has no publishing release in SAGE"
+
+
 def valid_row(row):
     ''' Determine if a row is valid
         Keyword arguments:
@@ -156,7 +210,11 @@ def valid_row(row):
           True for valid, False for invalid
     '''
     if "publishedName" not in row or not row["publishedName"]:
-        LOGGER.error("Missing publishedName for %s (%s) in %s", row['_id'], row['sourceRefId'], row['libraryName'])
+        release = get_release(row['slideCode'])
+        if row['slideCode'] not in FAILURE:
+            get_release(sample)
+        LOGGER.error("%s: %s", row['_id'], FAILURE[row['slideCode']])
+        #LOGGER.error("Missing publishedName for %s (%s) in %s", row['_id'], row['slideCode'], row['libraryName'])
         COUNT["missing"] += 1
         return False
     if row["publishedName"].lower() == "no consensus":
@@ -395,7 +453,7 @@ def update_dynamo():
     answers = inquirer.prompt(questions)
     if answers["to_include"]:
         payload["libraryName"] = {"$in": answers["to_include"]}
-    project = {"libraryName": 1, "publishedName": 1, "sourceRefId": 1,
+    project = {"libraryName": 1, "publishedName": 1, "slideCode": 1,
                "processedTags": 1, "neuronInstance": 1, "neuronType": 1}
     count = coll.count_documents(payload)
     if not count:
