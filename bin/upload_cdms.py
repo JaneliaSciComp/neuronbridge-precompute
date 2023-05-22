@@ -23,8 +23,8 @@ from simple_term_menu import TerminalMenu
 from tqdm import tqdm
 import MySQLdb
 from PIL import Image
-import neuronbridge_lib as NB
 import jrc_common.jrc_common as JRC
+import neuronbridge_lib as NB
 
 
 # Configuration
@@ -1002,25 +1002,29 @@ def read_json():
     stime = datetime.now()
     if ARG.SOURCE == 'file':
         print("Loading JSON file")
-        time_diff = (datetime.now() - stime)
+        time_diff = datetime.now() - stime
         LOGGER.info("JSON read in %fsec", time_diff.total_seconds())
         stime = datetime.now()
         with open(ARG.JSON, 'r', encoding='ascii') as jfile:
             data = json.load(jfile)
-        time_diff = (datetime.now() - stime)
+        time_diff = datetime.now() - stime
         LOGGER.info("JSON parsed in %fsec", time_diff.total_seconds())
     else:
         print(f"Loading JSON from Mongo for {ARG.LIBRARY}")
         coll = DBM.neuronMetadata
         tagged = ARG.TAG if ARG.TAG else ARG.NEURONBRIDGE.replace("v", "")
-        payload = {"libraryName": ARG.LIBRARY, "tags": tagged, "publishedName": {"$exists": True}}
+        payload = {"libraryName": ARG.LIBRARY,
+                   "$and": [{"tags": tagged},
+                            {"tags": {"$nin": ["unstaged"]}}],
+                   "publishedName": {"$exists": True}}
         if ARG.PUBLISHED:
             payload["publishedName"] = ARG.PUBLISHED
         elif ARG.SLIDE:
             payload["slideCode"] = ARG.SLIDE
-        LOGGER.info("Checking neuronMetadata for %s library entries tagged as %s", ARG.LIBRARY, tagged)
+        LOGGER.info("Checking neuronMetadata for %s library entries tagged as %s",
+                    ARG.LIBRARY, tagged)
         data = list(coll.find(payload, sort=[( "slideCode", 1)]))
-        time_diff = (datetime.now() - stime)
+        time_diff = datetime.now() - stime
         LOGGER.info("JSON read in %fsec", time_diff.total_seconds())
         print(f"Documents read from Mongo: {len(data)}")
     return data
