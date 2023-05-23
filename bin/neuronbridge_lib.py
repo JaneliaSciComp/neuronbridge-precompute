@@ -110,6 +110,10 @@ def get_neuronbridge_version(coll, library=None):
             if match in row:
                 for ver in row[match]:
                     versions[ver] = True
+    results = coll.distinct("tags", find)
+    for row in results:
+        if row[0].isdigit():
+            versions[row] = True
     versions = list(versions.keys())
     versions.sort()
     print("Select a NeuronBridge data version:")
