@@ -152,7 +152,7 @@ if __name__ == '__main__':
                         default='prod', choices=['dev', 'prod'], help='S3 manifold')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',
                         default=False,
-                        help='Flag, Actually write to JACS (and AWS if flag set)')
+                        help='Flag, Actually write to neuronMetadata')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
                         default=False, help='Flag, Chatty')
     PARSER.add_argument('--debug', dest='DEBUG', action='store_true',
