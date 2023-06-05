@@ -22,9 +22,11 @@ Utility programs for indexing and transferring of NeuronBridge-related files.
 | Program | Description |
 | ------- | ----------- |
 | backcheck_publishedurl.py | Backcheck publishedURL MongoDB collection with neuronMetadata |
+| cdm_bucket_status.py | Sof current status of AWS S3 CDM buckets |
 | check_neuronmetadata.py | Check entries in jacs:emBody with nueronbridge:neuron |
 | check_published_image.py | Compare image FlyLight counts between a publishing database and MongoDB |
 | process_check.py | Check datasets/libraries in steps in the complete backend process |
+| upload_precheck.py | Check for potential release issues, and optionally retag images |
 
 ## Deprecated programs
 
