@@ -1,6 +1,6 @@
 ''' This program will check neuronMetadata for a NeuronBridge release for
     sample issues, optionally retagging documents. Documents will be tagged
-    with the word "unstaged" as well adn the ALPS release.
+    with the word "unstaged" as well and the ALPS release.
 '''
 __version__ = '0.0.1'
 
