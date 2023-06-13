@@ -10,7 +10,8 @@ export JACS_AUTH_TOKEN=${JACS_AUTH_TOKEN:="tokenvalue"}
 
 export IMPORT_TAG=${IMPORT_TAG:=}
 
-export SEARCHABLE_MIPS=${SEARCHABLE_MIPS:=${LIBNAME}:searchable_neurons:${LIBDIR}/segmentation}
+export SEARCHABLE_SUBFOLDER=${SEARCHABLE_SUBFOLDER:=segmentation}
+export SEARCHABLE_MIPS=${SEARCHABLE_MIPS:=${LIBNAME}:searchable_neurons:${LIBDIR}/${SEARCHABLE_SUBFOLDER}}
 export GRAD_MIPS=${GRAD_MIPS:=${LIBNAME}:gradient:${LIBDIR}/grad}
 export ZGAP_MIPS=${ZGAP_MIPS:=${LIBNAME}:zgap:${LIBDIR}/zgap}
 

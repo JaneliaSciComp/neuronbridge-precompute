@@ -56,6 +56,7 @@ EM_HEMIBRAIN_1_2_1_LIB=flyem_hemibrain_1_2_1
 EM_VNC_0_5_LIB=flyem_vnc_0_5
 EM_VNC_0_6_LIB=flyem_vnc_0_6
 EM_VNC_0_9_LIB=flyem_vnc_0_9
+EM_MANC_1_0_LIB=flyem_manc_1_0
 
 # Supported LM Libraries
 LM_SGAL4_LIB=flylight_split_gal4_published

@@ -9,6 +9,11 @@ MASKS_COUNT=
 TARGETS_COUNT=
 ```
 
+To run it on the grid set, otherwise everything will run on the localhost
+```
+RUN_CMD=gridRun
+```
+
 then for brain run:
 `submit-cds.sh brain`
 or for VNC run:
