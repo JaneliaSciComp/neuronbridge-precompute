@@ -3,16 +3,13 @@
 
 import argparse
 from copy import deepcopy
-import json
-import os
+from operator import attrgetter
 import sys
-from types import SimpleNamespace
 import boto3
 from colorama import Fore, Style
-import colorlog
-import requests
-from pymongo import MongoClient
+import MySQLdb
 from tqdm import tqdm
+import jrc_common.jrc_common as JRC
 
 
 # Configuration
@@ -41,73 +38,26 @@ def terminate_program(msg=None):
     sys.exit(-1 if msg else 0)
 
 
-def sql_error(err):
-    """ Log a critical SQL error and exit
-        Keyword arguments:
-          err: error object
-        Returns:
-          None
-    """
-    try:
-        msg = f"MySQL error [{err.args[0]}]: {err.args[1]}"
-    except IndexError:
-        msg = f"MySQL error: {err}"
-    terminate_program(msg)
-
-
-def call_responder(server, endpoint):
-    """ Call a responder and return JSON
-        Keyword arguments:
-          server: server
-          endpoint: endpoint
-        Returns:
-          JSON
-    """
-    url = ((getattr(getattr(REST, server), "url") if server else "") if "REST" in globals() \
-           else (os.environ.get('CONFIG_SERVER_URL') if server else "")) + endpoint
-    try:
-        req = requests.get(url, timeout=10)
-    except requests.exceptions.RequestException as err:
-        LOGGER.critical(TEMPLATE, type(err).__name__, err.args)
-        sys.exit(-1)
-    if req.status_code == 200:
-        return req.json()
-    if req.status_code == 400:
-        try:
-            if "error" in req.json():
-                LOGGER.error("%s %s", url, req.json()["error"])
-        except Exception:
-            pass
-        return False
-    LOGGER.error('Status: %s', str(req.status_code))
-    sys.exit(-1)
-
-
-def create_config_object(config):
-    """ Convert the JSON received from a configuration to an object
-        Keyword arguments:
-          config: configuration name
-        Returns:
-          Configuration object
-    """
-    data = (call_responder("config", f"config/{config}"))["config"]
-    return json.loads(json.dumps(data), object_hook=lambda dat: SimpleNamespace(**dat))
-
-
 def initialize_program():
     """ Initialize
     """
-    dbconfig = create_config_object("db_config")
-    # MongoDB
-    LOGGER.info("Connecting to Mongo on %s", ARG.MANIFOLD)
-    rwp = 'write' if ARG.WRITE else 'read'
-    dbc = getattr(getattr(getattr(dbconfig, MONGODB), ARG.MANIFOLD), rwp)
     try:
-        client = MongoClient(dbc.host, replicaSet=dbc.replicaset, username=dbc.user,
-                             password=dbc.password)
-        DBASE["mongo"] = client.neuronbridge
-    except Exception as err:
-        terminate_program(TEMPLATE % (type(err).__name__, err.args))
+        dbconfig = JRC.get_config("databases")
+    except Exception as err: # pylint: disable=broad-exception-caught
+        terminate_program(err)
+    # Database
+    for source in ("neuronbridge",):
+        manifold = "prod" if source == "sage" else ARG.MANIFOLD
+        rwp = "write" if ARG.WRITE else "read"
+        dbo = attrgetter(f"{source}.{manifold}.{rwp}")(dbconfig)
+        LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, ARG.MANIFOLD, dbo.host, dbo.user)
+        try:
+            DBASE[source] = JRC.connect_database(dbo)
+        except MySQLdb.Error as err:
+            terminate_program(JRC.sql_error(err))
+        except Exception as err: # pylint: disable=broad-exception-caught
+            terminate_program(err)
+
     # DynamoDB
     dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
     ddt = "janelia-neuronbridge-published-stacks"
@@ -144,7 +94,8 @@ def write_dynamodb():
         Returns:
           None
     '''
-    LOGGER.info("Batch writing %s items to DynamoDB", len(ITEMS))
+    LOGGER.info("Batch writing %s items to DynamoDB janelia-neuronbridge-published-stacks",
+                len(ITEMS))
     with DBASE["ddb"].batch_writer() as writer:
         for item in tqdm(ITEMS, desc="DynamoDB"):
             writer.put_item(Item=item)
@@ -158,13 +109,15 @@ def process_mongo():
         Returns:
           None
     """
+    LOGGER.info("Fetching records from publishedLMImage")
     try:
-        coll = DBASE["mongo"].publishedLMImage
+        coll = DBASE["neuronbridge"].publishedLMImage
         rows = coll.find()
         count = coll.count_documents({})
     except Exception as err:
         terminate_program(TEMPLATE % (type(err).__name__, err.args))
     LOGGER.info("Records in Mongo publishedLMImage: %d", count)
+    LOGGER.info("Building payload list for DynamoDB update")
     for row in tqdm(rows, total=count):
         payload = set_payload(row)
         ITEMS.append(payload)
@@ -190,19 +143,7 @@ if __name__ == '__main__':
     PARSER.add_argument('--debug', dest='DEBUG', action='store_true',
                         default=False, help='Flag, Very chatty')
     ARG = PARSER.parse_args()
-
-    LOGGER = colorlog.getLogger()
-    ATTR = colorlog.colorlog.logging if "colorlog" in dir(colorlog) else colorlog
-    if ARG.DEBUG:
-        LOGGER.setLevel(ATTR.DEBUG)
-    elif ARG.VERBOSE:
-        LOGGER.setLevel(ATTR.INFO)
-    else:
-        LOGGER.setLevel(ATTR.WARNING)
-    HANDLER = colorlog.StreamHandler()
-    HANDLER.setFormatter(colorlog.ColoredFormatter())
-    LOGGER.addHandler(HANDLER)
-    REST = create_config_object("rest_services")
+    LOGGER = JRC.setup_logging(ARG)
     initialize_program()
     process_mongo()
     sys.exit(0)
