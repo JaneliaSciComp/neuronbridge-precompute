@@ -1,13 +1,14 @@
 ''' This program will use JSON data to update neuronbridge.publishedURL and create
     an order file to upload imagery to AWS S3.
 '''
-__version__ = '2.2.0'
+__version__ = '2.2.1'
 
 import argparse
 from copy import deepcopy
 from datetime import datetime
 import glob
 import json
+from operator import attrgetter
 import os
 import re
 import socket
@@ -343,17 +344,17 @@ def initialize_program():
             terminate_program("You must select a manifold")
         ARG.MANIFOLD = MANIFOLDS[chosen]
     # MongoDB
-    data = (call_responder('config', 'config/db_config'))["config"]
-    LOGGER.info("Connecting to Mongo on %s", ARG.MONGO)
     rwp = 'write' if (ARG.WRITE or ARG.CONFIG) else 'read'
     try:
-        mongo = data[MONGODB][ARG.MONGO][rwp]
-        rset = 'rsProd' if ARG.MONGO == 'prod' else 'rsDev'
-        client = MongoClient(mongo['host'], replicaSet=rset, username=mongo['user'],
-                             password=mongo['password'])
-        DBM = client.neuronbridge
-    except Exception as err:
-        terminate_program(f"Could not connect to Mongo: {err}")
+        dbconfig = JRC.get_config("databases")
+    except Exception as err: # pylint: disable=broad-exception-caught
+        terminate_program(err)
+    dbo = attrgetter(f"neuronbridge.{ARG.MONGO}.{rwp}")(dbconfig)
+    LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, ARG.MANIFOLD, dbo.host, dbo.user)
+    try:
+        DBM = JRC.connect_database(dbo)
+    except Exception as err: # pylint: disable=broad-exception-caught
+        terminate_program(err)
     # Get parms
     get_parms()
     if ARG.LIBRARY not in LIBRARY:
