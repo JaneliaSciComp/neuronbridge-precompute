@@ -1,7 +1,7 @@
 ''' This program will use JSON data to update neuronbridge.publishedURL and create
     an order file to upload imagery to AWS S3.
 '''
-__version__ = '2.2.1'
+__version__ = '2.2.2'
 
 import argparse
 from copy import deepcopy
@@ -46,7 +46,7 @@ COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'Missing co
          'No sampleRef': 0, 'No publishing name': 0, 'No driver': 0, 'Sample not published': 0,
          'Line not published': 0, 'Already in Mongo': 0,
          'Bad driver': 0, 'Duplicate objects': 0, 'Unparsable files': 0, 'Updated on JACS': 0,
-         'Mongo insertions': 0,
+         'Mongo insertions': 0, 'Mongo upserts': 0,
          'FlyEM flips': 0, 'Images processed': 0, 'Missing release': 0, 'Skipped release': 0}
 # Searchable neurons
 SUBDIVISION = {'prefix': 1, 'counter': 0, 'limit': 100}
@@ -493,6 +493,7 @@ def get_line_mapping(publishing_db):
         if row['driver']:
             DRIVER[row['publishing_name']] = \
                 row['driver'].replace("_Collection", "").replace("-", "_")
+    DRIVER['spGAL4 control'] = 'Split_GAL4'
 
 
 def get_image_mapping(publishing_db):
@@ -1062,11 +1063,14 @@ def add_image_to_mongo(smp):
     if "DATASET" in CONF:
         payload['publishedName'] = ":".join([CONF['DATASET'], payload['publishedName']])
     payload["updateDate"] = datetime.now()
-    result = coll.insert_one(payload)
-    if result.inserted_id == smp['_id']:
+    try:
+        result = coll.update_one({"_id": payload['_id']}, {"$set": payload}, upsert=True)
+    except Exception as err:
+        LOGGER.error("Could not insert %s into Mongo", smp['_id'])
+    if hasattr(result, 'inserted_id') and result.inserted_id == smp['_id']:
         COUNT["Mongo insertions"] += 1
     else:
-        LOGGER.error("Could not insert %s into Mongo", smp['_id'])
+        COUNT["Mongo upserts"] += 1
 
 
 def remap_sample(smp):
