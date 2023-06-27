@@ -1039,7 +1039,7 @@ def read_json():
             payload["slideCode"] = ARG.SLIDE
         LOGGER.info("Checking neuronMetadata for %s library entries tagged as %s",
                     ARG.LIBRARY, tagged)
-        data = list(coll.find(payload, sort=[( "slideCode", 1)]))
+        data = list(coll.find(payload, allow_disk_use=True).sort("slide_code", 1))
         time_diff = datetime.now() - stime
         LOGGER.info("JSON read in %fsec", time_diff.total_seconds())
         print(f"Documents read from Mongo: {len(data)}")
