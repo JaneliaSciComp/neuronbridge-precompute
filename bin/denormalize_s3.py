@@ -21,11 +21,10 @@ import sys
 import tempfile
 import boto3
 from botocore.exceptions import ClientError
-import requests
 from simple_term_menu import TerminalMenu
 from tqdm import tqdm
+import jrc_common.jrc_common as JRC
 import neuronbridge_lib as NB
-from common_lib import setup_logging, get_config
 
 __version__ = '2.0.0'
 # Configuration
@@ -35,6 +34,8 @@ DISTRIBUTE_FILES = ['searchable_neurons']
 TAGS = f"PROJECT=CDCS&STAGE=prod&DEVELOPER=svirskasr&VERSION={(__version__)}"
 AWSS3 = {"client": None, "resource": 0}
 COUNT = {"skipped": 0}
+# Database
+DBM = {}
 
 # pylint: disable=W0718
 
@@ -50,22 +51,6 @@ def terminate_program(msg=None):
     sys.exit(-1 if msg else 0)
 
 
-def call_responder(server, endpoint):
-    """ Call a responder
-        Keyword arguments:
-        server: server
-        endpoint: REST endpoint
-    """
-    url = attrgetter(f"{server}.url")(REST) + endpoint
-    try:
-        req = requests.get(url, timeout=10)
-    except requests.exceptions.RequestException as err:
-        terminate_program(err)
-    if req.status_code != 200:
-        terminate_program(f"Status: {str(req.status_code)} ({url})")
-    return req.json()
-
-
 def initialize_s3():
     """ Initialize S3 client and resource
         Keyword arguments:
@@ -75,8 +60,8 @@ def initialize_s3():
     """
     if ARG.MANIFOLD == 'prod':
         try:
-            aws = get_config("aws")
-        except Exception as err:
+            aws = JRC.get_config("aws")
+        except Exception as err: # pylint: disable=broad-exception-caught
             terminate_program(err)
         sts_client = boto3.client('sts')
         aro = sts_client.assume_role(RoleArn=aws.role_arn,
@@ -115,13 +100,9 @@ def get_parms():
         if not ARG.LIBRARY:
             terminate_program("No library selected")
     if not ARG.VERSION:
-        bucket = f"janelia-neuronbridge-data-{ARG.MANIFOLD}"
-        try:
-            data = AWSS3["client"].get_object(Bucket=bucket, Key="next.txt")
-            contents = data['Body'].read()
-            ARG.VERSION = contents.decode("utf-8").strip()
-        except Exception as err:
-            terminate_program(err)
+        coll = DBM['neuronbridge'].cdmLibraryStatus
+        results = coll.distinct("neuronbridge", {"manifold": ARG.MANIFOLD})
+        ARG.VERSION = results[-1].replace(".", "_")
     if not ARG.VERSION:
         terminate_program("No NeuronBridge data version was found")
     print(f"Template:                  {ARG.TEMPLATE}")
@@ -139,6 +120,16 @@ def initialize_program():
     """ Initialize
     """
     random.seed()
+    try:
+        dbconfig = JRC.get_config("databases")
+    except Exception as err: # pylint: disable=broad-exception-caught
+        terminate_program(err)
+    dbo = attrgetter("neuronbridge.prod.read")(dbconfig)
+    LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, ARG.MANIFOLD, dbo.host, dbo.user)
+    try:
+        DBM['neuronbridge'] = JRC.connect_database(dbo)
+    except Exception as err: # pylint: disable=broad-exception-caught
+        terminate_program(err)
     initialize_s3()
     get_parms()
 
@@ -356,8 +347,7 @@ if __name__ == '__main__':
     PARSER.add_argument('--debug', dest='DEBUG', action='store_true',
                         default=False, help='Flag, Very chatty')
     ARG = PARSER.parse_args()
-    LOGGER = setup_logging(ARG)
-    REST = get_config("rest_services")
+    LOGGER = JRC.setup_logging(ARG)
     initialize_program()
     # Exclusions
     EXCLUSION = {}
