@@ -103,23 +103,17 @@ def get_parms():
         Returns:
             None
     """
-    cdm = (call_responder('config', 'config/cdm_library'))["config"]
-    if not ARG.LIBRARY:
-        ARG.LIBRARY = NB.get_library_from_aws(cdm)
-        if not ARG.LIBRARY:
-            terminate_program("No library selected")
     if not ARG.TEMPLATE:
         ARG.TEMPLATE = NB.get_template(AWSS3["client"], ARG.BUCKET)
         if not ARG.TEMPLATE:
             terminate_program("No alignment template selected")
-    for cdmlib in cdm:
-        if cdm[cdmlib]['name'].replace(' ', '_') == ARG.LIBRARY:
-            for jsonfile in cdm[cdmlib][ARG.MANIFOLD]:
-                rec = cdm[cdmlib][ARG.MANIFOLD][jsonfile]
-                if rec is dict and "updated" in rec and rec["updated"]:
-                    print(f"Library {cdm[cdmlib]['name']} was last modified on " \
-                          + f"{ARG.MANIFOLD} on {rec['updated']}")
-            break
+    if not ARG.LIBRARY:
+        bucket = 'janelia-flylight-color-depth'
+        if ARG.MANIFOLD != 'prod':
+            bucket += f"-{ARG.MANIFOLD}"
+        ARG.LIBRARY = NB.get_library_from_aws(AWSS3["client"], bucket, ARG.TEMPLATE)
+        if not ARG.LIBRARY:
+            terminate_program("No library selected")
     if not ARG.VERSION:
         bucket = f"janelia-neuronbridge-data-{ARG.MANIFOLD}"
         try:
