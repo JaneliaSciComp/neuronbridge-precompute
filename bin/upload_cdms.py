@@ -1167,7 +1167,7 @@ def upload_cdms():
     json_out = []
     names_out = {}
     for smp in tqdm(data):
-        if smp['slideCode'] in NON_PUBLIC:
+        if 'flylight' in ARG.LIBRARY and smp['slideCode'] in NON_PUBLIC:
             COUNT['Sample not published'] += 1
             LOGGER.warning("Sample %s is in non-public release %s", smp['sourceRefId'],
                            NON_PUBLIC[smp['slideCode']])
