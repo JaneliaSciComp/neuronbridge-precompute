@@ -853,7 +853,7 @@ def upload_flylight_variants(smp, newname):
 
 
 def check_image(smp):
-    ''' Check that the image exists and see if the URL is already specified
+    ''' Check that the image exists and see if the URL is already specified in publishedURL
         Keyword arguments:
           smp: sample record
         Returns:
@@ -1037,6 +1037,8 @@ def read_json():
             payload["publishedName"] = ARG.PUBLISHED
         elif ARG.SLIDE:
             payload["slideCode"] = ARG.SLIDE
+        if ARG.ALIGNMENT:
+            payload['alignmentSpace'] = ARG.ALIGNMENT
         LOGGER.info("Checking neuronMetadata for %s library entries tagged as %s",
                     ARG.LIBRARY, tagged)
         data = list(coll.find(payload, allow_disk_use=True).sort("slide_code", 1))
@@ -1081,7 +1083,7 @@ def remap_sample(smp):
           None
     '''
     if smp["alignmentSpace"] != CONF['ALIGNMENT_SPACE']:
-        terminate_program("JSON contains multiple alignment spaces")
+        terminate_program(f"ID {smp['_id']} contains multiple alignment spaces")
     if ARG.SOURCE == 'file':
         smp['_id'] = smp['id']
     else:
@@ -1247,6 +1249,8 @@ if __name__ == '__main__':
                         help='NeuronBridge version')
     PARSER.add_argument('--dataset', dest='DATASET', action='store',
                         help='NeuPrint dataset, e.g. vnc:v0.6')
+    PARSER.add_argument('--alignment', dest='ALIGNMENT', action='store',
+                        help='alignment space')
     PARSER.add_argument('--json', dest='JSON', action='store',
                         help='JSON file')
     PARSER.add_argument('--backcheck', dest='BACKCHECK', action='store_true',
