@@ -7,7 +7,7 @@ import sys
 from colorama import Fore, Style
 import MySQLdb
 from simple_term_menu import TerminalMenu
-from common_lib import setup_logging, get_config, connect_database
+import jrc_common.jrc_common as JRC
 
 
 # Configuration
@@ -30,20 +30,6 @@ def terminate_program(msg=None):
     if msg:
         LOGGER.critical(msg)
     sys.exit(-1 if msg else 0)
-
-
-def sql_error(err):
-    """ Log a critical SQL error and exit
-        Keyword arguments:
-          err: error object
-        Returns:
-          None
-    """
-    try:
-        msg = f"MySQL error [{err.args[0]}]: { err.args[1]}"
-    except IndexError:
-        msg = f"MySQL error: {err}"
-    terminate_program(msg)
 
 
 def get_parms():
@@ -87,20 +73,20 @@ def initialize_program():
     # Databases
     # pylint: disable=broad-exception-caught)
     try:
-        dbconfig = get_config("databases")
+        dbconfig = JRC.get_config("databases")
     except Exception as err:
         terminate_program(err)
     if not ARG.QUICK:
         dbo = attrgetter(f"{ARG.DATABASE}.{ARG.MANIFOLD}.read")(dbconfig)
         LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, ARG.MANIFOLD, dbo.host, dbo.user)
         try:
-            DBM[ARG.DATABASE] = connect_database(dbo)
+            DBM[ARG.DATABASE] = JRC.connect_database(dbo)
         except MySQLdb.Error as err:
             terminate_program(err)
     dbo = attrgetter(f"jacs.{ARG.MONGO}.read")(dbconfig)
     LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, ARG.MONGO, dbo.host, dbo.user)
     try:
-        DBM["jacs"] = connect_database(dbo)
+        DBM["jacs"] = JRC.connect_database(dbo)
     except Exception as err:
         terminate_program(err)
 
@@ -133,20 +119,21 @@ def process_imagery():
             DBM[ARG.DATABASE]["cursor"].execute(READ["IMG"])
             rows = DBM[ARG.DATABASE]["cursor"].fetchall()
         except MySQLdb.Error as err:
-            sql_error(err)
+            terminate_program(JRC.sql_error(err))
         total = {"mysql": 0, "mongo": 0}
-        print(f"{'Release':<26}  {'MySQL':6}  {'Mongo':6}")
+        print(f"{'Release':<30}  {'MySQL':6}  {'Mongo':6}")
         for row in rows:
             if not row["alps_release"]:
                 continue
             mcnt = mongo[row["alps_release"]] if row["alps_release"] in mongo else 0
-            line = f"{row['alps_release']:<26}  {row['cnt']:>6}  {mcnt:>6}"
+            line = f"{row['alps_release']:<30}  {row['cnt']:>6}  {mcnt:>6}"
             print((Fore.GREEN if row["cnt"] == mcnt else Fore.RED) + line)
             total["mysql"] += row["cnt"]
             total["mongo"] += mcnt
-        print(Style.RESET_ALL + f"{'-'*26}  {'-'*6}  {'-'*6}")
-        line = f"{'TOTAL':<26}  {total['mysql']:>6}  {total['mongo']:>6}"
-        print((Fore.GREEN if total["mysql"] == total["mongo"] else Fore.RED) + line + Style.RESET_ALL)
+        print(Style.RESET_ALL + f"{'-'*30}  {'-'*6}  {'-'*6}")
+        line = f"{'TOTAL':<30}  {total['mysql']:>6}  {total['mongo']:>6}"
+        print((Fore.GREEN if total["mysql"] == total["mongo"] else Fore.RED) \
+              + line + Style.RESET_ALL)
 
 
 if __name__ == '__main__':
@@ -165,7 +152,7 @@ if __name__ == '__main__':
     PARSER.add_argument('--debug', dest='DEBUG', action='store_true',
                         default=False, help='Flag, Very chatty')
     ARG = PARSER.parse_args()
-    LOGGER = setup_logging(ARG)
+    LOGGER = JRC.setup_logging(ARG)
     initialize_program()
     process_imagery()
     sys.exit(0)
