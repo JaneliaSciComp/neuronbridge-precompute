@@ -201,6 +201,8 @@ def get_citation(doi):
     """
     if doi not in CITATION:
         first = []
+        if doi not in DOI:
+            LOGGER.error("%s is not a known DOI", doi)
         for auth in DOI[doi]["author"]:
             if auth["sequence"] == "first":
                 first.append(auth["family"])
