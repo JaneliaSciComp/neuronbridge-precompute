@@ -54,8 +54,6 @@ MIPS_CACHE_SIZE=$((${MIPS_CACHE_SIZE:=100000}))
 # Supported EM Libraries
 EM_HEMIBRAIN_1_2_1_LIB=flyem_hemibrain_1_2_1
 EM_VNC_0_5_LIB=flyem_vnc_0_5
-EM_VNC_0_6_LIB=flyem_vnc_0_6
-EM_VNC_0_9_LIB=flyem_vnc_0_9
 EM_MANC_1_0_LIB=flyem_manc_1_0
 
 # Supported LM Libraries
@@ -85,8 +83,7 @@ fi
 # export variables used in the called scripts
 export EM_HEMIBRAIN_1_2_1_LIB
 export EM_VNC_0_5_LIB
-export EM_VNC_0_6_LIB
-export EM_VNC_0_9_LIB
+export EM_MANC_1_0_LIB
 export LM_SGAL4_LIB
 export LM_MCFO_LIB
 export LM_ANNOTATOR_MCFO_LIB
