@@ -7,8 +7,7 @@ from operator import attrgetter
 import sys
 import inquirer
 from tqdm import tqdm
-from common_lib import setup_logging, get_config, connect_database
-
+import jrc_common.jrc_common as JRC
 
 # Configuration
 EDEFAULT = ["fib19", "hemibrain", "hemibrain:v0.9",
@@ -42,7 +41,7 @@ def initialize_program():
     # MongoDB
     # pylint: disable=broad-exception-caught)
     try:
-        dbconfig = get_config("databases")
+        dbconfig = JRC.get_config("databases")
     except Exception as err:
         terminate_program(err)
     dbo = attrgetter(f"neuronbridge.{ARG.MANIFOLD}.read")(dbconfig)
@@ -50,7 +49,7 @@ def initialize_program():
         dbo = attrgetter(f"{source}.{ARG.MANIFOLD}.read")(dbconfig)
         LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, ARG.MANIFOLD, dbo.host, dbo.user)
         try:
-            DATABASE[source] = connect_database(dbo)
+            DATABASE[source] = JRC.connect_database(dbo)
         except Exception as err:
             terminate_program(err)
 
@@ -140,7 +139,7 @@ if __name__ == '__main__':
     PARSER.add_argument('--debug', dest='DEBUG', action='store_true',
                         default=False, help='Flag, Very chatty')
     ARG = PARSER.parse_args()
-    LOGGER = setup_logging(ARG)
+    LOGGER = JRC.setup_logging(ARG)
     initialize_program()
     mongo_check()
     terminate_program()
