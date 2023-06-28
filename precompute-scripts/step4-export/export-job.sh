@@ -11,8 +11,7 @@ function run_export_job() {
     declare EM_LIBS=(
         ${EM_HEMIBRAIN_1_2_1_LIB}
         ${EM_VNC_0_5_LIB}
-        ${EM_VNC_0_6_LIB}
-        ${EM_VNC_0_9_LIB}
+        ${EM_MANC_0_9_LIB}
     )
 
     case $EXPORT_TYPE in
