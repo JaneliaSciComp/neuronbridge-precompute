@@ -853,7 +853,7 @@ def upload_flylight_variants(smp, newname):
 
 
 def check_image(smp):
-    ''' Check that the image exists and see if the URL is already specified
+    ''' Check that the image exists and see if the URL is already specified in publishedURL
         Keyword arguments:
           smp: sample record
         Returns:
