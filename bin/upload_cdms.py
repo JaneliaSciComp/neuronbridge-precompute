@@ -1,13 +1,14 @@
 ''' This program will use JSON data to update neuronbridge.publishedURL and create
     an order file to upload imagery to AWS S3.
 '''
-__version__ = '2.2.0'
+__version__ = '2.2.2'
 
 import argparse
 from copy import deepcopy
 from datetime import datetime
 import glob
 import json
+from operator import attrgetter
 import os
 import re
 import socket
@@ -45,7 +46,7 @@ COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'Missing co
          'No sampleRef': 0, 'No publishing name': 0, 'No driver': 0, 'Sample not published': 0,
          'Line not published': 0, 'Already in Mongo': 0,
          'Bad driver': 0, 'Duplicate objects': 0, 'Unparsable files': 0, 'Updated on JACS': 0,
-         'Mongo insertions': 0,
+         'Mongo insertions': 0, 'Mongo upserts': 0,
          'FlyEM flips': 0, 'Images processed': 0, 'Missing release': 0, 'Skipped release': 0}
 # Searchable neurons
 SUBDIVISION = {'prefix': 1, 'counter': 0, 'limit': 100}
@@ -343,17 +344,17 @@ def initialize_program():
             terminate_program("You must select a manifold")
         ARG.MANIFOLD = MANIFOLDS[chosen]
     # MongoDB
-    data = (call_responder('config', 'config/db_config'))["config"]
-    LOGGER.info("Connecting to Mongo on %s", ARG.MONGO)
     rwp = 'write' if (ARG.WRITE or ARG.CONFIG) else 'read'
     try:
-        mongo = data[MONGODB][ARG.MONGO][rwp]
-        rset = 'rsProd' if ARG.MONGO == 'prod' else 'rsDev'
-        client = MongoClient(mongo['host'], replicaSet=rset, username=mongo['user'],
-                             password=mongo['password'])
-        DBM = client.neuronbridge
-    except Exception as err:
-        terminate_program(f"Could not connect to Mongo: {err}")
+        dbconfig = JRC.get_config("databases")
+    except Exception as err: # pylint: disable=broad-exception-caught
+        terminate_program(err)
+    dbo = attrgetter(f"neuronbridge.{ARG.MONGO}.{rwp}")(dbconfig)
+    LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, ARG.MANIFOLD, dbo.host, dbo.user)
+    try:
+        DBM = JRC.connect_database(dbo)
+    except Exception as err: # pylint: disable=broad-exception-caught
+        terminate_program(err)
     # Get parms
     get_parms()
     if ARG.LIBRARY not in LIBRARY:
@@ -492,6 +493,7 @@ def get_line_mapping(publishing_db):
         if row['driver']:
             DRIVER[row['publishing_name']] = \
                 row['driver'].replace("_Collection", "").replace("-", "_")
+    DRIVER['spGAL4 control'] = 'Split_GAL4'
 
 
 def get_image_mapping(publishing_db):
@@ -1037,7 +1039,7 @@ def read_json():
             payload["slideCode"] = ARG.SLIDE
         LOGGER.info("Checking neuronMetadata for %s library entries tagged as %s",
                     ARG.LIBRARY, tagged)
-        data = list(coll.find(payload, sort=[( "slideCode", 1)]))
+        data = list(coll.find(payload, allow_disk_use=True).sort("slide_code", 1))
         time_diff = datetime.now() - stime
         LOGGER.info("JSON read in %fsec", time_diff.total_seconds())
         print(f"Documents read from Mongo: {len(data)}")
@@ -1061,11 +1063,14 @@ def add_image_to_mongo(smp):
     if "DATASET" in CONF:
         payload['publishedName'] = ":".join([CONF['DATASET'], payload['publishedName']])
     payload["updateDate"] = datetime.now()
-    result = coll.insert_one(payload)
-    if result.inserted_id == smp['_id']:
+    try:
+        result = coll.update_one({"_id": payload['_id']}, {"$set": payload}, upsert=True)
+    except Exception as err:
+        LOGGER.error("Could not insert %s into Mongo", smp['_id'])
+    if hasattr(result, 'inserted_id') and result.inserted_id == smp['_id']:
         COUNT["Mongo insertions"] += 1
     else:
-        LOGGER.error("Could not insert %s into Mongo", smp['_id'])
+        COUNT["Mongo upserts"] += 1
 
 
 def remap_sample(smp):
@@ -1162,7 +1167,7 @@ def upload_cdms():
     json_out = []
     names_out = {}
     for smp in tqdm(data):
-        if smp['slideCode'] in NON_PUBLIC:
+        if 'flylight' in ARG.LIBRARY and smp['slideCode'] in NON_PUBLIC:
             COUNT['Sample not published'] += 1
             LOGGER.warning("Sample %s is in non-public release %s", smp['sourceRefId'],
                            NON_PUBLIC[smp['slideCode']])

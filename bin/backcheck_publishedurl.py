@@ -6,7 +6,7 @@ import argparse
 from operator import attrgetter
 import sys
 from colorama import Fore, Style
-from common_lib import setup_logging, get_config, connect_database
+import jrc_common.jrc_common as JRC
 
 # Database
 MONGODB = 'neuronbridge'
@@ -34,13 +34,13 @@ def initialize_program():
     '''
     # pylint: disable=broad-exception-caught)
     try:
-        dbconfig = get_config("databases")
+        dbconfig = JRC.get_config("databases")
     except Exception as err:
         terminate_program(err)
     dbo = attrgetter(f"neuronbridge.{ARG.MANIFOLD}.read")(dbconfig)
     LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, ARG.MANIFOLD, dbo.host, dbo.user)
     try:
-        DATABASE["MONGO"] = connect_database(dbo)
+        DATABASE["MONGO"] = JRC.connect_database(dbo)
     except Exception as err:
         terminate_program(err)
 
@@ -134,7 +134,10 @@ def mongo_check():
         print(f"{'Library':{maxl['lib']}} {'Tag':{maxl['tag']}} "
               + f"{'neuronMetadata':>14} {'publishedURL':>12}")
     for lib in sorted(libcount):
+        tagmax = sorted(libcount[lib])[-1]
         for tag in sorted(libcount[lib]):
+            if ARG.RECENT and tag != tagmax:
+                continue
             nmd = libcount[lib][tag]['neuronMetadata']
             pub = libcount[lib][tag]['publishedURL']
             color1, color2 = set_colors(nmd, pub)
@@ -151,12 +154,14 @@ if __name__ == '__main__':
         description="Backcheck publishedURL to neuronMetadata")
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         choices=["dev", "prod"], default="prod", help='MongoDB manifold')
+    PARSER.add_argument('--recent', dest='RECENT', action='store_true',
+                        default=False, help='Show only most recent version')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
                         default=False, help='Flag, Chatty')
     PARSER.add_argument('--debug', dest='DEBUG', action='store_true',
                         default=False, help='Flag, Very chatty')
     ARG = PARSER.parse_args()
-    LOGGER = setup_logging(ARG)
+    LOGGER = JRC.setup_logging(ARG)
     initialize_program()
     mongo_check()
     terminate_program()

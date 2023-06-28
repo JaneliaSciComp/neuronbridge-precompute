@@ -32,9 +32,10 @@ def get_all_s3_objects(s3c, **base_kwargs):
 
 
 def get_library_from_aws(*args):
-    """ Get a NeuronBridge library from provided configuration JSON
+    """ Get a NeuronBridge library from provided configuration JSON or S3
         Keyword arguments:
-          cdm_bucket: "cdm_library" configuration JSON -or- bucket
+          config: "cdm_library" configuration JSON -or- AWS S3 client
+          cdm_bucket: AWS S3 bucket (optional)
           prefix: alignment template (optional)
         Returns:
           Library
