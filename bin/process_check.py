@@ -9,8 +9,8 @@ import re
 import sys
 from colorama import Fore, Style
 import requests
+import jrc_common.jrc_common as JRC
 from aws_s3_lib import get_prefixes
-from common_lib import setup_logging, get_config, connect_database
 
 
 # pylint: disable=R1710, W0703
@@ -62,14 +62,14 @@ def initialize_program():
     """
     # pylint: disable=broad-exception-caught)
     try:
-        dbconfig = get_config("databases")
+        dbconfig = JRC.get_config("databases")
     except Exception as err:
         terminate_program(err)
     for source in ("jacs", "neuronbridge"):
         dbo = attrgetter(f"{source}.{ARG.MANIFOLD}.read")(dbconfig)
         LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, ARG.MANIFOLD, dbo.host, dbo.user)
         try:
-            DBM[source] = connect_database(dbo)
+            DBM[source] = JRC.connect_database(dbo)
         except Exception as err:
             terminate_program(err)
 
@@ -209,8 +209,8 @@ if __name__ == '__main__':
     PARSER.add_argument('--debug', action='store_true', dest='DEBUG',
                         default=False, help='Turn on debug output')
     ARG = PARSER.parse_args()
-    LOGGER = setup_logging(ARG)
-    REST = get_config("rest_services")
+    LOGGER = JRC.setup_logging(ARG)
+    REST = JRC.get_config("rest_services")
     initialize_program()
     check_process()
     terminate_program()
