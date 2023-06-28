@@ -6,8 +6,8 @@ export JACS_URL=${JACS_URL:="http://host/api/rest-v2"}
 export JACS_AUTH_TYPE=${JACS_AUTH_TYPE:="APIKEY"}
 export JACS_AUTH_TOKEN=${JACS_AUTH_TOKEN:="tokenvalue"}
 
-export BRAIN_STORE=fl:open_data:brain
-export VNC_STORE=fl:pre_release:vnc
+export BRAIN_STORE=${BRAIN_STORE:="fl:open_data:brain"}
+export VNC_STORE=${VNC_STORE:="fl:open_data:vnc"}
 
 export JOB_LOGPREFIX=${JOB_LOGPREFIX:="${LOGS_DIR}/exports"}
 export READ_BATCH_SIZE=2000
