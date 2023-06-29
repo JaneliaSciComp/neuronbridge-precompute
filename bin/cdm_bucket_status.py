@@ -3,7 +3,8 @@
 '''
 import json
 import boto3
-from aws_s3_lib import bucket_stats, get_prefixes
+from aws_s3_lib import bucket_stats, get_objects, get_prefixes
+
 
 def read_object(bucket, key):
     ''' Read a "counts_denormalized" object and return the number of objects
@@ -50,9 +51,13 @@ def process_template(bucket, template):
                     arr.append(int(part))
             arr = sorted(arr)
             last = arr[-1]
+            prefix = "/".join([template, library,"searchable_neurons", "KEYS", "0"])
+            objs = get_objects(bucket, prefix)
+            version = objs[-1].split(".")[-1].replace("_", ".") if objs[-1] and ".v" in objs[-1] \
+                else ""
         else:
-            last = neurons = ""
-        print(f"{template:<25}  {library:<34}  {images:>6}  {neurons:>7}  {last:>4}")
+            last = neurons = version = ""
+        print(f"{template:<25}  {library:<34}  {images:>6}  {neurons:>7}  {last:>4}  {version:>7}")
 
 
 def process_manifold(bucket):
@@ -98,7 +103,7 @@ def process_buckets():
             continue
         print(f"\n{name}: {bstat['objects']:,} objects, {humansize(bstat['size'])}")
         print(f"{'Template':<25}  {'Library':<34}  {'Images':>6}  {'Neurons':>7}  " \
-              + f"{'Part':>4}")
+              + f"{'Part':>4}  {'Version':>7}")
         process_manifold(name)
 
 
