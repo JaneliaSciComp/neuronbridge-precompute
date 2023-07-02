@@ -4,10 +4,53 @@ echo "Upload data"
 
 SCRIPT_DIR=$(dirname ${BASH_SOURCE[0]})
 
+# AREA: brain, vnc, brain+vnc, vnc+brain
+if [ "$#" -ge 1 ]; then
+    AREA=$1
+    shift
+else
+    echo "Anatomical area must be specified: submit_export.sh <anatomical_area> <export_type>"
+    echo "Valid values: {brain | vnc | brain+vnc}"
+    exit 1
+fi
+
+# UPLOAD_TYPE: EM_MIPS, LM_MIPS, EM_CD_MATCHES, LM_CD_MATCHES, EM_PPP_MATCHES
+if [ "$#" -ge 1 ]; then
+    UPLOAD_TYPE=$1
+    shift
+else
+    echo "Upload type must be specified: submit_upload.sh <anatomical_area> <export_type>"
+    echo "Valid values: {EM_MIPS | LM_MIPS | EM_CD_MATCHES | LM_CD_MATCHES | EM_PPP_MATCHES}"
+    exit 1
+fi
+
 echo "Source global_params from ${SCRIPT_DIR}/../global-params.sh"
 source "${SCRIPT_DIR}/../global-params.sh" ${AREA}
 echo "Source upload_params from ${SCRIPT_DIR}/upload-params.sh"
 source "${SCRIPT_DIR}/upload-params.sh"
+
+case $UPLOAD_TYPE in
+    EM_CD_MATCHES)
+        JOB_TYPE=em-cds
+        ;;
+    LM_CD_MATCHES)
+        JOB_TYPE=lm-cds
+        ;;
+    EM_PPP_MATCHES)
+        JOB_TYPE=em-pppm
+        ;;
+    EM_MIPS)
+        JOB_TYPE=em-mips
+        ;;
+    LM_MIPS)
+        JOB_TYPE=lm-mips
+        ;;
+    *)
+        echo "Invalid upload type: ${UPLOAD_TYPE}"
+        exit 1
+        ;;
+esac
+
 
 uploadMIPS() {
     local region="$1" # brain, vnc, brain+vnc, or vnc+brain
@@ -57,13 +100,26 @@ uploadMatches() {
 
 mkdir -p $JOB_LOGPREFIX
 
-#uploadMIPS brain ${LM_MIPS}
-#uploadMIPS brain ${EM_MIPS}
+case $UPLOAD_TYPE in
+    EM_CD_MATCHES)
+        upload_cmd="uploadMatches ${AREA} cds ${PER_EM_DIR}"
+        ;;
+    LM_CD_MATCHES)
+        upload_cmd="uploadMatches ${AREA} cds ${PER_LM_DIR}"
+        ;;
+    EM_PPP_MATCHES)
+        upload_cmd="uploadMatches ${AREA} pppm ${PER_EM_DIR}"
+        ;;
+    EM_MIPS)
+	upload_cmd="uploadMIPS ${AREA} ${EM_MIPS}"
+        ;;
+    LM_MIPS)
+	upload_cmd="uploadMIPS ${AREA} ${LM_MIPS}"
+        ;;
+    *)
+        echo "Invalid export type: ${UPLOAD_TYPE}"
+        exit 1
+        ;;
+esac
 
-#uploadMatches brain cds ${PER_EM_DIR}
-#uploadMatches brain cds ${PER_LM_DIR}
-#uploadMatches brain pppm ${PER_EM_DIR}
-
-#uploadMatches vnc cds ${PER_EM_DIR}
-#uploadMatches vnc cds ${PER_LM_DIR}
-#uploadMatches vnc pppm ${PER_EM_DIR}
+`echo ${upload_cmd}`

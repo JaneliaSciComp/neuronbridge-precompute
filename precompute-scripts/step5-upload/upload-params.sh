@@ -1,7 +1,8 @@
 export S3_BUCKET=${S3_BUCKET:="janelia-neuronbridge-data-devpre"}
-export S3_DATA_VERSION=${S3_DATA_VERSION:="v3_1_0"}
 
-export LOCAL_DATA_VERSION=${LOCAL_DATA_VERSION:="v3.1.0"}
+export S3_DATA_VERSION=${S3_DATA_VERSION:="${DATA_VERSION//\./_}"}
+
+export LOCAL_DATA_VERSION=${LOCAL_DATA_VERSION:="${DATA_VERSION}"}
 export LOCAL_DATA_DIR=${LOCAL_DATA_DIR:="/nrs/neuronbridge/${LOCAL_DATA_VERSION}"}
 
 export AWS=${AWS:="echo aws"}
@@ -13,3 +14,5 @@ export PER_EM_DIR=${PER_EM_DIR:="em-vs-lm"}
 export PER_LM_DIR=${PER_LM_DIR:="lm-vs-em"}
 export LM_MIPS=${LM_MIPS:="lmlines"}
 export EM_MIPS=${EM_MIPS:="embodies"}
+
+export JOB_LOGPREFIX=${JOB_LOGPREFIX:="${LOGS_DIR}/uploads"}
