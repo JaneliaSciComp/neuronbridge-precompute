@@ -122,4 +122,4 @@ case $UPLOAD_TYPE in
         ;;
 esac
 
-`echo ${upload_cmd}`
+${upload_cmd}
