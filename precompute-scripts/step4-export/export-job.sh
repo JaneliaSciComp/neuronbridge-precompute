@@ -17,10 +17,12 @@ function run_export_job() {
     case $EXPORT_TYPE in
         EM_CD_MATCHES)
             LIBNAMES=${EM_LIBS[@]}
+            TARGET_LIBNAMES==${LM_LIBS[@]}
             SUBDIR=cdmatches/em-vs-lm
             ;;
         LM_CD_MATCHES)
             LIBNAMES=${LM_LIBS[@]}
+            TARGET_LIBNAMES==${EM_LIBS[@]}
             SUBDIR=cdmatches/lm-vs-em
             ;;
         EM_PPP_MATCHES)
@@ -72,6 +74,7 @@ function run_export_job() {
         --default-image-store "${BRAIN_STORE}"
         --image-stores-per-neuron-meta "JRC2018_VNC_Unisex_40x_DS:${VNC_STORE}"
         -l ${LIBNAMES[@]}
+        --target-library ${TARGET_LIBNAMES[@]}
         --read-batch-size ${READ_BATCH_SIZE}
         -ps ${PROCESSING_PARTITION_SIZE}
         --default-relative-url-index 1
