@@ -25,8 +25,8 @@ def read_object(bucket, key):
     return data["objectCount"]
 
 
-def process_template(bucket, template):
-    """ Process a single template in a bucket
+def process_template_cdm(bucket, template):
+    """ Process a single template in a CDM bucket
         Keyword arguments:
           bucket: bucket
           tample: template
@@ -60,10 +60,25 @@ def process_template(bucket, template):
         print(f"{template:<25}  {library:<34}  {images:>6}  {neurons:>7}  {last:>4}  {version:>7}")
 
 
-def process_manifold(bucket):
-    """ Process a single bucket
+def process_template_ppp(bucket, template):
+    """ Process a single template in a PPP bucket
         Keyword arguments:
           bucket: bucket
+          tample: template
+        Returns:
+          None
+    """
+    libraries = get_prefixes(bucket, template)
+    for library in libraries:
+        divs = get_prefixes(bucket, "/".join([template, library]))
+        print(f"{template:<25}  {library:<25}  {len(divs):^9}")
+
+
+def process_manifold(bucket, typ):
+    """ Process a single CDM bucket
+        Keyword arguments:
+          bucket: bucket
+          typ: "cdm" or "ppp"
         Returns:
           None
     """
@@ -71,7 +86,10 @@ def process_manifold(bucket):
     for template in templates:
         if not template.startswith("JRC"):
             continue
-        process_template(bucket, template)
+        if typ == "cdm":
+            process_template_cdm(bucket, template)
+        else:
+            process_template_ppp(bucket, template)
 
 
 def humansize(num, suffix='B'):
@@ -96,16 +114,29 @@ def process_buckets():
         Returns:
           None
     """
+    first = True
     for suffix in ("-dev", "-devpre", "-prodpre", ""):
         name = "janelia-flylight-color-depth" + suffix
         bstat = bucket_stats(bucket=name, profile="" if suffix else "FlyLightPDSAdmin")
         if not bstat['objects']:
             continue
+        if first:
+            first = False
+        else:
+            print("\n" + "-"*93)
         print(f"\n{name}: {bstat['objects']:,} objects, {humansize(bstat['size'])}")
         print(f"{'Template':<25}  {'Library':<34}  {'Images':>6}  {'Neurons':>7}  " \
               + f"{'Part':>4}  {'Version':>7}")
-        process_manifold(name)
-
+        process_manifold(name, "cdm")
+        name = 'janelia-ppp-match' + suffix
+        if not suffix:
+            name += "-prod"
+        bstat = bucket_stats(bucket=name)
+        if not bstat['objects']:
+            continue
+        print(f"\n{name}: {bstat['objects']:,} objects, {humansize(bstat['size'])}")
+        print(f"{'Template':<25}  {'Library':<25}  {'Divisions':<9}")
+        process_manifold(name, "ppp")
 
 if __name__ == '__main__':
     S3 = boto3.client('s3')
