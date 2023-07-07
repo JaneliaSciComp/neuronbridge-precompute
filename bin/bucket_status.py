@@ -1,4 +1,4 @@
-''' cdm_bucket_status.py
+''' bucket_status.py
     Show status for every NeuronBridge library on AWS S3
 '''
 import json
@@ -29,7 +29,7 @@ def process_template_cdm(bucket, template):
     """ Process a single template in a CDM bucket
         Keyword arguments:
           bucket: bucket
-          tample: template
+          template: template
         Returns:
           None
     """
@@ -64,7 +64,7 @@ def process_template_ppp(bucket, template):
     """ Process a single template in a PPP bucket
         Keyword arguments:
           bucket: bucket
-          tample: template
+          template: template
         Returns:
           None
     """
@@ -74,14 +74,29 @@ def process_template_ppp(bucket, template):
         print(f"{template:<25}  {library:<25}  {len(divs):^9}")
 
 
+def process_data(bucket):
+    """ Process a single data bucket
+        Keyword arguments:
+          bucket: bucket
+        Returns:
+          None
+    """
+    versions = get_prefixes(bucket)
+    for ver in versions:
+        print(ver)
+
+
 def process_manifold(bucket, typ):
     """ Process a single CDM bucket
         Keyword arguments:
           bucket: bucket
-          typ: "cdm" or "ppp"
+          typ: "cdm", "ppp", or "data"
         Returns:
           None
     """
+    if typ == "data":
+        process_data(bucket)
+        return
     templates = get_prefixes(bucket)
     for template in templates:
         if not template.startswith("JRC"):
@@ -107,6 +122,23 @@ def humansize(num, suffix='B'):
     return "{num:.1f}P{suffix}"
 
 
+def process_bucket(name):
+    """ Create a header for a single bucket
+        Keyword arguments:
+          name: bucket
+        Returns:
+          None
+    """
+    if name == "janelia-flylight-color-depth":
+        bstat = bucket_stats(bucket=name, profile="FlyLightPDSAdmin")
+    else:
+        bstat = bucket_stats(bucket=name)
+    if not bstat['objects']:
+        return False
+    print(f"\n{name}: {bstat['objects']:,} objects, {humansize(bstat['size'])}")
+    return True
+
+
 def process_buckets():
     """ Process all NeuronBridge CDM buckets
         Keyword arguments:
@@ -116,27 +148,26 @@ def process_buckets():
     """
     first = True
     for suffix in ("-dev", "-devpre", "-prodpre", ""):
-        name = "janelia-flylight-color-depth" + suffix
-        bstat = bucket_stats(bucket=name, profile="" if suffix else "FlyLightPDSAdmin")
-        if not bstat['objects']:
-            continue
         if first:
             first = False
         else:
             print("\n" + "-"*93)
-        print(f"\n{name}: {bstat['objects']:,} objects, {humansize(bstat['size'])}")
-        print(f"{'Template':<25}  {'Library':<34}  {'Images':>6}  {'Neurons':>7}  " \
-              + f"{'Part':>4}  {'Version':>7}")
-        process_manifold(name, "cdm")
-        name = 'janelia-ppp-match' + suffix
-        if not suffix:
-            name += "-prod"
-        bstat = bucket_stats(bucket=name)
-        if not bstat['objects']:
-            continue
-        print(f"\n{name}: {bstat['objects']:,} objects, {humansize(bstat['size'])}")
-        print(f"{'Template':<25}  {'Library':<25}  {'Divisions':<9}")
-        process_manifold(name, "ppp")
+        # CDM
+        name = "janelia-flylight-color-depth" + suffix
+        if process_bucket(name):
+            print(f"{'Template':<25}  {'Library':<34}  {'Images':>6}  {'Neurons':>7}  " \
+                  + f"{'Part':>4}  {'Version':>7}")
+            process_manifold(name, "cdm")
+        # PPP
+        name = "janelia-ppp-match" + (suffix if suffix else "-prod")
+        if process_bucket(name):
+            print(f"{'Template':<25}  {'Library':<25}  {'Divisions':<9}")
+            process_manifold(name, "ppp")
+        # Data
+        name = "janelia-neuronbridge-data" + (suffix if suffix else "-prod")
+        if process_bucket(name):
+            process_manifold(name, "data")
+
 
 if __name__ == '__main__':
     S3 = boto3.client('s3')
