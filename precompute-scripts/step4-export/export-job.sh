@@ -17,12 +17,12 @@ function run_export_job() {
     case $EXPORT_TYPE in
         EM_CD_MATCHES)
             LIBNAMES=${EM_LIBS[@]}
-            TARGET_LIBNAMES==${LM_LIBS[@]}
+            TARGET_LIBNAMES=${LM_LIBS[@]}
             SUBDIR=cdmatches/em-vs-lm
             ;;
         LM_CD_MATCHES)
             LIBNAMES=${LM_LIBS[@]}
-            TARGET_LIBNAMES==${EM_LIBS[@]}
+            TARGET_LIBNAMES=${EM_LIBS[@]}
             SUBDIR=cdmatches/lm-vs-em
             ;;
         EM_PPP_MATCHES)
