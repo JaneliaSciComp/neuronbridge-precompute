@@ -3,6 +3,7 @@
 '''
 
 import argparse
+from datetime import datetime
 import json
 import os
 import re
@@ -23,6 +24,7 @@ import neuronbridge_lib as NB
 NEURON_DATA = ["neuronInstance", "neuronType"]
 # Database
 DATABASE = {}
+DYNAMO = {}
 ITEMS = []
 # Counters
 COUNT = {"bodyID": 0, "publishingName": 0, "neuronInstance": 0, "neuronType": 0,
@@ -187,9 +189,21 @@ def initialize_program():
         create_dynamodb_table(dynamodb, table)
     LOGGER.info("Will write results to DynamoDB table %s", table)
     DATABASE["DYN"] = dynamodb.Table(table)
+    try:
+        ddt = dynamodb_client.describe_table(TableName=table)
+    except dynamodb_client.exceptions.ResourceNotFoundException:
+        LOGGER.warning("Table %s doesn't exist", table)
+    DYNAMO['client'] = dynamodb_client
+    DYNAMO['arn'] = ddt['Table']['TableArn']
 
 
 def get_release(slide_code):
+    ''' Get ALPS release by slide code
+        Keyword arguments:
+          slide_code: slide code
+        Returns:
+          None
+    '''
     sql = "SELECT DISTINCT alps_release FROM image_data_mv WHERE slide_code=%s"
     try:
         DATABASE['sage']['cursor'].execute(sql, (slide_code,))
@@ -197,7 +211,8 @@ def get_release(slide_code):
     except MySQLdb.Error as err:
         sql_error(err)
     if row and row['alps_release']:
-        FAILURE[slide_code] = f"Slide code {slide_code} is published to {row['alps_release']} in SAGE"
+        FAILURE[slide_code] = f"Slide code {slide_code} is published to " \
+                              + f"{row['alps_release']} in SAGE"
     else:
         FAILURE[slide_code] = f"Slide code {slide_code} has no publishing release in SAGE"
 
@@ -210,7 +225,7 @@ def valid_row(row):
           True for valid, False for invalid
     '''
     if "publishedName" not in row or not row["publishedName"]:
-        release = get_release(row['slideCode'])
+        get_release(row['slideCode'])
         if row['slideCode'] not in FAILURE:
             get_release(sample)
         LOGGER.error("%s: %s", row['_id'], FAILURE[row['slideCode']])
@@ -427,6 +442,15 @@ def process_results(count, results):
     update_neuron_matches(neurons)
     if ARG.WRITE:
         write_dynamodb()
+        dts = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+        for lib in library:
+            key = " - ".join([lib, ARG.VERSION])
+            resp = DYNAMO['client'].tag_resource(ResourceArn=DYNAMO['arn'],
+                                                 Tags=[{'Key': key,
+                                                        'Value': dts},])
+            if 'HTTPStatusCode' not in resp['ResponseMetadata'] or \
+               resp['ResponseMetadata']['HTTPStatusCode'] != 200:
+                LOGGER.warning("Could not write tag for %s", key)
     else:
         COUNT["insertions"] = len(ITEMS)
     display_counts()
