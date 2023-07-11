@@ -15,6 +15,7 @@ function run_export_job() {
     )
 
     TARGET_LIB_ARG=
+    EXCLUDED_MASK_TAGS_ARG=
     EXCLUDED_TARGET_TAGS_ARG=
     EXCLUDED_MATCHES_ARGS=
 
@@ -22,6 +23,7 @@ function run_export_job() {
         EM_CD_MATCHES)
             LIBNAMES=${EM_LIBS[@]}
             TARGET_LIB_ARG="--target-library ${LM_LIBS[@]}"
+            EXCLUDED_MASK_TAGS_ARG="--excluded-neuron-tags validationError"
             EXCLUDED_TARGET_TAGS_ARG="--excluded-target-tags validationError"
             EXCLUDED_MATCHES_ARGS="--excluded-matches-tags validationError"
             SUBDIR=cdmatches/em-vs-lm
@@ -29,6 +31,7 @@ function run_export_job() {
         LM_CD_MATCHES)
             LIBNAMES=${LM_LIBS[@]}
             TARGET_LIB_ARG="--target-library ${EM_LIBS[@]}"
+            EXCLUDED_MASK_TAGS_ARG="--excluded-neuron-tags validationError"
             EXCLUDED_TARGET_TAGS_ARG="--excluded-target-tags validationError"
             EXCLUDED_MATCHES_ARGS="--excluded-matches-tags validationError"
             SUBDIR=cdmatches/lm-vs-em
@@ -83,6 +86,7 @@ function run_export_job() {
         --image-stores-per-neuron-meta "JRC2018_VNC_Unisex_40x_DS:${VNC_STORE}"
         -l ${LIBNAMES[@]}
         ${TARGET_LIB_ARG}
+        ${EXCLUDED_MASK_TAGS_ARG}
         ${EXCLUDED_TARGET_TAGS_ARG}
         ${EXCLUDED_MATCHES_ARGS}
         --read-batch-size ${READ_BATCH_SIZE}
