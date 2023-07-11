@@ -15,16 +15,22 @@ function run_export_job() {
     )
 
     TARGET_LIB_ARG=
+    EXCLUDED_TARGET_TAGS_ARG=
+    EXCLUDED_MATCHES_ARGS=
 
     case $EXPORT_TYPE in
         EM_CD_MATCHES)
             LIBNAMES=${EM_LIBS[@]}
             TARGET_LIB_ARG="--target-library ${LM_LIBS[@]}"
+            EXCLUDED_TARGET_TAGS_ARG="--excluded-target-tags validationError"
+            EXCLUDED_MATCHES_ARGS="--excluded-matches-tags validationError"
             SUBDIR=cdmatches/em-vs-lm
             ;;
         LM_CD_MATCHES)
             LIBNAMES=${LM_LIBS[@]}
             TARGET_LIB_ARG="--target-library ${EM_LIBS[@]}"
+            EXCLUDED_TARGET_TAGS_ARG="--excluded-target-tags validationError"
+            EXCLUDED_MATCHES_ARGS="--excluded-matches-tags validationError"
             SUBDIR=cdmatches/lm-vs-em
             ;;
         EM_PPP_MATCHES)
@@ -77,6 +83,8 @@ function run_export_job() {
         --image-stores-per-neuron-meta "JRC2018_VNC_Unisex_40x_DS:${VNC_STORE}"
         -l ${LIBNAMES[@]}
         ${TARGET_LIB_ARG}
+        ${EXCLUDED_TARGET_TAGS_ARG}
+        ${EXCLUDED_MATCHES_ARGS}
         --read-batch-size ${READ_BATCH_SIZE}
         -ps ${PROCESSING_PARTITION_SIZE}
         --default-relative-url-index 1
