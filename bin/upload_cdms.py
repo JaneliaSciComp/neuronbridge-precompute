@@ -1,7 +1,7 @@
 ''' This program will use JSON data to update neuronbridge.publishedURL and create
     an order file to upload imagery to AWS S3.
 '''
-__version__ = '2.2.2'
+__version__ = '2.2.3'
 
 import argparse
 from copy import deepcopy
@@ -1031,7 +1031,7 @@ def read_json():
         tagged = ARG.TAG if ARG.TAG else ARG.NEURONBRIDGE.replace("v", "")
         payload = {"libraryName": ARG.LIBRARY,
                    "$and": [{"tags": tagged},
-                            {"tags": {"$nin": ["unstaged"]}}],
+                            {"tags": {"$nin": ["unreleased"]}}],
                    "publishedName": {"$exists": True}}
         if ARG.PUBLISHED:
             payload["publishedName"] = ARG.PUBLISHED

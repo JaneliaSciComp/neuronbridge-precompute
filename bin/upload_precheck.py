@@ -1,8 +1,8 @@
 ''' This program will check neuronMetadata for a NeuronBridge release for
     sample issues, optionally retagging documents. Documents will be tagged
-    with the word "unstaged" as well and the ALPS release.
+    with the word "unreleased" as well as the ALPS release.
 '''
-__version__ = '0.0.1'
+__version__ = '0.0.2'
 
 import argparse
 from operator import attrgetter
@@ -16,7 +16,8 @@ import neuronbridge_lib as NB
 DB = {}
 COLL = {}
 # Counters
-COUNT = {"images": 0, "found": 0, "updated": 0}
+COUNT = {"images": 0, "found": 0, "updated": 0, "unreleased": 0}
+RELEASE = {}
 
 def terminate_program(msg=None):
     ''' Terminate the program gracefully
@@ -63,7 +64,7 @@ def initialize_program():
 
 
 def tag_release(row, release):
-    ''' Tag the image with the ALPs release and the word "unstaged"
+    ''' Tag the image with the ALPs release and the word "unreleased"
         Keyword arguments:
           row: neuronMetadata row
           release: ALPS release
@@ -72,10 +73,15 @@ def tag_release(row, release):
     '''
     COUNT['found'] += 1
     listsize = len(row['tags'])
-    if release not in row['tags']:
+    if release:
+        if release not in RELEASE:
+            RELEASE[release] = 0
+        RELEASE[release] += 1
+    if release and (release not in row['tags']):
         row['tags'].append(release)
-    if "unstaged" not in row['tags']:
-        row['tags'].append("unstaged")
+    if "unreleased" not in row['tags']:
+        row['tags'].append("unreleased")
+        COUNT["unreleased"] += 1
     if len(row['tags']) == listsize:
         return
     LOGGER.debug(row)
@@ -99,7 +105,10 @@ def check_image(row, non_public):
     '''
     if row['slideCode'] in non_public:
         release = non_public[row['slideCode']]
-        LOGGER.warning("Image %s is in non-public release %s", row['_id'], release)
+        if release:
+            LOGGER.warning("Sample %s (%s) is in non-public release %s", row['_id'], row['slideCode'], release)
+        else:
+            LOGGER.warning("Sample %s (%s) is not prestaged", row['_id'], row['slideCode'])
         tag_release(row, release)
     elif not row['publishedName']:
         LOGGER.error("No publishing name for %s", row['_id'])
@@ -118,12 +127,12 @@ def perform_checks():
     COLL['neuronMetadata'] = DB['neuronbridge'].neuronMetadata
     payload = {"libraryName": ARG.LIBRARY,
                "$and": [{"tags": ARG.VERSION},
-                        {"tags": {"$nin": ["unstaged"]}}]}
+                        {"tags": {"$nin": ["unreleased"]}}]}
     count = COLL['neuronMetadata'].count_documents(payload)
     if not count:
         terminate_program(f"There are no processed tags for version {ARG.VERSION} in {ARG.LIBRARY}")
     print(f"Images in {ARG.LIBRARY} {ARG.VERSION}: {count}")
-    sql = "SELECT DISTINCT slide_code,alps_release FROM image_data_mv WHERE alps_release IN (%s)"
+    sql = "SELECT DISTINCT slide_code,alps_release FROM image_data_mv WHERE alps_release IS NULL or alps_release IN (%s)"
     sql = sql % ('"' + '","'.join(non_public) + '"',)
     LOGGER.info("Finding non-public images in SAGE")
     DB['sage']['cursor'].execute(sql)
@@ -138,6 +147,9 @@ def perform_checks():
     print(f"Images found:    {COUNT['images']}")
     print(f"Images to retag: {COUNT['found']}")
     print(f"Images retagged: {COUNT['updated']}")
+    print(f"Unreleased:      {COUNT['unreleased']}")
+    for rel in RELEASE:
+        print(f"{rel}: {RELEASE[rel]}")
 
 
 if __name__ == '__main__':
