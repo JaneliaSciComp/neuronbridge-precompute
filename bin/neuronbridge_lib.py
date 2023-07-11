@@ -59,7 +59,7 @@ def get_library_from_aws(*args):
     return cdmlist[chosen].replace(' ', '_') if chosen is not None else None
 
 
-def get_library(coll):
+def get_library(coll, exclude=None):
     ''' Allow the user to select a NeuronBridge library from MongoDB
         Keyword arguments:
           coll: MongoDB collection
@@ -67,7 +67,10 @@ def get_library(coll):
           NeuronBridge version or None
     '''
     results = coll.distinct("libraryName")
-    libraries = [row for row in results]
+    libraries = []
+    for row in results:
+        if (not exclude) or (exclude not in row):
+            libraries.append(row)
     libraries.sort()
     print("Select a NeuronBridge library:")
     terminal_menu = TerminalMenu(libraries)

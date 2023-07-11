@@ -58,7 +58,7 @@ def initialize_program():
             terminate_program(err)
     # Parms
     if not ARG.LIBRARY:
-        ARG.LIBRARY = NB.get_library(DB['neuronbridge'].neuronMetadata)
+        ARG.LIBRARY = NB.get_library(DB['neuronbridge'].neuronMetadata, "flyem")
     if not ARG.VERSION:
         ARG.VERSION = NB.get_neuronbridge_version(DB['neuronbridge'].neuronMetadata)
 
@@ -146,10 +146,11 @@ def perform_checks():
         check_image(row, non_public)
     print(f"Images found:    {COUNT['images']}")
     print(f"Images to retag: {COUNT['found']}")
-    print(f"Images retagged: {COUNT['updated']}")
-    print(f"Unreleased:      {COUNT['unreleased']}")
-    for rel in RELEASE:
-        print(f"{rel}: {RELEASE[rel]}")
+    if COUNT['found']:
+        print(f"Images retagged: {COUNT['updated']}")
+        print(f"Unreleased:      {COUNT['unreleased']}")
+        for rel in RELEASE:
+            print(f"{rel}: {RELEASE[rel]}")
 
 
 if __name__ == '__main__':
