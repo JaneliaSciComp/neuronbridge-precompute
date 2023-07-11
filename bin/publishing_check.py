@@ -13,11 +13,12 @@ import neuronbridge_lib as NB
 # Database
 DB = {}
 COLL = {}
-READ = {"RELEASE": "SELECT alps_release,MAX(workstation_sample_id) AS smp FROM image_data_mv GROUP BY 1",
-        "SAMPLES": "SELECT DISTINCT workstation_sample_id,alps_release FROM image_data_mv",
+READ = {"RELEASE": "SELECT DISTINCT slide_code,workstation_sample_id FROM image_data_mv "
+                   + "WHERE alps_release=%s",
+        "SAMPLE": "SELECT DISTINCT slide_code,workstation_sample_id FROM image_data_mv "
+                  + "WHERE workstation_sample_id=%s",
+        "ALL_SAMPLES": "SELECT DISTINCT workstation_sample_id,alps_release FROM image_data_mv",
        }
-# Counters
-COUNT = {"releases": 0, "mismatch": 0}
 
 def terminate_program(msg=None):
     ''' Terminate the program gracefully
@@ -61,9 +62,51 @@ def initialize_program():
         ARG.LIBRARY = NB.get_library(DB['neuronbridge'].neuronMetadata, "flyem")
 
 
-def perform_checks2():
+def analyze_results(published, release_size, nb):
+    ''' Compare published sample IDs to those in NeuronBridge
+        Keyword arguments:
+          published: dict of published sample IDs (value=release)
+          release_size: dict of published releases (value= #samples)
+          nb: dict of samples in NeuronBridge
+        Returns:
+          None
+    '''
+    missing_rel = {} # release: [samples]
+    for row in published:
+        if "Sample#" + row not in nb:
+            if published[row] not in missing_rel:
+                missing_rel[published[row]] = [row]
+            else:
+                missing_rel[published[row]].append(row)
+    with open("missing_samples.txt", "w", encoding="ascii") as outstream:
+        for rel in sorted(missing_rel):
+            if len(missing_rel[rel]) == release_size[rel]:
+                print(f"{rel} is not in NeuronBridge")
+                try:
+                    del missing_rel[rel]
+                    DB[ARG.DATABASE]['cursor'].execute(READ['RELEASE'], (rel,))
+                    rows = DB[ARG.DATABASE]['cursor'].fetchall()
+                except MySQLdb.Error as err:
+                    terminate_program(JRC.sql_error(err))
+                for row in rows:
+                    outstream.write(f"{row['slide_code']}\t{row['workstation_sample_id']}\n")
+            else:
+                print(f"{rel} is missing {len(missing_rel[rel])}/{release_size[rel]} samples")
+        for rel in missing_rel:
+            for smp in missing_rel[rel]:
+                try:
+                    DB[ARG.DATABASE]['cursor'].execute(READ['SAMPLE'], (smp,))
+                    rows = DB[ARG.DATABASE]['cursor'].fetchall()
+                except MySQLdb.Error as err:
+                    terminate_program(JRC.sql_error(err))
+                for row in rows:
+                    outstream.write(f"{row['slide_code']}\t{row['workstation_sample_id']}\n")
+
+
+def perform_checks():
+    # Publishing
     try:
-        DB[ARG.DATABASE]['cursor'].execute(READ['SAMPLES'])
+        DB[ARG.DATABASE]['cursor'].execute(READ['ALL_SAMPLES'])
         rows = DB[ARG.DATABASE]['cursor'].fetchall()
     except MySQLdb.Error as err:
         terminate_program(JRC.sql_error(err))
@@ -76,25 +119,14 @@ def perform_checks2():
             release_size[row['alps_release']] = 1
         else:
             release_size[row['alps_release']] += 1
+    # NeuronBridge
     payload = {"libraryName": ARG.LIBRARY}
-    count = COLL['publishedURL'].count_documents(payload)
-    LOGGER.info("Found %d sample%s in NeuronBridge", count, "" if count == 1 else "s")
-    rows = COLL['publishedURL'].find(payload, {"sampleRef": 1})
+    rows = COLL['publishedURL'].distinct("sampleRef", payload)
     nb = {}
     for row in rows:
-        nb[row['sampleRef']] = True
-    missing = {}
-    for row in tqdm(published):
-        if "Sample#" + row not in nb:
-            if published[row] not in missing:
-                missing[published[row]] = 1
-            else:
-                missing[published[row]] += 1
-    for key in sorted(missing):
-        if missing[key] == release_size[key]:
-            print(f"{key} is not in NeuronBridge")
-        else:
-            print(f"{key} is missing {missing[key]}/{release_size[key]} samples")
+        nb[row] = True
+    LOGGER.info("Found %d sample%s in NeuronBridge", len(nb), "" if len(nb) == 1 else "s")
+    analyze_results(published, release_size, nb)
 
 
 if __name__ == '__main__':
@@ -113,5 +145,5 @@ if __name__ == '__main__':
     ARG = PARSER.parse_args()
     LOGGER = JRC.setup_logging(ARG)
     initialize_program()
-    perform_checks2()
+    perform_checks()
     terminate_program()
