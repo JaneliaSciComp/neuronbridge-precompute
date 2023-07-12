@@ -180,7 +180,7 @@ def produce_stack_file(missing_rel):
           None
     '''
     LOGGER.info("Producing list of stacks")
-    with open("missing_samples_h5js.txt", "w", encoding="ascii") as outstream:
+    with open("missing_segmentations.txt", "w", encoding="ascii") as outstream:
         for rel, smplist in missing_rel.items():
             try:
                 DB[ARG.DATABASE]["cursor"].execute(READ['RSECDATA'], [rel])
