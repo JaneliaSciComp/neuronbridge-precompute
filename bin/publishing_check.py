@@ -1,12 +1,15 @@
 ''' This program will check sample IDs from a publishing database against sample IDs
     from the publishedURL table (MongoDB neuronbridge). Any samples in the publishing
-    database but not neuronbridge will be reported.
+    database but not neuronbridge will be reported, and files of these samples and
+    images requiring segmentations will be produced.
 '''
-__version__ = '1.0.0'
+__version__ = '1.1.0'
 
 import argparse
 from operator import attrgetter
+import re
 import sys
+import boto3
 import inquirer
 import MySQLdb
 import jrc_common.jrc_common as JRC
@@ -19,7 +22,13 @@ READ = {"RELEASE": "SELECT DISTINCT line,slide_code,workstation_sample_id,alps_r
         "SAMPLE": "SELECT DISTINCT line,slide_code,workstation_sample_id,alps_release "
                   + "FROM image_data_mv WHERE workstation_sample_id=%s",
         "ALL_SAMPLES": "SELECT DISTINCT workstation_sample_id,alps_release FROM image_data_mv",
+        "RSECDATA": "SELECT image_id,product,url,original_line,slide_code,objective,gender,area,"
+                    + "alignment_space_unisex,workstation_sample_id FROM secondary_image_vw s "
+                    + "JOIN image_data_mv i ON (s.image_id=i.id) WHERE alps_release=%s"
        }
+# General
+REQUIRED = ["original_line", "slide_code", "objective", "area", "alignment_space_unisex",
+            "workstation_sample_id", "url"]
 
 def terminate_program(msg=None):
     ''' Terminate the program gracefully
@@ -33,6 +42,45 @@ def terminate_program(msg=None):
     sys.exit(-1 if msg else 0)
 
 
+def get_parms():
+    """ Set ARG.LIBRARY and ARG.VERSION parms
+        Keyword arguments:
+          None
+        Returns:
+          None
+    """
+    COLL['neuronMetadata'] = DB['neuronbridge'].neuronMetadata
+    if ARG.LIBRARY:
+        ARG.LIBRARY = ARG.LIBRARY.split(",")
+    else:
+        defaults = ["flylight_split_gal4_published"]
+        if ARG.DATABASE == "gen1mcfo":
+            defaults = ["flylight_annotator_gen1_mcfo_published", "flylight_gen1_mcfo_published"]
+        results = COLL['neuronMetadata'].distinct("libraryName")
+        libraries = []
+        for row in results:
+            if "flyem" not in row:
+                libraries.append(row)
+        libraries.sort()
+        quest = [inquirer.Checkbox('checklist',
+                 message='Select libraries to process',
+                 choices=libraries, default=defaults)]
+        ARG.LIBRARY = inquirer.prompt(quest)['checklist']
+    if not ARG.VERSION:
+        versions = {}
+        payload = {"libraryName": {"$in": ARG.LIBRARY}}
+        results = COLL['neuronMetadata'].distinct("tags", payload)
+        last = ''
+        for row in results:
+            if re.match(r"^\d+\.", row):
+                versions[row] = True
+                last = row
+        quest = [inquirer.List('version',
+                 message='Select NeuronBridge version',
+                 choices=versions.keys(), default=last)]
+        ARG.VERSION = inquirer.prompt(quest)['version']
+
+
 def initialize_program():
     ''' Intialize the program
         Keyword arguments:
@@ -40,9 +88,10 @@ def initialize_program():
         Returns:
           None
     '''
+    # pylint: disable=broad-exception-caught
     try:
         dbconfig = JRC.get_config("databases")
-    except Exception as err: # pylint: disable=broad-exception-caught
+    except Exception as err:
         terminate_program(err)
     # Database
     for source in (ARG.DATABASE, "neuronbridge"):
@@ -59,22 +108,12 @@ def initialize_program():
             terminate_program(err)
     COLL['publishedURL'] = DB['neuronbridge'].publishedURL
     # Parms
-    if ARG.LIBRARY:
-        ARG.LIBRARY = ARG.LIBRARY.split(",")
-    else:
-        defaults = ["flylight_split_gal4_published"]
-        if ARG.DATABASE == "gen1mcfo":
-            defaults = ["flylight_annotator_gen1_mcfo_published", "flylight_gen1_mcfo_published"]
-        results = DB['neuronbridge'].neuronMetadata.distinct("libraryName")
-        libraries = []
-        for row in results:
-            if "flyem" not in row:
-                libraries.append(row)
-        libraries.sort()
-        quest = [inquirer.Checkbox('checklist',
-                 message='Select libraries to process',
-                 choices=libraries, default=defaults)]
-        ARG.LIBRARY = inquirer.prompt(quest)['checklist']
+    get_parms()
+    # DynamoDB
+    try:
+        DB['dynamo'] = boto3.client('dynamodb', region_name='us-east-1')
+    except Exception as err:
+        terminate_program(err)
 
 
 def missing_from_nb(missing_rel, published, nbd):
@@ -83,7 +122,7 @@ def missing_from_nb(missing_rel, published, nbd):
           published: dict of published sample IDs (value=release)
           nbd: dict of samples in NeuronBridge
         Returns:
-          dict or releases (value=list of sample IDs)
+          dict of releases (value=list of sample IDs)
     '''
     for row in published:
         if "Sample#" + row not in nbd:
@@ -91,6 +130,83 @@ def missing_from_nb(missing_rel, published, nbd):
                 missing_rel[published[row]] = [row]
             else:
                 missing_rel[published[row]].append(row)
+
+
+def check_dynamodb(lines):
+    ''' Check DynamoDB for lines
+        Keyword arguments:
+          lines: dict of lines for missing samples
+        Returns:
+          None
+    '''
+    table = "janelia-neuronbridge-published-v" + ARG.VERSION
+    LOGGER.info("Checking for lines in DynamoDB %s", table)
+    missing_line = False
+    for line in lines:
+        response = DB['dynamo'].get_item(TableName=table,
+                                         Key={'itemType': {'S': 'searchString'},
+                                              'searchKey': {'S': line.lower()}})
+        if response['ResponseMetadata']['HTTPStatusCode'] == 200 and "Item" in response:
+            lines[line] = True
+        else:
+            missing_line = True
+    if missing_line:
+        print("The following lines are missing from DynamoDB:")
+        for key,value in sorted(lines.items()):
+            if not value:
+                print(key)
+
+
+def get_short_objective(obj):
+    """ Return a short objective name
+        Keyword arguments:
+          obj: full objectine name
+        Returns:
+          short objective name
+    """
+    obj = obj.lower()
+    short_obj = 'unknown'
+    for tobj in ('20x', '40x', '63x'):
+        if tobj in obj:
+            short_obj = tobj
+    return short_obj
+
+
+def produce_stack_file(missing_rel):
+    ''' Produce file of H5Js to process
+        Keyword arguments:
+          missing_rel: dict of releases (value=list of sample IDs)
+        Returns:
+          None
+    '''
+    LOGGER.info("Producing list of stacks")
+    with open("missing_samples_h5js.txt", "w", encoding="ascii") as outstream:
+        for rel, smplist in missing_rel.items():
+            try:
+                DB[ARG.DATABASE]["cursor"].execute(READ['RSECDATA'], [rel])
+                sds = DB[ARG.DATABASE]["cursor"].fetchall()
+            except MySQLdb.Error as err:
+                terminate_program(JRC.sql_error(err))
+            for row in sds:
+                if row['workstation_sample_id'] not in smplist:
+                    continue
+                if row['product'] != 'aligned_jrc2018_unisex_hr_stack':
+                    continue
+                ignore = False
+                for req in REQUIRED:
+                    if not row[req]:
+                        LOGGER.error("%s is not defined for image ID %s", req, row['image_id'])
+                        ignore = True
+                        continue
+                if ignore:
+                    continue
+                obj = get_short_objective(row['objective'])
+                if not row['gender']:
+                    row['gender'] = "x"
+                prefix = "-".join([row['original_line'], row['slide_code'], row['gender'], obj,
+                                   row['area'], row['alignment_space_unisex'],
+                                   row['workstation_sample_id']])
+                outstream.write(f"{row['url']}\t{prefix}\n")
 
 
 def analyze_results(published, release_size, nbd):
@@ -104,6 +220,7 @@ def analyze_results(published, release_size, nbd):
     '''
     missing_rel = {}
     missing_from_nb(missing_rel, published, nbd)
+    lines = {}
     with open("missing_samples.txt", "w", encoding="ascii") as outstream:
         for rel in sorted(missing_rel):
             if len(missing_rel[rel]) == release_size[rel]:
@@ -117,10 +234,12 @@ def analyze_results(published, release_size, nbd):
                 except MySQLdb.Error as err:
                     terminate_program(JRC.sql_error(err))
                 for row in rows:
+                    lines[row['line']] = False
                     outstream.write(f"{row['line']}\t{row['slide_code']}\t"
                                     + f"{row['workstation_sample_id']}\t{row['alps_release']}\n")
             else:
                 print(f"{rel} is missing {len(missing_rel[rel])}/{release_size[rel]} samples")
+        LOGGER.info("Preparing output file")
         for rel, smplist in missing_rel.items():
             for smp in smplist:
                 try:
@@ -129,8 +248,11 @@ def analyze_results(published, release_size, nbd):
                 except MySQLdb.Error as err:
                     terminate_program(JRC.sql_error(err))
                 for row in rows:
+                    lines[row['line']] = False
                     outstream.write(f"{row['line']}\t{row['slide_code']}\t"
                                     + f"{row['workstation_sample_id']}\t{row['alps_release']}\n")
+    produce_stack_file(missing_rel)
+    check_dynamodb(lines)
 
 
 def perform_checks():
@@ -173,6 +295,8 @@ if __name__ == '__main__':
     PARSER.add_argument('--database', dest='DATABASE', action='store',
                         default='mbew', choices=['mbew', 'gen1mcfo', 'raw'],
                         help='Publishing database')
+    PARSER.add_argument('--version', dest='VERSION', action='store',
+                        help='NeuronBridge version')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         default='prod', choices=['dev', 'prod'], help='MongoDB manifold')
     PARSER.add_argument('--excludenew', dest='EXCLUDENEW', action='store_true',
