@@ -42,10 +42,12 @@ function run_export_job() {
             ;;
         EM_MIPS)
             LIBNAMES=${EM_LIBS[@]}
+            EXCLUDED_MASK_TAGS_ARG="--excluded-neuron-tags validationError"
             SUBDIR=mips/embodies
             ;;
         LM_MIPS)
             LIBNAMES=${LM_LIBS[@]}
+            EXCLUDED_MASK_TAGS_ARG="--excluded-neuron-tags validationError"
             SUBDIR=mips/lmlines
             ;;
         *)
