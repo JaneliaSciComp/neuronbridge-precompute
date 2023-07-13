@@ -59,8 +59,7 @@ def get_parms():
         results = COLL['neuronMetadata'].distinct("libraryName")
         libraries = []
         for row in results:
-            if "flyem" not in row:
-                libraries.append(row)
+            libraries.append(row)
         libraries.sort()
         quest = [inquirer.Checkbox('checklist',
                  message='Select libraries to process',
@@ -94,8 +93,8 @@ def initialize_program():
     except Exception as err:
         terminate_program(err)
     # Database
-    for source in (ARG.DATABASE, "neuronbridge"):
-        manifold = "prod" if source == ARG.DATABASE else ARG.MANIFOLD
+    for source in (ARG.DATABASE, "neuronbridge", "jacs"):
+        manifold = "staging" if source == ARG.DATABASE else ARG.MANIFOLD
         dbo = attrgetter(f"{source}.{manifold}.read")(dbconfig)
         LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, ARG.MANIFOLD, dbo.host, dbo.user)
         try:
@@ -151,10 +150,10 @@ def check_dynamodb(lines):
         else:
             missing_line = True
     if missing_line:
-        print("The following lines are missing from DynamoDB:")
-        for key,value in sorted(lines.items()):
-            if not value:
-                print(key)
+        with open("missing_from_dynamodb.txt", "w", encoding="ascii") as outstream:
+            for key,value in sorted(lines.items()):
+                if not value:
+                    outstream.write(f"{key}\n")
 
 
 def get_short_objective(obj):
@@ -255,19 +254,25 @@ def analyze_results(published, release_size, nbd):
     check_dynamodb(lines)
 
 
-def perform_checks():
-    ''' Prepare comparison dicts and perform checks
+def perform_flylight_checks():
+    ''' Prepare comparison dicts and perform checks for FlyLight
         Keyword arguments:
           None
         Returns:
           None
     '''
+    libs = []
+    for lib in ARG.LIBRARY:
+        if "flylight" in lib:
+            libs.append(lib)
+    if not libs:
+        return
     try:
         DB[ARG.DATABASE]['cursor'].execute(READ['ALL_SAMPLES'])
         rows = DB[ARG.DATABASE]['cursor'].fetchall()
     except MySQLdb.Error as err:
         terminate_program(JRC.sql_error(err))
-    LOGGER.info("Found %d sample%s on %s", len(rows), "" if len(rows) == 1 else "s", ARG.DATABASE)
+    LOGGER.info("Found %d sample%s in %s", len(rows), "" if len(rows) == 1 else "s", ARG.DATABASE)
     published = {}
     release_size = {}
     for row in rows:
@@ -277,7 +282,7 @@ def perform_checks():
         else:
             release_size[row['alps_release']] += 1
     # NeuronBridge
-    payload = {"libraryName": {"$in": ARG.LIBRARY}}
+    payload = {"libraryName": {"$in": libs}}
     rows = COLL['publishedURL'].distinct("sampleRef", payload)
     nbd = {}
     for row in rows:
@@ -285,6 +290,53 @@ def perform_checks():
     LOGGER.info("Found %d sample%s in NeuronBridge", len(nbd), "" if len(nbd) == 1 else "s")
     # Report
     analyze_results(published, release_size, nbd)
+
+
+def perform_flyem_checks():
+    ''' Prepare comparison dicts and perform checks for FlyLight
+        Keyword arguments:
+          None
+        Returns:
+          None
+    '''
+    libs = []
+    bodylibs = []
+    for lib in ARG.LIBRARY:
+        if "flyem" in lib:
+            libs.append(lib)
+            lib = lib.replace("flyem_", "")
+            lib = lib.replace("_", ":v", 1)
+            bodylibs.append(lib.replace("_", "."))
+    if not libs:
+        return
+    # JACS
+    COLL['emBody'] = DB['jacs'].emBody
+    payload = {"dataSetIdentifier": {"$in": bodylibs}, "status": {"$in": ["Traced", "RT Orphan"]}}
+    rows = COLL['emBody'].distinct("name", payload)
+    jacs = {}
+    for row in rows:
+        jacs[row] = True
+    LOGGER.info("Found %d body ID%s in JACS (%s)", len(jacs), "" if len(jacs) == 1 else "s",
+                ", ".join(bodylibs))
+    # NeuronBridge
+    payload = {"libraryName": {"$in": libs}}
+    rows = COLL['publishedURL'].distinct("publishedName", payload)
+    nbd = {}
+    for row in rows:
+        nbd[row.split(":")[-1]] = True
+    LOGGER.info("Found %d body ID%s in NeuronBridge (%s)", len(nbd), "" if len(nbd) == 1 else "s",
+                ", ".join(libs))
+    # Compare
+    bad = good = 0
+    with open("missing_bodyids.txt", "w", encoding="ascii") as outstream:
+        for row in sorted(jacs):
+            if row not in nbd:
+                bad += 1
+                outstream.write(f"{row}\n")
+            else:
+                good += 1
+    print(f"{good}/{len(jacs)} ({good/len(jacs)*100:.2f}%) are in NeuronBridge")
+    print(f"{bad}/{len(jacs)} ({bad/len(jacs)*100:.2f}%) are not in NeuronBridge")
 
 
 if __name__ == '__main__':
@@ -308,5 +360,6 @@ if __name__ == '__main__':
     ARG = PARSER.parse_args()
     LOGGER = JRC.setup_logging(ARG)
     initialize_program()
-    perform_checks()
+    perform_flyem_checks()
+    perform_flylight_checks()
     terminate_program()
