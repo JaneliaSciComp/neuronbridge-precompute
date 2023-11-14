@@ -50,7 +50,7 @@ def process_template_cdm(bucket, template):
                 if part.isnumeric():
                     arr.append(int(part))
             arr = sorted(arr)
-            last = arr[-1]
+            last = arr[-1] if arr else ""
             prefix = "/".join([template, library,"searchable_neurons", "KEYS", "0"])
             objs = get_objects(bucket, prefix)
             version = objs[-1].split(".")[-1].replace("_", ".") if objs[-1] and ".v" in objs[-1] \
