@@ -133,6 +133,8 @@ def perform_checks():
         terminate_program(f"There are no processed tags for version {ARG.VERSION} in {ARG.LIBRARY}")
     print(f"Images in {ARG.LIBRARY} {ARG.VERSION}: {count}")
     sql = "SELECT DISTINCT slide_code,alps_release FROM image_data_mv WHERE alps_release IS NULL or alps_release IN (%s)"
+    if ARG.RAW:
+        non_public.append('Split-GAL4 Omnibus Broad')
     sql = sql % ('"' + '","'.join(non_public) + '"',)
     LOGGER.info("Finding non-public images in SAGE")
     DB['sage']['cursor'].execute(sql)
@@ -164,6 +166,8 @@ if __name__ == '__main__':
                         default='', help='MongoDB neuronMetadata tag')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         default='prod', choices=['dev', 'prod'], help='S3 manifold')
+    PARSER.add_argument('--raw', dest='RAW', action='store_true',
+                        default=False, help='Do not consider RAW as public')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',
                         default=False,
                         help='Flag, Actually write to neuronMetadata')
