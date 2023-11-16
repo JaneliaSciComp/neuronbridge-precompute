@@ -1,6 +1,6 @@
 ''' This program will update the janelia-neuronbridge-publishing-doi table on
     DynamoDB. Data is pulled from the Split-GAL4 and Gen1MCFO prod databases
-    and NeuronBeidge MongoDB. For EM data, Body IDs (in the form
+    and NeuronBridge MongoDB. For EM data, Body IDs (in the form
     dataset:version:bodyid) are written. For LM data, publishing names are
     written.
     Note that Gen1 GAL4/LexAs are not yet supported (these are not yet in NeuronBridge).
@@ -91,6 +91,8 @@ def call_responder(server, endpoint, authenticate=False):
         terminate_program(err)
     if req.status_code == 200:
         return req.json()
+    if req.status_code == 404:
+        return None
     terminate_program(f"Status: {str(req.status_code)}")
 
 
@@ -154,8 +156,6 @@ def initialize_program():
         Returns:
           None
     """
-    for key, val in call_responder('config', 'config/dois')['config'].items():
-        DOI[key] = val
     for key, val in call_responder('config', 'config/em_dois')['config'].items():
         EMDOI[key] = val
     dbconfig = create_config_object("db_config")
@@ -190,6 +190,57 @@ def initialize_program():
     DATABASE["DOI"] = dynamodb.Table(table)
 
 
+def from_crossref(rec):
+    ''' Generate and print a Crossref citation
+        Keyword arguments:
+          rec: record from Crossref
+        Returns:
+          Citation
+    '''
+    message = rec['message']
+    if 'author' not in message:
+        LOGGER.critical("No author found")
+        terminate_program(json.dumps(message, indent=4))
+    author = message['author']
+    first = []
+    for auth in author:
+        if auth["sequence"] == "first":
+            first.append(auth["family"])
+    if len(first) == 2:
+        authors = f"{first[0]} & {first[1]}"
+    else:
+        authors = ", ".join(first)
+    pub = message["created"]["date-parts"][0][0]
+    return f"{authors}, et al., {pub}"
+
+
+def from_datacite(doi):
+    ''' Generate and print a DataCite citation
+        Keyword arguments:
+          doi: DOI
+        Returns:
+          Citation
+    '''
+    rec = call_responder('datacite', doi)
+    message = rec['data']['attributes']
+    if not rec:
+        terminate_program(f"{doi} is not on Crossref or DataCite")
+    if 'creators' not in message:
+        LOGGER.critical("No author found")
+        terminate_program(json.dumps(message, indent=4))
+    author = message['creators']
+    first = []
+    for auth in author:
+        if not first:
+            first.append(auth["familyName"])
+    if len(first) == 2:
+        authors = f"{first[0]} & {first[1]}"
+    else:
+        authors = ", ".join(first)
+    year = str(message['publicationYear'])
+    return f"{authors}, et al., {year}"
+
+
 def get_citation(doi):
     """ Return the citation for a DOI.
         The citation will be the first author(s)
@@ -200,18 +251,12 @@ def get_citation(doi):
           Citation
     """
     if doi not in CITATION:
-        first = []
-        if doi not in DOI:
-            terminate_program(f"{doi} is not a known DOI")
-        for auth in DOI[doi]["author"]:
-            if auth["sequence"] == "first":
-                first.append(auth["family"])
-        if len(first) == 2:
-            authors = f"{first[0]} & {first[1]}"
+        rec = call_responder('crossref', doi)
+        if rec:
+            CITATION[doi] = from_crossref(rec)
         else:
-            authors = ", ".join(first)
-        pub = DOI[doi]["created"]["date-parts"][0][0]
-        CITATION[doi] = f"{authors}, et al., {pub}"
+            CITATION[doi] = from_datacite(doi)
+        print(f"{doi}: {CITATION[doi]}")
     return CITATION[doi]
 
 
@@ -225,7 +270,8 @@ def write_dynamodb():
     LOGGER.info("Batch writing %s items to DynamoDB", len(ITEMS))
     with DATABASE["DOI"].batch_writer() as writer:
         for item in tqdm(ITEMS, desc="DynamoDB"):
-            writer.put_item(Item=item)
+            if ARG.WRITE:
+                writer.put_item(Item=item)
             COUNT["dynamodb"] += 1
 
 
@@ -414,7 +460,7 @@ def perform_mapping():
         process_em()
     if ARG.SOURCE != "em":
         process_lm()
-    if ARG.WRITE and ITEMS:
+    if ITEMS:
         write_dynamodb()
     print(f"Publishing names/body IDs read:   {COUNT['read']}")
     print(f"Unique publishing names/body IDs: {len(MAPPING)}")
