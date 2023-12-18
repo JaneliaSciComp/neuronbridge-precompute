@@ -22,18 +22,25 @@ function run_ga_job {
     else
         MASK_NEURONS_FILTER_ARG=""
     fi
-    if [[ -n ${MASK_TAGS} ]]; then
-        MASK_TAGS_ARG="--mask-tags ${MASK_TAGS}"
+    if [[ -n ${MASKS_TAGS} ]]; then
+        MASKS_TAGS_ARG="--mask-tags ${MASKS_TAGS}"
     else
-        MASK_TAGS_ARG=""
+        MASKS_TAGS_ARG=""
     fi
     if [[ -n ${TARGET_NEURONS_FILTER} ]]; then
         TARGET_NEURONS_FILTER_ARG="--targets-published-names ${TARGET_NEURONS_FILTER}"
     else
         TARGET_NEURONS_FILTER_ARG=""
     fi
+    if [[ -n ${TARGETS_TAGS} ]]; then
+        TARGETS_TAGS_ARG="--target-tags ${TARGETS_TAGS}"
+    else
+        TARGETS_TAGS_ARG=""
+    fi
     if [[ -n ${MATCHES_TAGS} ]]; then
         MATCHES_TAGS_ARG="--match-tags ${MATCHES_TAGS}"
+    elif [[ -n ${CDS_TAG} ]]; then
+        MATCHES_TAGS_ARG="--match-tags ${CDS_TAG}"
     else
         MATCHES_TAGS_ARG=""
     fi
@@ -79,9 +86,10 @@ function run_ga_job {
         ${AS_ARG} \
         ${MASKS_ARG} \
         ${MASK_NEURONS_FILTER_ARG} \
-        ${MASK_TAGS_ARG} \
+        ${MASKS_TAGS_ARG} \
         ${TARGETS_ARG} \
         ${TARGET_NEURONS_FILTER_ARG} \
+        ${TARGETS_TAGS_ARG} \
         ${MATCHES_TAGS_ARG} \
         --nBestLines ${TOP_RESULTS} \
         --nBestSamplesPerLine ${SAMPLES_PER_LINE} \

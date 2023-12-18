@@ -19,7 +19,12 @@ export TARGETS_TAGS=${TARGETS_TAGS:=""}
 export UPDATE_RESULTS=${UPDATE_RESULTS:="false"}
 
 # Color depth search params
-export CDS_TAG=${CDS_TAG:="3.1.0"}
+if [[ -z ${CDS_TAG} ]] ; then
+    echo "CDS_TAG must be set in your .env file"
+    exit 1
+fi
+
+export CDS_TAG=${CDS_TAG}
 export PROCESSING_PARTITION_SIZE=${PROCESSING_PARTITION_SIZE:=1000}
 export MASK_THRESHOLD=${MASK_THRESHOLD:=20}
 export DATA_THRESHOLD=${MASK_THRESHOLD:=20}

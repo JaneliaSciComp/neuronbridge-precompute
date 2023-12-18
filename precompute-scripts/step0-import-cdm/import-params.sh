@@ -8,12 +8,20 @@ export JACS_URL=${JACS_URL:="http://<host>/api/rest-v2"}
 export JACS_AUTH_TYPE=${JACS_AUTH_TYPE:="APIKEY"}
 export JACS_AUTH_TOKEN=${JACS_AUTH_TOKEN:="tokenvalue"}
 
-export IMPORT_TAG=${IMPORT_TAG:=}
+if [[ -z ${IMPORT_TAG} ]] ; then
+    echo "IMPORT_TAG must be set in your .env file"
+    exit 1
+fi
+
+export IMPORT_TAG=${IMPORT_TAG}
 
 export SEARCHABLE_SUBFOLDER=${SEARCHABLE_SUBFOLDER:=segmentation}
+export GRAD_SUBFOLDER=${GRAD_SUBFOLDER:=grad}
+export ZGAP_SUBFOLDER=${ZGAP_SUBFOLDER:=zgap}
+
 export SEARCHABLE_MIPS=${SEARCHABLE_MIPS:=${LIBNAME}:searchable_neurons:${LIBDIR}/${SEARCHABLE_SUBFOLDER}}
-export GRAD_MIPS=${GRAD_MIPS:=${LIBNAME}:gradient:${LIBDIR}/grad}
-export ZGAP_MIPS=${ZGAP_MIPS:=${LIBNAME}:zgap:${LIBDIR}/zgap}
+export GRAD_MIPS=${GRAD_MIPS:=${LIBNAME}:gradient:${LIBDIR}/${GRAD_SUBFOLDER}}
+export ZGAP_MIPS=${ZGAP_MIPS:=${LIBNAME}:zgap:${LIBDIR}/${ZGAP_SUBFOLDER}}
 
 export EXCLUDED_LIBS=${EXCLUDED_LIBS:=flylight_splitgal4_drivers}
 export PUBLISHED_NAMES_FILTER=${PUBLISHED_NAMES_FILTER:=}
