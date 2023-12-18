@@ -2,11 +2,12 @@
     sample issues, optionally retagging documents. Documents will be tagged
     with the word "unreleased" as well as the ALPS release.
 '''
-__version__ = '0.0.2'
+__version__ = '0.0.3'
 
 import argparse
 from operator import attrgetter
 import sys
+from time import strftime
 import MySQLdb
 from tqdm import tqdm
 import jrc_common.jrc_common as JRC
@@ -18,6 +19,7 @@ COLL = {}
 # Counters
 COUNT = {"images": 0, "found": 0, "updated": 0, "unreleased": 0}
 RELEASE = {}
+SLIDES = []
 
 def terminate_program(msg=None):
     ''' Terminate the program gracefully
@@ -106,12 +108,35 @@ def check_image(row, non_public):
     if row['slideCode'] in non_public:
         release = non_public[row['slideCode']]
         if release:
-            LOGGER.warning("Sample %s (%s) is in non-public release %s", row['_id'], row['slideCode'], release)
+            LOGGER.warning("Sample %s (%s) is in non-public release %s", row['_id'],
+                           row['slideCode'], release)
         else:
             LOGGER.warning("Sample %s (%s) is not prestaged", row['_id'], row['slideCode'])
+            SLIDES.append(row['slideCode'])
         tag_release(row, release)
     elif not row['publishedName']:
         LOGGER.error("No publishing name for %s", row['_id'])
+
+
+def process_slide_codes():
+    ''' Generate a report of slide codes with unreleased images
+        Keyword arguments:
+          None
+        Returns:
+          None
+    '''
+    fname = strftime("%Y%m%dT%H%M%S") + "_precheck.tsv"
+    print(f"Some slide codes have images that may need to be retagged.\nCheck {fname}")
+    sql = "SELECT id,slide_code,workstation_sample_id,data_set,name,alps_release " \
+          + "FROM image_data_mv WHERE slide_code=%s ORDER BY 2,3,4,5"
+    with open(fname, "w", encoding="ascii") as outf:
+        outf.write("ID\tSlide code\tSample\tData set\tALPS release\tImage name\n")
+        for scode in SLIDES:
+            DB['sage']['cursor'].execute(sql, (scode,))
+            rows =  DB['sage']['cursor'].fetchall()
+            for row in rows:
+                outf.write(f"{row['id']}\t{row['slide_code']}\t{row['workstation_sample_id']}\t" \
+                           + f"{row['data_set']}\t{row['alps_release']}\t{row['name']}\n")
 
 
 def perform_checks():
@@ -132,7 +157,10 @@ def perform_checks():
     if not count:
         terminate_program(f"There are no processed tags for version {ARG.VERSION} in {ARG.LIBRARY}")
     print(f"Images in {ARG.LIBRARY} {ARG.VERSION}: {count}")
-    sql = "SELECT DISTINCT slide_code,alps_release FROM image_data_mv WHERE alps_release IS NULL or alps_release IN (%s)"
+    sql = "SELECT DISTINCT slide_code,alps_release FROM image_data_mv WHERE display=1 AND " \
+          + "alps_release IS NULL OR alps_release IN (%s)"
+    if ARG.RAW:
+        non_public.append('Split-GAL4 Omnibus Broad')
     sql = sql % ('"' + '","'.join(non_public) + '"',)
     LOGGER.info("Finding non-public images in SAGE")
     DB['sage']['cursor'].execute(sql)
@@ -149,8 +177,10 @@ def perform_checks():
     if COUNT['found']:
         print(f"Images retagged: {COUNT['updated']}")
         print(f"Unreleased:      {COUNT['unreleased']}")
-        for rel in RELEASE:
-            print(f"{rel}: {RELEASE[rel]}")
+        for key, val in RELEASE.items():
+            print(f"{key}: {val}")
+    if SLIDES:
+        process_slide_codes()
 
 
 if __name__ == '__main__':
@@ -164,6 +194,8 @@ if __name__ == '__main__':
                         default='', help='MongoDB neuronMetadata tag')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         default='prod', choices=['dev', 'prod'], help='S3 manifold')
+    PARSER.add_argument('--raw', dest='RAW', action='store_true',
+                        default=False, help='Do not consider RAW as public')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',
                         default=False,
                         help='Flag, Actually write to neuronMetadata')
