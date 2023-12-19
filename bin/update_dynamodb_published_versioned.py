@@ -185,10 +185,10 @@ def build_bodyid_list(bodyids):
 def batch_row(name, keytype, matches, bodyids=None):
     ''' Create and save a payload for a single row
         Keyword arguments:
-          name: publishedName
-          keytype: key type for DynamoDB
+          name: publishedName, bodyID, neuronInstance, or neuronType
+          keytype: key type for DynamoDB (publishedName, bodyID, neuronInstance, or neuronType)
           matches: CDM/PPP match dict
-          bodyids: list of body IDs [optional]
+          bodyids: list of body IDs [optional, used for neuronInstance, or neuronType only]
         Returns:
           None
     '''
@@ -266,7 +266,7 @@ def add_neuron(neuron, ntype):
 
 
 def match_count(matches):
-    ''' Display ststs on found matches
+    ''' Display stats on found matches
         Keyword arguments:
           matches: match dict
         Returns:
@@ -374,6 +374,9 @@ def process_results(count, results):
             for ntype in NEURON_DATA:
                 if ntype in row and row[ntype]:
                     neurons[ntype][row[ntype]] = True
+    # matches: key=publishing name, value={cdm: boolean, ppp: boolean}
+    # rlist: list of rows from neuronMetadata (distinct publishing names)
+    # neurons: key=data type, value={neuron type: boolean}
     if len(rlist) != len(matches):
         terminate_program(f"Unique primary list ({len(rlist)}) != match list({len(matches)})")
     print("Libraries:")
