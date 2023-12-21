@@ -1,4 +1,5 @@
-''' This program update emBody and emDataSet in MongoDB from the classification.csv
+''' load_codex_to_mongo.py
+    This program update emBody and emDataSet in MongoDB from the classification.csv
     data from Codex (https://codex.flywire.ai/api/download)
 '''
 __version__ = '0.0.1'
@@ -198,6 +199,7 @@ def process_codex():
             entries.append([row[0], row[6]])
     process_entries(entries, dsid)
 
+# -----------------------------------------------------------------------------
 
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
