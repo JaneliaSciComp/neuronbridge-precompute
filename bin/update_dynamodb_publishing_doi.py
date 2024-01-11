@@ -22,7 +22,7 @@ from tqdm import tqdm
 
 # pylint: disable=R1710, W0703
 # Configuration
-GEN1_MCFO_DOI = "10.1101/2020.05.29.080473"
+GEN1_MCFO_DOI = "10.7554/eLife.80660"
 CITATION = {}
 DOI = {}
 EMDOI = {}
