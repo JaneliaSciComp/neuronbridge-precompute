@@ -85,8 +85,6 @@ def initialize_program():
             DB[source] = JRC.connect_database(dbo)
         except Exception as err: # pylint: disable=broad-exception-caught
             terminate_program(err)
-    if not ARG.TABLE:
-        get_table()
     for dbn in ("MongoDB", "DynamoDB"):
         ACTION[dbn] = False
     quest = [inquirer.Checkbox("actions",
@@ -97,7 +95,8 @@ def initialize_program():
     for dbn in ("MongoDB", "DynamoDB"):
         if dbn in ans['actions']:
             ACTION[dbn] = True
-
+    if ACTION['DynamoDB'] and not ARG.TABLE:
+        get_table()
 
 def generate_uid(deployment_context=2):
     """ Generate a JACS-style UID
@@ -318,10 +317,10 @@ def process_entries(entries, dsid):
     if ACTION['MongoDB'] and ARG.WRITE:
         print(f"Writing {len(docs):,} records to emBody")
         coll.insert_many(docs)
-    print(f"Found {len(codex_id):,} Codex IDs")
-    print(f"Found {len(CODEX_TYPE):,} Codex hemibrain types")
-    write_dynamodb(codex_id)
-    print(COUNT)
+    if ACTION['DynamoDB']:
+        print(f"Found {len(codex_id):,} Codex IDs")
+        print(f"Found {len(CODEX_TYPE):,} Codex hemibrain types")
+        write_dynamodb(codex_id)
 
 
 def process_codex():
