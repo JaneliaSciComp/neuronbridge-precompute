@@ -84,10 +84,11 @@ def call_responder(server, endpoint, authenticate=False):
         if authenticate:
             headers = {"Content-Type": "application/json",
                        "Authorization": "Bearer " + os.environ["NEUPRINT_JWT"]}
-            req = requests.get(url, headers=headers, timeout=10)
+            req = requests.get(url, headers=headers, timeout=15)
         else:
             req = requests.get(url, timeout=10)
     except requests.exceptions.RequestException as err:
+        LOGGER.error(url)
         terminate_program(err)
     if req.status_code == 200:
         return req.json()
@@ -222,9 +223,9 @@ def from_datacite(doi):
           Citation
     '''
     rec = call_responder('datacite', doi)
-    message = rec['data']['attributes']
     if not rec:
         terminate_program(f"{doi} is not on Crossref or DataCite")
+    message = rec['data']['attributes']
     if 'creators' not in message:
         LOGGER.critical("No author found")
         terminate_program(json.dumps(message, indent=4))
@@ -251,6 +252,9 @@ def get_citation(doi):
           Citation
     """
     if doi not in CITATION:
+        if 'in prep' in doi or 'janelia' in doi:
+            CITATION[doi] = doi
+            return doi
         rec = call_responder('crossref', doi)
         if rec:
             CITATION[doi] = from_crossref(rec)
@@ -411,9 +415,10 @@ def process_single_lm_image(row, database):
         MAPPING[row['line']] = doi
         citation = get_citation(doi)
         payload = {"name": row['line'],
-                   "doi": [{"link": "/".join([SERVER.doi.address, doi]),
-                            "citation": citation}]
+                   "doi": [{"citation": citation}]
                   }
+        if 'in prep' not in doi:
+            payload['doi'][0]['link'] = "/".join([SERVER.doi.address, doi])
         if database == 'gen1mcfo' and doi != GEN1_MCFO_DOI:
             payload["doi"].append({"link": "/".join([SERVER.doi.address, GEN1_MCFO_DOI]),
                                    "citation": get_citation(GEN1_MCFO_DOI)})
