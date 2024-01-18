@@ -14,9 +14,9 @@ jobs:
     - run: pip install --upgrade pip
     - run: pip install -r bin/requirements.txt
     - run: pip install pylint
-    #- run: pylint bin/backcheck_publishedurl.py
-    - run: pylint bin/check_published_image.py
-    #- run: pylint bin/process_check.py
+    - run: pylint bin/backcheck_aws.py
+    - run: pylint bin/backcheck_publishedurl.py
+    - run: pylint bin/process_check.py
     - run: pylint bin/update_dynamodb_published_skeletons.py
     - run: pylint bin/update_dynamodb_published_stacks.py
     - run: pylint bin/update_dynamodb_publishing_doi.py
