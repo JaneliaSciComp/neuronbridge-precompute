@@ -48,7 +48,6 @@ def get_table():
         Returns:
           None
     """
-    DB['dynamo'] = boto3.resource("dynamodb")
     dtables = list(DB['dynamo'].tables.all())
     tname = []
     for tbl in dtables:
@@ -95,6 +94,7 @@ def initialize_program():
     for dbn in ("MongoDB", "DynamoDB"):
         if dbn in ans['actions']:
             ACTION[dbn] = True
+    DB['dynamo'] = boto3.resource("dynamodb")
     if ACTION['DynamoDB'] and not ARG.TABLE:
         get_table()
 
@@ -226,11 +226,19 @@ def add_body_ids(htype, payload):
     """
     tbl = DB['dynamo'].Table(ARG.TABLE)
     rec = read_neuron_type(htype, tbl)
+    # Build a list of associated body IDs. Start with Codex IDs, then add EM bodies.
+    body_ids = {}
+    for cid in CODEX_TYPE[htype]:
+        body_ids[cid] = True
     if rec and rec['Items']:
         for itm in rec['Items']:
             if 'bodyIDs' in itm:
+                for bid in itm['bodyIDs']:
+                    body_ids[list(bid.keys())[0]] = True
                 COUNT['found'] += 1
-                payload['bodyIDs'] = itm['bodyIDs']
+    payload['bodyIDs'] = []
+    for bid in body_ids:
+        payload['bodyIDs'].append({bid: True})
 
 
 def write_dynamodb(codex_id):
@@ -248,9 +256,6 @@ def write_dynamodb(codex_id):
                    'filterKey': htype.lower(),
                    'keyType': 'neuronType',
                    'name': htype}
-        payload['codexIDs'] = []
-        for cid in CODEX_TYPE[htype]:
-            payload['codexIDs'].append({cid: True})
         add_body_ids(htype, payload)
         hbatch.append(payload)
     if not ARG.WRITE:
@@ -274,7 +279,7 @@ def write_dynamodb(codex_id):
             COUNT["iinsertions"] += 1
 
 
-def create_dynamo_payload(entry):
+def create_dynamo_id_payload(entry):
     """ Create the payload for a Codex ID insertion into DynamoDB
         Keyword arguments:
           entry: contains Codex root ID and neuron type
@@ -282,11 +287,11 @@ def create_dynamo_payload(entry):
           payload
     """
     # Codex ID
-    cid = f"c{entry[0]}"
+    cid = entry[0]
     payload = {'itemType': 'searchString',
                'searchKey': cid,
                'filterKey': cid,
-               'keyType': 'codexID',
+               'keyType': 'bodyID',
                'name': cid}
     # Hemibrain type
     if entry[1]:
@@ -294,7 +299,6 @@ def create_dynamo_payload(entry):
             if htype not in CODEX_TYPE:
                 CODEX_TYPE[htype] = {}
             CODEX_TYPE[htype][cid] = True
-    # cdm? ppp?
     return payload
 
 
@@ -313,7 +317,7 @@ def process_entries(entries, dsid):
     codex_id = []
     for entry in tqdm(entries, desc='Building insert list'):
         docs.append(create_body_payload(entry, dtm, dsid))
-        codex_id.append(create_dynamo_payload(entry))
+        codex_id.append(create_dynamo_id_payload(entry))
     if ACTION['MongoDB'] and ARG.WRITE:
         print(f"Writing {len(docs):,} records to emBody")
         coll.insert_many(docs)
@@ -344,10 +348,10 @@ def process_codex():
                 continue
             entries.append([row[0], row[6]])
     process_entries(entries, dsid)
-    print(f"MongoDB Codex ID updates:    {COUNT['minsertions']}")
-    print(f"DynamoDB Codex ID updates:   {COUNT['iinsertions']}")
-    print(f"DynamoDB Codex type updates: {COUNT['hinsertions']}")
-    print(f"Previously existing types:   {COUNT['found']}")
+    print(f"MongoDB Codex ID updates:    {COUNT['minsertions']:,}")
+    print(f"DynamoDB Codex ID updates:   {COUNT['iinsertions']:,}")
+    print(f"DynamoDB Codex type updates: {COUNT['hinsertions']:,}")
+    print(f"Previously existing types:   {COUNT['found']:,}")
 
 # -----------------------------------------------------------------------------
 
@@ -360,7 +364,7 @@ if __name__ == '__main__':
                         required=True, help='Codex version (snapshot)')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         default='dev', choices=['dev', 'prod'], help='MongoDB manifold')
-    PARSER.add_argument('--table', dest='TABLE', help='DynamoDB table')
+    PARSER.add_argument('--table', dest='TABLE', action='store', help='DynamoDB table')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',
                         default=False, help='Write to MongoDB')
     PARSER.add_argument('--throttle', type=int, dest='THROTTLE',
