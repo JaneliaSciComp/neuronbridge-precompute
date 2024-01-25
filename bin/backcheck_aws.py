@@ -89,6 +89,11 @@ def initialize_program():
         else:
             DB['NB'] = JRC.connect_database(dbo)
     initialize_s3()
+    if not ARG.TEMPLATE:
+        ARG.TEMPLATE = NB.get_template(S3['client'], ARG.BUCKET)
+    if not ARG.LIBRARY:
+        ARG.LIBRARY = NB.get_library_from_aws(S3['client'], ARG.BUCKET, ARG.TEMPLATE)
+
 
 def populate_releases():
     """ Populate the RELEASE dict with releases for publishing names and slide codes
@@ -282,10 +287,6 @@ def run_backcheck():
         Returns:
           None
     """
-    if not ARG.TEMPLATE:
-        ARG.TEMPLATE = NB.get_template(S3['client'], ARG.BUCKET)
-    if not ARG.LIBRARY:
-        ARG.LIBRARY = NB.get_library_from_aws(S3['client'], ARG.BUCKET, ARG.TEMPLATE)
     if library_type() != 'flyem':
         populate_releases()
     mpname, mscode = get_mongo_data()
