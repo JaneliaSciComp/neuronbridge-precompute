@@ -252,7 +252,7 @@ def check_publishedlmimage():
 
 
 def check_publishedurl():
-    """ Check for images with a template/library.slide code in the publishedURL collection
+    """ Check for images with a template/library/slide code in the publishedURL collection
         Keyword arguments:
           None
         Returns:
@@ -274,6 +274,13 @@ def check_publishedurl():
 
 
 def check_published_stacks():
+    """ Check for records in the janelia-neuronbridge-published-stacks table. These
+        are keyed by slide code/objective/template.
+        Keyword arguments:
+          None
+        Returns:
+          None
+    """
     tbl = 'published-stacks'
     for obj in OBJECTIVE:
         key = f"{ARG.SLIDE.lower()}-{obj}-{ARG.TEMPLATE.lower()}"
@@ -289,6 +296,13 @@ def check_published_stacks():
 
 
 def check_published(pname):
+    """ Check for records in the janelia-neuronbridge-published-[version] table. These
+        are keyed by publishing name.
+        Keyword arguments:
+          pname: publishing name
+        Returns:
+          None
+    """
     tbl = 'published'
     if not ARG.VERSION:
         ddbr = boto3.resource("dynamodb")
@@ -318,6 +332,13 @@ def check_published(pname):
 
 
 def check_publishing_doi(pname):
+    """ Check for records in the janelia-neuronbridge-publishing-doi table. These
+        are keyed by publishing name.
+        Keyword arguments:
+          pname: publishing name
+        Returns:
+          None
+    """
     tbl = 'publishing-doi'
     key = pname
     LOGGER.info(f"Searching {DDBASE}-{tbl} for {key}")
@@ -330,6 +351,12 @@ def check_publishing_doi(pname):
 
 
 def delete_items():
+    """ Get user input on which items to delete, then delete them
+        Keyword arguments:
+          None
+        Returns:
+          None
+    """
     if not TARGET['sage']:
         AREA[f"published-{ARG.VERSION}"] = f"DynamoDB {DDBASE}-published-{ARG.VERSION}"
     choices = []
@@ -352,7 +379,13 @@ def delete_items():
 
 
 def process_slide():
-    line, publishing = get_sage_info()
+    """ Process a single slide
+        Keyword arguments:
+          None
+        Returns:
+          None
+    """
+    _, publishing = get_sage_info()
     # AWS S3
     check_manifest()
     # MongoDB
