@@ -15,7 +15,7 @@ from tqdm import tqdm
 import jrc_common.jrc_common as JRC
 import neuronbridge_lib as NB
 
-# pylint: disable=W0703, E1101
+# pylint: disable=broad-exception-caught,logging-fstring-interpolation
 # Configuration
 NEURON_DATA = ["neuronInstance", "neuronType"]
 # Database
@@ -387,13 +387,13 @@ def process_results(count, results):
         terminate_program(f"Unique primary list ({len(rlist)}) != match list({len(matches)})")
     print("Libraries:")
     liblen = cntlen = 0
-    for lib in library:
+    for lib, val in library.items():
         if len(lib) > liblen:
             liblen = len(lib)
-        if len(str(library[lib])) > cntlen:
-            cntlen = len(str(library[lib]))
-    for lib in library:
-        print(f"  {lib+':':<{liblen+1}} {library[lib]:>{cntlen},}")
+        if len(str(val)) > cntlen:
+            cntlen = len(str(val))
+    for lib, val in library.items():
+        print(f"  {lib+':':<{liblen+1}} {val:>{cntlen},}")
     print(f"Neuron instances:   {len(neurons['neuronInstance']):,}")
     print(f"Neuron types:       {len(neurons['neuronType']):,}")
     match_count(matches)
@@ -434,7 +434,8 @@ def update_dynamo():
     coll = DATABASE["NB"]["neuronMetadata"]
     payload = {"$or": [{"processedTags.ColorDepthSearch": ARG.VERSION},
                        {"processedTags.PPPMatch": ARG.VERSION}]}
-    results = coll.aggregate([{"$match": payload}, {"$group": {"_id": "$libraryName", "count": {"$sum":1}}}])
+    results = coll.aggregate([{"$match": payload}, {"$group": {"_id": "$libraryName",
+                                                               "count": {"$sum":1}}}])
     lkeys = []
     lchoices = []
     for res in results:
@@ -474,8 +475,8 @@ def update_dynamo():
     if not payload:
         payload = {"dynamodb_version": ARG.DDBVERSION,
                    "components": {}}
-    for lib in DDB_NB:
-        payload['components'][lib] = DDB_NB[lib]
+    for lib, val in DDB_NB.items():
+        payload['components'][lib] = val
     results = coll.update_one({"dynamodb_version": ARG.DDBVERSION}, {"$set": payload}, upsert=True)
 
 
