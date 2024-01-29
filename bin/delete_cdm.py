@@ -158,8 +158,9 @@ def check_for_thumbnail(obj):
     """
     if 'gradient' in obj or 'searchable' in obj or not obj.endswith('png'):
         return
-    fname = obj.replace(".png", ".jpg1")
+    fname = obj.replace(".png", ".jpg")
     try:
+        LOGGER.warning(f"Looking for {fname}")
         S3['client'].head_object(Bucket=ARG.BUCKET + '-thumbnails', Key=fname)
         TARGET['s3-thumbnail'].append(obj)
         return
@@ -350,6 +351,26 @@ def check_publishing_doi(pname):
     LOGGER.info(f"{tbl} records found: {len(TARGET[tbl]):,}")
 
 
+def s3_cdm():
+    for key in TARGET['s3-cdm']:
+        try:
+            obj = S3['resource'].Object(ARG.BUCKET, key)
+            if ARG.WRITE:
+                obj.delete()
+        except Exception as err:
+            terminate_program(err)
+
+
+def s3_thumbnail():
+    for key in TARGET['s3-thumbnail']:
+        try:
+            obj = S3['resource'].Object( ARG.BUCKET + '-thumbnails', key)
+            if ARG.WRITE:
+                obj.delete()
+        except Exception as err:
+            terminate_program(err)
+
+
 def delete_items():
     """ Get user input on which items to delete, then delete them
         Keyword arguments:
@@ -376,6 +397,7 @@ def delete_items():
         return
     for area in answers['area']:
         print(f"Deleting from {AREA[area]}")
+        eval(area.replace('-', '_') + '()')
 
 
 def process_slide():
@@ -414,6 +436,8 @@ if __name__ == '__main__':
                         help='DynamoDB NeuronBridge version')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         default='prod', choices=MANIFOLDS, help='S3 manifold')
+    PARSER.add_argument('--write', dest='WRITE', action='store_true',
+                        default=False, help='Perform deletions')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
                         default=False, help='Flag, Chatty')
     PARSER.add_argument('--debug', dest='DEBUG', action='store_true',
