@@ -16,7 +16,6 @@ from aws_s3_lib import get_prefixes
 # AWS
 S3 = {}
 IBUCKET = 'janelia-flylight-inventory'
-IBASE = 'janelia-flylight-color-depth/BasicInventory'
 
 
 def terminate_program(msg=None):
@@ -77,7 +76,8 @@ def get_manifest():
         Returns:
           data: latest manifest as JSON
     '''
-    prefixes = get_prefixes(IBUCKET, prefix=IBASE, client=S3['client'])
+    ibase = f"{ARG.BUCKET}/BasicInventory"
+    prefixes = get_prefixes(IBUCKET, prefix=ibase, client=S3['client'])
     prefix = ''
     for pfx in prefixes:
         if not re.match(r"^\d{4}-", pfx):
@@ -86,7 +86,7 @@ def get_manifest():
             prefix = pfx
     LOGGER.info(f"Downloading manifest from {prefix}")
     try:
-        contents = get_object(IBUCKET, f"{IBASE}/{prefix}/manifest.json").decode("utf-8")
+        contents = get_object(IBUCKET, f"{ibase}/{prefix}/manifest.json").decode("utf-8")
         data = json.loads(contents)
     except Exception as err:
         terminate_program(err)
@@ -129,6 +129,8 @@ def get_csv():
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
         description="Download AWS S3 manifest")
+    PARSER.add_argument('--bucket', dest='BUCKET', action='store',
+                        default='janelia-flylight-color-depth', help='AWS S3 bucket')
     PARSER.add_argument('--manifest', dest='MANIFEST', action='store',
                         help='Manifest file')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
