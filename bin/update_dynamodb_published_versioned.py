@@ -15,7 +15,7 @@ from tqdm import tqdm
 import jrc_common.jrc_common as JRC
 import neuronbridge_lib as NB
 
-# pylint: disable=W0703, E1101
+# pylint: disable=broad-exception-caught,logging-fstring-interpolation
 # Configuration
 NEURON_DATA = ["neuronInstance", "neuronType"]
 # Database
@@ -30,6 +30,7 @@ FAILURE = {}
 KEYS = {}
 KNOWN_PPP = {}
 DDB_NB = {}
+NBODY = []
 
 
 def terminate_program(msg=None):
@@ -121,10 +122,10 @@ def initialize_program():
     DATABASE["DYN"] = dynamodb.Table(table)
     try:
         ddt = dynamodb_client.describe_table(TableName=table)
+        DYNAMO['client'] = dynamodb_client
+        DYNAMO['arn'] = ddt['Table']['TableArn']
     except dynamodb_client.exceptions.ResourceNotFoundException:
         LOGGER.warning("Table %s doesn't exist", table)
-    DYNAMO['client'] = dynamodb_client
-    DYNAMO['arn'] = ddt['Table']['TableArn']
 
 
 def get_release(slide_code):
@@ -185,10 +186,10 @@ def build_bodyid_list(bodyids):
 def batch_row(name, keytype, matches, bodyids=None):
     ''' Create and save a payload for a single row
         Keyword arguments:
-          name: publishedName
-          keytype: key type for DynamoDB
+          name: publishedName, bodyID, neuronInstance, or neuronType
+          keytype: key type for DynamoDB (publishedName, bodyID, neuronInstance, or neuronType)
           matches: CDM/PPP match dict
-          bodyids: list of body IDs [optional]
+          bodyids: list of body IDs [optional, used for neuronInstance or neuronType only]
         Returns:
           None
     '''
@@ -228,8 +229,11 @@ def primary_update(rlist, matches):
           None
     '''
     for row in tqdm(rlist, desc="Primary update"):
+        nmdcol = "publishedName"
+        if nmdcol not in row:
+            terminate_program(f"No {nmdcol} found:\n{row}")
+        name = row[nmdcol]
         keytype = "publishingName"
-        name = row["publishedName"]
         if row["libraryName"].startswith("flyem"):
             keytype = "bodyID"
         batch_row(name, keytype, matches[name])
@@ -256,17 +260,19 @@ def add_neuron(neuron, ntype):
         if brow["publishedName"] in bids or "processedTags" not in brow:
             continue
         bids[brow["publishedName"]] = True
+        # Set match flags
         if "ColorDepthSearch" in brow["processedTags"] \
            and brow["processedTags"]["ColorDepthSearch"]:
             nmatch["cdm"] = True
         if "PPPMatch" in brow["processedTags"] \
            and brow["processedTags"]["PPPMatch"]:
             nmatch["ppp"] = True
+    NBODY.append(f"{ntype} {neuron} matches {','.join(list(bids.keys()))}")
     batch_row(neuron, ntype, nmatch, list(bids.keys()))
 
 
 def match_count(matches):
-    ''' Display ststs on found matches
+    ''' Display stats on found matches
         Keyword arguments:
           matches: match dict
         Returns:
@@ -284,13 +290,13 @@ def match_count(matches):
             for mtype in ["cdm", "ppp"]:
                 if matches[pname][mtype]:
                     mcount["p" + mtype] += 1
-    print(f"Matches:            {len(matches)}")
-    print(f"  Body IDs:         {mcount['em']}")
-    print(f"    CDM matches:    {mcount['bcdm']}")
-    print(f"    PPP matches:    {mcount['bppp']}")
-    print(f"  Publishing names: {mcount['lm']}")
-    print(f"    CDM matches:    {mcount['pcdm']}")
-    print(f"    PPP matches:    {mcount['pppp']}")
+    print(f"Matches:            {len(matches):,}")
+    print(f"  Body IDs:         {mcount['em']:,}")
+    print(f"    CDM matches:    {mcount['bcdm']:,}")
+    print(f"    PPP matches:    {mcount['bppp']:,}")
+    print(f"  Publishing names: {mcount['lm']:,}")
+    print(f"    CDM matches:    {mcount['pcdm']:,}")
+    print(f"    PPP matches:    {mcount['pppp']:,}")
 
 
 def update_neuron_matches(neurons):
@@ -328,16 +334,16 @@ def display_counts():
         Returns:
           None
     '''
-    print(f"Images read:               {COUNT['images']}")
+    print(f"Images read:               {COUNT['images']:,}")
     if COUNT['missing']:
-        print(f"Missing publishing name:   {COUNT['missing']}")
+        print(f"Missing publishing name:   {COUNT['missing']:,}")
     if COUNT['consensus']:
-        print(f"No consensus:              {COUNT['consensus']}")
-    print(f"Items written to DynamoDB: {COUNT['insertions']}")
-    print(f"  bodyID:                  {COUNT['bodyID']}")
-    print(f"  neuronInstance:          {COUNT['neuronInstance']}")
-    print(f"  neuronType:              {COUNT['neuronType']}")
-    print(f"  publishingName:          {COUNT['publishingName']}")
+        print(f"No consensus:              {COUNT['consensus']:,}")
+    print(f"Items written to DynamoDB: {COUNT['insertions']:,}")
+    print(f"  bodyID:                  {COUNT['bodyID']:,}")
+    print(f"  neuronInstance:          {COUNT['neuronInstance']:,}")
+    print(f"  neuronType:              {COUNT['neuronType']:,}")
+    print(f"  publishingName:          {COUNT['publishingName']:,}")
 
 
 def process_results(count, results):
@@ -369,27 +375,39 @@ def process_results(count, results):
         if "PPPMatch" in row["processedTags"] \
            and ARG.VERSION in row["processedTags"]["PPPMatch"]:
             matches[pname]["ppp"] = True
-        # Accumulate neurons
+        # Accumulate neurons connected to a body id
         if pname.isdigit():
             for ntype in NEURON_DATA:
                 if ntype in row and row[ntype]:
                     neurons[ntype][row[ntype]] = True
+    # matches: key=publishing name, value={cdm: boolean, ppp: boolean}
+    # rlist: list of rows from neuronMetadata (distinct publishing names)
+    # neurons: key=data type, value={neuron name or instance: boolean}
     if len(rlist) != len(matches):
         terminate_program(f"Unique primary list ({len(rlist)}) != match list({len(matches)})")
     print("Libraries:")
     liblen = cntlen = 0
-    for lib in library:
+    for lib, val in library.items():
         if len(lib) > liblen:
             liblen = len(lib)
-        if len(str(library[lib])) > cntlen:
-            cntlen = len(str(library[lib]))
-    for lib in library:
-        print(f"  {lib+':':<{liblen+1}} {library[lib]:>{cntlen}}")
-    print(f"Neuron instances:   {len(neurons['neuronInstance'])}")
-    print(f"Neuron types:       {len(neurons['neuronType'])}")
+        if len(str(val)) > cntlen:
+            cntlen = len(str(val))
+    for lib, val in library.items():
+        print(f"  {lib+':':<{liblen+1}} {val:>{cntlen},}")
+    print(f"Neuron instances:   {len(neurons['neuronInstance']):,}")
+    print(f"Neuron types:       {len(neurons['neuronType']):,}")
     match_count(matches)
     primary_update(rlist, matches)
     update_neuron_matches(neurons)
+    LOGGER.info("Producing output files")
+    for ntype in NEURON_DATA:
+        with open(f"neuron_{ntype}.txt", 'w', encoding='ascii') as outstream:
+            for row in neurons[ntype]:
+                outstream.write(f"{row}\n")
+    if NBODY:
+        with open('neuron_body_matches.txt', 'w', encoding='ascii') as outstream:
+            for row in NBODY:
+                outstream.write(f"{row}\n")
     if ARG.WRITE:
         write_dynamodb()
         dts = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
@@ -416,13 +434,19 @@ def update_dynamo():
     coll = DATABASE["NB"]["neuronMetadata"]
     payload = {"$or": [{"processedTags.ColorDepthSearch": ARG.VERSION},
                        {"processedTags.PPPMatch": ARG.VERSION}]}
-    results = coll.distinct("libraryName", payload)
-    if not results:
+    results = coll.aggregate([{"$match": payload}, {"$group": {"_id": "$libraryName",
+                                                               "count": {"$sum":1}}}])
+    lkeys = []
+    lchoices = []
+    for res in results:
+        lkeys.append(res['_id'])
+        lchoices.append((f"{res['_id']} ({res['count']:,})", res['_id']))
+    if not lkeys:
         terminate_program(f"There are no processed tags for version {ARG.VERSION}")
     questions = [inquirer.Checkbox("to_include",
                                    message="Choose libraries to include",
-                                   choices=results,
-                                   default=results,
+                                   choices=lchoices,
+                                   default=lkeys,
                                   )]
     answers = inquirer.prompt(questions)
     if answers["to_include"]:
@@ -434,12 +458,14 @@ def update_dynamo():
         LOGGER.error("There are no processed tags for version %s", ARG.VERSION)
         results = {}
     else:
+        LOGGER.info("Selecting images from neuronMetaData")
         results = coll.find(payload, project)
-    LOGGER.info("Finding PPP matches")
+    LOGGER.info("Finding PPP matches in pppMatches")
     coll = DATABASE["NB"]["pppMatches"]
     pppresults = coll.distinct("sourceEmName")
     for row in pppresults:
         KNOWN_PPP[row.split("-")[0]] = True
+    LOGGER.info(f"Processing neuronMetaData ({count:,} images)")
     process_results(count, results)
     if not ARG.WRITE:
         return
@@ -449,8 +475,8 @@ def update_dynamo():
     if not payload:
         payload = {"dynamodb_version": ARG.DDBVERSION,
                    "components": {}}
-    for lib in DDB_NB:
-        payload['components'][lib] = DDB_NB[lib]
+    for lib, val in DDB_NB.items():
+        payload['components'][lib] = val
     results = coll.update_one({"dynamodb_version": ARG.DDBVERSION}, {"$set": payload}, upsert=True)
 
 
