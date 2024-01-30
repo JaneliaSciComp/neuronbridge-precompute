@@ -42,6 +42,7 @@ AREA = {"s3-cdm": "AWS S3 color depth", "s3-thumbnail": "AWS S3 color depth thum
         "published-stacks": f"DynamoDB {DDBASE}-published-stacks",
         "publishing-doi": f"DynamoDB {DDBASE}-publishing-doi"}
 
+
 def terminate_program(msg=None):
     """ Log an optional error to output and exit
         Keyword arguments:
@@ -85,6 +86,7 @@ def initialize_aws():
                                         aws_session_token=credentials['SessionToken'])
     try:
         dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
+        DB['DYNAMOCLIENT'] = boto3.client('dynamodb', region_name='us-east-1')
     except Exception as err:
         terminate_program(err)
     for tname in ('published-stacks', 'publishing-doi'):
@@ -92,6 +94,16 @@ def initialize_aws():
         LOGGER.info(f"Connecting to {fullname}")
         DB[tname] = dynamodb.Table(fullname)
         DB['DYNAMO'] = dynamodb
+
+
+def is_light(pname):
+    """ Determine if the provided publishing name is for a light image
+        Keyword arguments:
+          pname: publishing name
+        Returns:
+          True if light, False otherwise
+    """
+    return False if pname.isnumeric() else True
 
 
 def initialize_program():
@@ -112,8 +124,13 @@ def initialize_program():
     initialize_aws()
     if not ARG.TEMPLATE:
         ARG.TEMPLATE = NB.get_template(S3['client'], ARG.BUCKET)
+    if not ARG.TEMPLATE:
+        terminate_program("No template was selected")
     if not ARG.LIBRARY:
-        ARG.LIBRARY = NB.get_library_from_aws(S3['client'], ARG.BUCKET, ARG.TEMPLATE)
+        ARG.LIBRARY = NB.get_filtered_library_from_aws(S3['client'], ARG.BUCKET, ARG.TEMPLATE,
+                                                       'FlyEM' if is_light(ARG.ITEM) else 'FlyLight')
+    if not ARG.LIBRARY:
+        terminate_program("No library was selected")
 
 
 def get_sage_info():
@@ -126,7 +143,7 @@ def get_sage_info():
           pname: publishing name
     """
     try:
-        DB['sage']['cursor'].execute(READ['LINE'], (ARG.SLIDE,))
+        DB['sage']['cursor'].execute(READ['LINE'], (ARG.ITEM,))
         row = DB['sage']['cursor'].fetchone()
     except MySQLdb.Error as err:
         terminate_program(JRC.sql_error(err))
@@ -137,9 +154,9 @@ def get_sage_info():
     except MySQLdb.Error as err:
         terminate_program(JRC.sql_error(err))
     pname = rows[0]['publishing_name']
-    print(f"Slide code {ARG.SLIDE} is in line {line} ({pname})")
+    print(f"Slide code {ARG.ITEM} is in line {line} ({pname})")
     try:
-        DB['sage']['cursor'].execute(READ['RELEASES'], (pname, ARG.SLIDE))
+        DB['sage']['cursor'].execute(READ['RELEASES'], (pname, ARG.ITEM))
         rows = DB['sage']['cursor'].fetchall()
     except MySQLdb.Error as err:
         terminate_program(JRC.sql_error(err))
@@ -160,7 +177,6 @@ def check_for_thumbnail(obj):
         return
     fname = obj.replace(".png", ".jpg")
     try:
-        LOGGER.warning(f"Looking for {fname}")
         S3['client'].head_object(Bucket=ARG.BUCKET + '-thumbnails', Key=fname)
         TARGET['s3-thumbnail'].append(obj)
         return
@@ -185,7 +201,7 @@ def check_manifest():
         manifest = [x.strip() for x in infile.readlines()]
     LOGGER.info(f"Found {len(manifest):,} entries in manifest")
     base = f"{ARG.TEMPLATE}/{ARG.LIBRARY}"
-    searchkey = f"-{ARG.SLIDE}-"
+    searchkey = f"-{ARG.ITEM}-" if is_light(ARG.ITEM) else f"{ARG.ITEM}-{ARG.TEMPLATE}-"
     for obj in tqdm(manifest, desc='Checking manifest'):
         if obj.startswith(base) and searchkey in obj :
             TARGET['s3-cdm'].append(obj)
@@ -241,8 +257,8 @@ def check_publishedlmimage():
     """
     coll = DB['NB']['publishedLMImage']
     payload = {"alignmentSpace": ARG.TEMPLATE,
-               "slideCode": ARG.SLIDE}
-    LOGGER.info(f"Searching publishedLMImage for {ARG.TEMPLATE} {ARG.SLIDE}")
+               "slideCode": ARG.ITEM}
+    LOGGER.info(f"Searching publishedLMImage for {ARG.TEMPLATE} {ARG.ITEM}")
     try:
         results = coll.find(payload)
     except Exception as err:
@@ -250,6 +266,14 @@ def check_publishedlmimage():
     for row in results:
         TARGET['publishedLMImage'].append(row['_id'])
     LOGGER.info(f"publishedLMImage records found: {len(TARGET['publishedLMImage']):,}")
+
+
+def full_body_id(libname=None):
+    if not libname:
+        libname = get_library_name()
+    prefix = libname.replace('flyem_', '')
+    prefix, version = prefix.split('_', 1)
+    return ":".join([prefix, 'v' + version.replace('_', '.'), ARG.ITEM])
 
 
 def check_publishedurl():
@@ -262,9 +286,13 @@ def check_publishedurl():
     libname = get_library_name()
     coll = DB['NB']['publishedURL']
     payload = {"alignmentSpace": ARG.TEMPLATE,
-               "libraryName": libname,
-               "slideCode": ARG.SLIDE}
-    LOGGER.info(f"Searching publishedURL for {ARG.TEMPLATE}/{libname} {ARG.SLIDE}")
+               "libraryName": libname}
+    if is_light(ARG.ITEM):
+        payload['slideCode'] = searchkey = ARG.ITEM
+    else:
+        searchkey = full_body_id(libname)
+        payload['publishedName'] = searchkey
+    LOGGER.info(f"Searching publishedURL for {ARG.TEMPLATE}/{libname} {searchkey}")
     try:
         results = coll.find(payload)
     except Exception as err:
@@ -284,7 +312,7 @@ def check_published_stacks():
     """
     tbl = 'published-stacks'
     for obj in OBJECTIVE:
-        key = f"{ARG.SLIDE.lower()}-{obj}-{ARG.TEMPLATE.lower()}"
+        key = f"{ARG.ITEM.lower()}-{obj}-{ARG.TEMPLATE.lower()}"
         LOGGER.info(f"Searching {DDBASE}-{tbl} for {key}")
         response = DB[tbl].query(KeyConditionExpression=Key('itemType').eq(key))
         if 'Count' not in response or not response['Count']:
@@ -323,8 +351,13 @@ def check_published(pname):
     fullname = f"{DDBASE}-{tbl}"
     DB[tbl] = DB['DYNAMO'].Table(fullname)
     LOGGER.info(f"Searching {fullname} for {key}")
-    response = DB[tbl].query(KeyConditionExpression= \
-                             Key('itemType').eq('searchString') & Key('searchKey').eq(key))
+    try:
+        response = DB[tbl].query(KeyConditionExpression= \
+                                 Key('itemType').eq('searchString') & Key('searchKey').eq(key))
+    except DB['DYNAMOCLIENT'].exceptions.ResourceNotFoundException:
+        terminate_program(f"DynamoDB table {tbl} does not exist")
+    except Exception as err:
+        terminate_program(err)
     if 'Count' not in response or not response['Count']:
         return
     if 'Items' in response and response['Items'][0]:
@@ -341,7 +374,7 @@ def check_publishing_doi(pname):
           None
     """
     tbl = 'publishing-doi'
-    key = pname
+    key = pname if is_light(pname) else full_body_id()
     LOGGER.info(f"Searching {DDBASE}-{tbl} for {key}")
     response = DB[tbl].query(KeyConditionExpression=Key('name').eq(key))
     if 'Count' not in response or not response['Count']:
@@ -407,14 +440,20 @@ def process_slide():
         Returns:
           None
     """
-    _, publishing = get_sage_info()
+    if is_light(ARG.ITEM):
+        _, publishing = get_sage_info()
+    else:
+        TARGET['sage'] = False
+        publishing = ARG.ITEM
     # AWS S3
     check_manifest()
     # MongoDB
-    check_publishedlmimage()
+    if is_light(ARG.ITEM):
+        check_publishedlmimage()
     check_publishedurl()
     # DynamoDB
-    check_published_stacks()
+    if is_light(ARG.ITEM):
+        check_published_stacks()
     if not TARGET['sage']:
         check_published(publishing)
         check_publishing_doi(publishing)
@@ -430,7 +469,7 @@ if __name__ == '__main__':
                         help='Alignment template')
     PARSER.add_argument('--library', dest='LIBRARY', action='store',
                         default='', help='Color depth library')
-    PARSER.add_argument('--slide', dest='SLIDE', action='store',
+    PARSER.add_argument('--item', dest='ITEM', action='store',
                         default='20140623_32_F3', help='Slide code')
     PARSER.add_argument('--version', dest='VERSION',
                         help='DynamoDB NeuronBridge version')
