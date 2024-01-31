@@ -10,6 +10,7 @@ import boto3
 from boto3.dynamodb.conditions import Key
 import botocore
 import inquirer
+import json
 import MySQLdb
 from simple_term_menu import TerminalMenu
 from tqdm import tqdm
@@ -41,6 +42,7 @@ AREA = {"s3-cdm": "AWS S3 color depth", "s3-thumbnail": "AWS S3 color depth thum
         "publishedURL": "MongoDB NeuronBridge publishedURL",
         "published-stacks": f"DynamoDB {DDBASE}-published-stacks",
         "publishing-doi": f"DynamoDB {DDBASE}-publishing-doi"}
+COUNT = {}
 
 
 def terminate_program(msg=None):
@@ -93,7 +95,7 @@ def initialize_aws():
         fullname = f"{DDBASE}-{tname}"
         LOGGER.info(f"Connecting to {fullname}")
         DB[tname] = dynamodb.Table(fullname)
-        DB['DYNAMO'] = dynamodb
+    DB['DYNAMO'] = dynamodb
 
 
 def is_light(pname):
@@ -103,7 +105,7 @@ def is_light(pname):
         Returns:
           True if light, False otherwise
     """
-    return False if pname.isnumeric() else True
+    return not bool(pname.isnumeric())
 
 
 def initialize_program():
@@ -127,8 +129,8 @@ def initialize_program():
     if not ARG.TEMPLATE:
         terminate_program("No template was selected")
     if not ARG.LIBRARY:
-        ARG.LIBRARY = NB.get_filtered_library_from_aws(S3['client'], ARG.BUCKET, ARG.TEMPLATE,
-                                                       'FlyEM' if is_light(ARG.ITEM) else 'FlyLight')
+        ARG.LIBRARY = NB.get_library_from_aws(S3['client'], ARG.BUCKET, ARG.TEMPLATE,
+                                              'FlyEM' if is_light(ARG.ITEM) else 'FlyLight')
     if not ARG.LIBRARY:
         terminate_program("No library was selected")
 
@@ -201,9 +203,10 @@ def check_manifest():
         manifest = [x.strip() for x in infile.readlines()]
     LOGGER.info(f"Found {len(manifest):,} entries in manifest")
     base = f"{ARG.TEMPLATE}/{ARG.LIBRARY}"
-    searchkey = f"-{ARG.ITEM}-" if is_light(ARG.ITEM) else f"{ARG.ITEM}-{ARG.TEMPLATE}-"
+    flylight = is_light(ARG.ITEM)
+    searchkey = f"-{ARG.ITEM}-" if flylight else f"{ARG.ITEM}-{ARG.TEMPLATE}-"
     for obj in tqdm(manifest, desc='Checking manifest'):
-        if obj.startswith(base) and searchkey in obj :
+        if obj.startswith(base) and (searchkey in obj or ((not flylight) and obj.endswith(f"{ARG.ITEM}.swc"))):
             TARGET['s3-cdm'].append(obj)
             check_for_thumbnail(obj)
     LOGGER.info(f"Objects found: {len(TARGET['s3-cdm']):,}")
@@ -297,8 +300,14 @@ def check_publishedurl():
         results = coll.find(payload)
     except Exception as err:
         terminate_program(err)
+    uploaded = []
     for row in results:
         TARGET['publishedURL'].append(row['_id'])
+        for ufile in row['uploaded'].values():
+            uploaded.append(ufile)
+    on_s3 = len(TARGET['s3-cdm']) + len(TARGET['s3-thumbnail'])
+    if uploaded and (len(uploaded)+1 != on_s3):
+        LOGGER.warning(f"Mismatch between uploaded files ({len(uploaded)}) and files found on AWS S3 ({on_s3})")
     LOGGER.info(f"publishedURL records found: {len(TARGET['publishedURL']):,}")
 
 
@@ -342,8 +351,11 @@ def check_published(pname):
                 choices.append(ddbtbl.name.replace(f"{DDBASE}-{tbl}-", ""))
         if not choices:
             terminate_program(f"No {DDBASE}-{tbl} versions found")
+        print("Select the NeuronBridge data version:")
         terminal_menu = TerminalMenu(choices)
         answer = terminal_menu.show()
+        if not answer:
+            terminate_program("No version was selected")
         ARG.VERSION = choices[answer]
     TARGET[f"{tbl}-{ARG.VERSION}"] = []
     tbl += f"-{ARG.VERSION}"
@@ -384,22 +396,102 @@ def check_publishing_doi(pname):
     LOGGER.info(f"{tbl} records found: {len(TARGET[tbl]):,}")
 
 
-def s3_cdm():
+def s3_cdm(area):
+    """ Delete objects from the janelia-flylight-color-depth bucket
+        Keyword arguments:
+          area: deletion area
+        Returns:
+          None
+    """
     for key in TARGET['s3-cdm']:
+        LOGGER.debug(f"Deleting {key}")
         try:
             obj = S3['resource'].Object(ARG.BUCKET, key)
             if ARG.WRITE:
                 obj.delete()
+                COUNT[AREA[area]] += 1
+            else:
+                COUNT[AREA[area]] += 1
         except Exception as err:
             terminate_program(err)
 
 
-def s3_thumbnail():
+def s3_thumbnail(area):
+    """ Delete objects from the janelia-flylight-color-depth-thumbnails bucket
+        Keyword arguments:
+          area: deletion area
+        Returns:
+          None
+    """
     for key in TARGET['s3-thumbnail']:
+        LOGGER.debug(f"Deleting {key}")
         try:
             obj = S3['resource'].Object( ARG.BUCKET + '-thumbnails', key)
             if ARG.WRITE:
                 obj.delete()
+                COUNT[AREA[area]] += 1
+            else:
+                COUNT[AREA[area]] += 1
+        except Exception as err:
+            terminate_program(err)
+
+
+def publishedurl(area):
+    coll = DB['NB']['publishedURL']
+    for key in TARGET[area]:
+        LOGGER.debug(f"Deleting {key}")
+        try:
+            if ARG.WRITE:
+                _ = coll.delete_one({"_id": key})
+                COUNT[AREA[area]] += 1
+            else:
+                COUNT[AREA[area]] += 1
+        except Exception as err:
+            terminate_program(err)
+
+
+def delete_from_published(area):
+    """ Delete objects from the janelia-neuronbridge-published-[version] table
+        Keyword arguments:
+          area: deletion area
+        Returns:
+          None
+    """
+    tbl = DB[area]
+    for key in TARGET[area]:
+        LOGGER.debug(f"Deleting {key}")
+        try:
+            if ARG.WRITE:
+                response = tbl.delete_item(Key={"itemType": 'searchString', "searchKey": key})
+                if response['ResponseMetadata']['HTTPStatusCode'] == 200:
+                    COUNT[AREA[area]] += 1
+            else:
+                COUNT[AREA[area]] += 1
+        except ClientError:
+            terminate_program("Couldn't delete {key} from {area}: {response['Error']['Message']}")
+        except Exception as err:
+            terminate_program(err)
+
+
+def publishing_doi(area):
+    """ Delete objects from the janelia-neuronbridge-publishing-doi table
+        Keyword arguments:
+          area: deletion area
+        Returns:
+          None
+    """
+    tbl = DB[area]
+    for key in TARGET[area]:
+        LOGGER.debug(f"Deleting {key}")
+        try:
+            if ARG.WRITE:
+                response = tbl.delete_item(Key={"name": key})
+                if response['ResponseMetadata']['HTTPStatusCode'] == 200:
+                    COUNT[AREA[area]] += 1
+            else:
+                COUNT[AREA[area]] += 1
+        except ClientError as err:
+            terminate_program("Couldn't delete {key} from {area}: {response['Error']['Message']}")
         except Exception as err:
             terminate_program(err)
 
@@ -414,23 +506,41 @@ def delete_items():
     if not TARGET['sage']:
         AREA[f"published-{ARG.VERSION}"] = f"DynamoDB {DDBASE}-published-{ARG.VERSION}"
     choices = []
+    accepted = []
     for key, val in AREA.items():
         if TARGET[key]:
             choices.append((f"{val}: {len(TARGET[key])} item(s)", key))
+            accepted.append(key)
     if not choices:
         LOGGER.warning("There is nothing to delete")
         terminate_program()
-    question = [inquirer.Checkbox("area", message="Where should items be deleted from",
-                                  choices=choices)]
-    answers = inquirer.prompt(question)
+    if ARG.ACCEPT:
+        answers = {}
+        answers['area'] = accepted
+    else:
+        question = [inquirer.Checkbox("area", message="Where should items be deleted from",
+                                      choices=choices)]
+        answers = inquirer.prompt(question)
     if not answers:
         terminate_program("Operation cancelled")
     if not answers['area']:
         LOGGER.warning("Will not delete any items")
         return
     for area in answers['area']:
-        print(f"Deleting from {AREA[area]}")
-        eval(area.replace('-', '_') + '()')
+        LOGGER.info(f"Deleting from {AREA[area]}")
+        COUNT[AREA[area]] = 0
+        if 'janelia-neuronbridge-published-' in AREA[area]:
+            delete_from_published(area)
+        else:
+            eval(area.replace('-', '_').lower() + '(area)')
+    maxlen = 0
+    for area in COUNT:
+        if len(area) > maxlen:
+            maxlen = len(area)
+    if len(COUNT):
+        print("Deletions:" if ARG.WRITE else "Simulated deletions:")
+        for key, val in COUNT.items():
+            print(f"{key+':':<{maxlen+1}} {val}")
 
 
 def process_slide():
@@ -473,6 +583,8 @@ if __name__ == '__main__':
                         default='20140623_32_F3', help='Slide code')
     PARSER.add_argument('--version', dest='VERSION',
                         help='DynamoDB NeuronBridge version')
+    PARSER.add_argument('--accept', dest='ACCEPT', action='store_true',
+                        default=False, help='Accept all deletion choices')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         default='prod', choices=MANIFOLDS, help='S3 manifold')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',

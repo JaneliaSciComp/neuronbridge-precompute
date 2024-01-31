@@ -23,6 +23,7 @@ READ = {"RELEASES": "SELECT publishing_name,slide_code,GROUP_CONCAT(DISTINCT alp
                     + "AS rels FROM image_data_mv WHERE alps_release IS NOT NULL GROUP BY 1,2",
        }
 RELEASE = {}
+SLIDE = {}
 # Configuration
 MANIFOLDS = ['dev', 'prod', 'devpre', 'prodpre']
 
@@ -91,8 +92,12 @@ def initialize_program():
     initialize_s3()
     if not ARG.TEMPLATE:
         ARG.TEMPLATE = NB.get_template(S3['client'], ARG.BUCKET)
+    if not ARG.TEMPLATE:
+        terminate_program("No template was selected")
     if not ARG.LIBRARY:
         ARG.LIBRARY = NB.get_library_from_aws(S3['client'], ARG.BUCKET, ARG.TEMPLATE)
+    if not ARG.LIBRARY:
+        terminate_program("No library was selected")
 
 
 def populate_releases():
@@ -111,6 +116,7 @@ def populate_releases():
     for row in rows:
         RELEASE[row['publishing_name']] = row['rels']
         RELEASE[row['slide_code']] = row['rels']
+        SLIDE[row['slide_code']] = row['publishing_name']
 
 
 def get_releases(key):
@@ -160,6 +166,10 @@ def get_mongo_data():
             pname[row['publishedName']] = True
             if 'slideCode' in row:
                 scode[row['slideCode']] = row['publishedName']
+                if row['slideCode'] not in SLIDE:
+                    SLIDE[row['slideCode']] = row['publishedName']
+                #elif SLIDE[row['slideCode']] != row['publishedName']:
+                #    terminate_program(f"Mismatched {ARG.SOURCE} publishing name for {row['slideCode']}")
     print(f"Found {len(pname):,} publishing names and {len(scode):,} slide codes in {ARG.SOURCE}")
     return pname, scode
 
@@ -234,6 +244,11 @@ def get_aws_data():
         pname[fname.split('-')[0]] = True
         if library_type() != 'flyem':
             scode[fname.split('-')[1]] = fname.split('-')[0]
+        if fname.split('-')[1] not in SLIDE:
+            SLIDE[fname.split('-')[1]] = fname.split('-')[0]
+        #elif SLIDE[fname.split('-')[1]] != fname.split('-')[0]:
+        #    terminate_program(f"Mismatched AWS publishing name for {fname.split('-')[1]} " \
+        #                      + f"{fname.split('-')[0]} {SLIDE[fname.split('-')[1]]}")
     print(f"Found {len(pname):,} publishing names and {len(scode):,} slide codes in S3")
     return pname, scode
 
@@ -259,22 +274,24 @@ def report_errors(mpname, mscode, apname, ascode):
           errors: list of errors
     """
     errors = []
+    checked = {}
     # Slide codes
     for key in tqdm(ascode, desc='AWS S3 slide codes'):
         if key not in mscode:
             rel = '' if library_type() == 'flyem' else get_releases(key)
-            errors.append(f"{key}{rel} is in S3 but not in {ARG.SOURCE}")
+            errors.append(f"{key}{rel} ({SLIDE[key]}) is in S3 but not in {ARG.SOURCE}")
+            checked[SLIDE[key]] = True
     for key in tqdm(mscode, desc=f"{ARG.SOURCE} slide codes"):
         if key not in ascode:
             rel = '' if library_type() == 'flyem' else get_releases(key)
             errors.append(f"{key}{rel} is in {ARG.SOURCE} but not in S3")
     # Publishing names
     for key in tqdm(apname, desc='AWS S3 publishing names'):
-        if key not in mpname:
+        if key not in mpname and key not in checked:
             rel = '' if library_type() == 'flyem' else get_releases(key)
             errors.append(f"{key}{rel} is in S3 but not in {ARG.SOURCE}")
     for key in tqdm(mpname, desc=f"{ARG.SOURCE} publishing names"):
-        if key not in apname:
+        if key not in apname and key not in checked:
             rel = '' if library_type() == 'flyem' else get_releases(key)
             errors.append(f"{key}{rel} is in {ARG.SOURCE} but not in S3")
     return errors
