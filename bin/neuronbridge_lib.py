@@ -7,6 +7,7 @@ import glob
 import os.path
 import re
 import socket
+import sys
 import time
 from simple_term_menu import TerminalMenu
 
@@ -31,29 +32,40 @@ def get_all_s3_objects(s3c, **base_kwargs):
         continuation_token = response.get('NextContinuationToken')
 
 
-def get_library_from_aws(*args):
-    """ Get a NeuronBridge library from provided configuration JSON or S3
+def get_library_from_config(cdm_libs):
+    """ Get a NeuronBridge library from provided configuration JSON
         Keyword arguments:
-          config: "cdm_library" configuration JSON -or- AWS S3 client
-          cdm_bucket: AWS S3 bucket (optional)
-          prefix: alignment template (optional)
+          cdm_libs: "cdm_library" configuration JSON
         Returns:
           Library
     """
     print("Select a library:")
-    cdmlist = list()
-    if len(args) == 3:
-        paginator = args[0].get_paginator('list_objects')
-        result = paginator.paginate(Bucket=args[1], Prefix=args[2] + '/', Delimiter='/')
-        for prefix in result.search('CommonPrefixes'):
-            key = prefix.get('Prefix')
-            if re.search(r".+/", key):
-                cdmlist.append((key.split("/"))[1])
-    else:
-        cdm_libs = args[0]
-        for cdmlib in cdm_libs:
-            if cdm_libs[cdmlib]['name'] not in cdmlist:
-                cdmlist.append(cdm_libs[cdmlib]['name'])
+    cdmlist = []
+    for cdmlib in cdm_libs:
+        if cdm_libs[cdmlib]['name'] not in cdmlist:
+            cdmlist.append(cdm_libs[cdmlib]['name'])
+    terminal_menu = TerminalMenu(cdmlist)
+    chosen = terminal_menu.show()
+    return cdmlist[chosen].replace(' ', '_') if chosen is not None else None
+
+
+def get_library_from_aws(client, bucket, prefix, filtertext=None):
+    """ Get a NeuronBridge library from S3
+        Keyword arguments:
+          client: AWS S3 client
+          bucket: AWS S3 bucket
+          prefix: alignment template
+        Returns:
+          Library
+    """
+    print("Select a library:")
+    cdmlist = []
+    paginator = client.get_paginator('list_objects')
+    result = paginator.paginate(Bucket=bucket, Prefix=prefix + '/', Delimiter='/')
+    for pfx in result.search('CommonPrefixes'):
+        key = pfx.get('Prefix')
+        if re.search(r".+/", key) and filtertext not in key:
+            cdmlist.append((key.split("/"))[1])
     terminal_menu = TerminalMenu(cdmlist)
     chosen = terminal_menu.show()
     return cdmlist[chosen].replace(' ', '_') if chosen is not None else None
@@ -161,7 +173,7 @@ def get_template(s3_client, bucket):
     """
     paginator = s3_client.get_paginator('list_objects')
     result = paginator.paginate(Bucket=bucket, Delimiter='/')
-    template = list()
+    template = []
     for prefix in result.search('CommonPrefixes'):
         key = prefix.get('Prefix')
         if re.search(r"JRC\d+.+/", key):
@@ -240,6 +252,5 @@ def update_library_status(coll, **kwargs):
     result = coll.insert_one(payload)
     if result.inserted_id:
         return True
-    else:
-        print("Could not insert record into Mongo")
-        return False
+    print("Could not insert record into Mongo")
+    return False
