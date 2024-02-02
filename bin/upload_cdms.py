@@ -214,6 +214,8 @@ def get_parms():
         Returns:
             None
     """
+    if not ARG.ALIGNMENT:
+        NB.get_template(S3_CLIENT, AWS.s3_bucket.cdm)
     if not ARG.LIBRARY:
         get_library()
     if not ARG.NEURONBRIDGE:
@@ -286,8 +288,6 @@ def set_searchable_subdivision(smp):
     SUBDIVISION['prefix'] = maxnum + 1
     LOGGER.warning("Will upload searchable neurons starting with subdivision %s",
                    SUBDIVISION['prefix'])
-    CONF['ALIGNMENT_SPACE'] = smp["alignmentSpace"]
-    LOGGER.info("Alignment space set to %s", CONF['ALIGNMENT_SPACE'])
 
 
 def select_uploads():
@@ -356,13 +356,13 @@ def initialize_program():
         DBM = JRC.connect_database(dbo)
     except Exception as err: # pylint: disable=broad-exception-caught
         terminate_program(err)
+    # AWS S3
+    initialize_s3()
     # Get parms
     get_parms()
     if ARG.LIBRARY not in LIBRARY:
         terminate_program(f"Unknown library {ARG.LIBRARY}")
     select_uploads()
-    # AWS S3
-    initialize_s3()
     # Get non-public slide codes
     coll = DBM['lmRelease']
     results = coll.find({"public": False})
@@ -1000,7 +1000,7 @@ def confirm_run():
     print(f"Library:              {ARG.LIBRARY}")
     if "flyem_" in ARG.LIBRARY:
         print(f"NeuPrint dataset:     {CONF['DATASET']}")
-    print(f"Alignment space:      {CONF['ALIGNMENT_SPACE']}")
+    print(f"Alignment space:      {ARG.ALIGNMENT}")
     print(f"NeuronBridge version: {ARG.NEURONBRIDGE}")
     if ARG.SOURCE == 'file':
         print(f"JSON file:            {ARG.JSON}")
@@ -1092,7 +1092,7 @@ def remap_sample(smp):
         Returns:
           None
     '''
-    if smp["alignmentSpace"] != CONF['ALIGNMENT_SPACE']:
+    if smp["alignmentSpace"] != ARG.ALIGNMENT:
         terminate_program(f"ID {smp['_id']} contains multiple alignment spaces")
     if ARG.SOURCE == 'file':
         smp['_id'] = smp['id']
@@ -1180,7 +1180,7 @@ def upload_cdms():
             rows = instream.read().splitlines()
             for row in rows:
                 tried += 1
-                if row.startswith(f"{CONF['ALIGNMENT_SPACE']}/{LIBRARY[ARG.LIBRARY]['name']}"):
+                if row.startswith(f"{ARG.ALIGNMENT}/{LIBRARY[ARG.LIBRARY]['name']}"):
                     MANIFEST[row] = True
                     added += 1
         LOGGER.info(f"Added {added:,}/{tried:,} entries from manifest")
