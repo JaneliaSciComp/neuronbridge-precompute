@@ -56,6 +56,7 @@ REC = {'line': '', 'slide_code': '', 'gender': '', 'objective': '', 'area': ''}
 CONF = {}
 DRIVER = {} # Driver by line
 KEY_LIST = []
+MANIFEST = {}
 NON_PUBLIC = {}
 NO_RELEASE = {}
 PNAME = {}
@@ -408,6 +409,13 @@ def get_s3_names(bucket, newname):
     return bucket, object_name
 
 
+def already_uploaded(key):
+    if key in MANIFEST:
+        print(f"{key} in manifest")
+    return booltest(key in MANIFEST)
+
+
+
 def upload_aws(bucket, dirpath, fname, newname, force=False):
     ''' Transfer a file to Amazon S3
         Keyword arguments:
@@ -442,6 +450,8 @@ def upload_aws(bucket, dirpath, fname, newname, force=False):
     if (not ARG.WRITE) and (not os.path.exists(complete_fpath)):
         terminate_program(f"File {complete_fpath} does not exist")
     LOGGER.debug("Uploading %s to S3 as %s", complete_fpath, object_name)
+    if ARG.MANIFEST and already_uploaded(object_name):
+        return
     S3CP.write(f"{complete_fpath}\t{'/'.join([bucket, object_name])}\n")
     if ARG.AWS:
         LOGGER.info("Upload %s", object_name)
@@ -1163,6 +1173,17 @@ def upload_cdms():
         # Get published samples
         published_sample = get_published_samples()
     set_searchable_subdivision(data[0])
+    # Manifest
+    added = tried = 0
+    if ARG.MANIFEST:
+        with open(ARG.MANIFEST, 'r', encoding='ascii') as instream:
+            rows = instream.read().splitlines()
+            for row in rows:
+                tried += 1
+                if row.startswith(f"{CONF['ALIGNMENT_SPACE']}/{LIBRARY[ARG.LIBRARY]['name']}"):
+                    MANIFEST[row] = True
+                    added += 1
+        LOGGER.info(f"Added {added:,}/{tried:,} entries from manifest")
     if not confirm_run():
         return
     print(f"Processing {ARG.LIBRARY} on {ARG.MANIFOLD} manifold")
@@ -1239,6 +1260,8 @@ if __name__ == '__main__':
     PARSER.add_argument('--source', dest='SOURCE', action='store',
                         default='mongo', choices=['file', 'mongo'],
                         help='JSON source [file, mongo]')
+    PARSER.add_argument('--manifest', dest='MANIFEST', action='store',
+                        default='', help='Manifest file')
     PARSER.add_argument('--library', dest='LIBRARY', action='store',
                         default='', help='color depth library')
     PARSER.add_argument('--tag', dest='TAG', action='store',
