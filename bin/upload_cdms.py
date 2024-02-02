@@ -215,7 +215,7 @@ def get_parms():
             None
     """
     if not ARG.ALIGNMENT:
-        NB.get_template(S3_CLIENT, AWS.s3_bucket.cdm)
+        ARG.ALIGNMENT = NB.get_template(S3_CLIENT, AWS.s3_bucket.cdm)
     if not ARG.LIBRARY:
         get_library()
     if not ARG.NEURONBRIDGE:
