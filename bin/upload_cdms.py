@@ -1054,7 +1054,7 @@ def read_json():
         data = list(coll.find(payload, allow_disk_use=True).sort("slide_code", 1))
         time_diff = datetime.now() - stime
         LOGGER.info("JSON read in %fsec", time_diff.total_seconds())
-        print(f"Documents read from Mongo: {len(data)}")
+        print(f"Documents read from Mongo: {len(data):,}")
     return data
 
 
@@ -1093,6 +1093,7 @@ def remap_sample(smp):
           None
     '''
     if smp["alignmentSpace"] != ARG.ALIGNMENT:
+        print(smp["alignmentSpace"], ARG.ALIGNMENT)
         terminate_program(f"ID {smp['_id']} contains multiple alignment spaces")
     if ARG.SOURCE == 'file':
         smp['_id'] = smp['id']
@@ -1155,7 +1156,7 @@ def upload_cdms():
     '''
     data = read_json()
     entries = len(data)
-    print(f"Number of entries in JSON: {entries}")
+    print(f"Number of entries in JSON: {entries:,}")
     if not entries:
         terminate_program("No entries to process")
     if 'flyem_' in ARG.LIBRARY:
