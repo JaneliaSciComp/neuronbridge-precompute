@@ -60,7 +60,7 @@ def initialize_program():
             terminate_program(err)
     # Parms
     if not ARG.LIBRARY:
-        ARG.LIBRARY = NB.get_library(DB['neuronbridge'].neuronMetadata, "flyem")
+        ARG.LIBRARY = NB.get_library(source='mongo', coll=DB['neuronbridge'].neuronMetadata, exclude="flyem")
     if not ARG.VERSION:
         ARG.VERSION = NB.get_neuronbridge_version(DB['neuronbridge'].neuronMetadata)
 

@@ -71,7 +71,7 @@ def get_library_from_aws(client, bucket, prefix, filtertext=None):
     return cdmlist[chosen].replace(' ', '_') if chosen is not None else None
 
 
-def get_library(coll, exclude=None):
+def get_library_from_mongo(coll, exclude=None):
     ''' Allow the user to select a NeuronBridge library from MongoDB
         Keyword arguments:
           coll: MongoDB collection
@@ -83,6 +83,36 @@ def get_library(coll, exclude=None):
     for row in results:
         if (not exclude) or (exclude not in row):
             libraries.append(row)
+    libraries.sort()
+    print("Select a NeuronBridge library:")
+    terminal_menu = TerminalMenu(libraries)
+    chosen = terminal_menu.show()
+    if chosen is None:
+        print("No NeuronBridge library selected")
+        return None
+    return libraries[chosen]
+
+
+def get_library(source='aws', client=None, bucket=None, template=None, config=None,
+                coll=None, exclude=None):
+    libraries = []
+    if source == 'aws':
+        paginator = client.get_paginator('list_objects')
+        result = paginator.paginate(Bucket=bucket, Prefix=template + '/', Delimiter='/')
+        for pfx in result.search('CommonPrefixes'):
+            key = pfx.get('Prefix')
+            if re.search(r".+/", key) and ((not exclude) or (exclude not in key)):
+                libraries.append((key.split("/"))[1])
+    elif source == 'config':
+        for cdmlib in config:
+            if config[cdmlib]['name'] not in libraries:
+                libraries.append(config[cdmlib]['name'])
+    elif source == 'mongo':
+        results = coll.distinct("libraryName")
+        for row in results:
+            if (not exclude) or (exclude not in row):
+                libraries.append(row)
+    # Display dialog
     libraries.sort()
     print("Select a NeuronBridge library:")
     terminal_menu = TerminalMenu(libraries)

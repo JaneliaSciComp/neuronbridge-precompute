@@ -96,7 +96,7 @@ def get_parms():
         bucket = 'janelia-flylight-color-depth'
         if ARG.MANIFOLD != 'prod':
             bucket += f"-{ARG.MANIFOLD}"
-        ARG.LIBRARY = NB.get_library_from_aws(AWSS3["client"], bucket, ARG.TEMPLATE)
+        ARG.LIBRARY = NB.get_library(source='aws', client=AWSS3["client"], bucket=bucket, template=ARG.TEMPLATE)
         if not ARG.LIBRARY:
             terminate_program("No library selected")
     if not ARG.VERSION:

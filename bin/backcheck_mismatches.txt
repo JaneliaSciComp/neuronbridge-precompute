@@ -1,0 +1,6 @@
+JRC2018_Unisex_20x_HR/FlyLight_Split-GAL4_Drivers
+20170502_31_B3 (SS37252) is in S3 but not in publishedURL
+20170502_32_D4 (SS37295) is in S3 but not in publishedURL
+20140623_32_F3 (SS01062) is in S3 but not in publishedURL
+20180413_47_B4 (Split-GAL4 Omnibus Broad) (SS38205) is in S3 but not in publishedURL
+20130725_20_F4 (SS00327) is in S3 but not in publishedURL

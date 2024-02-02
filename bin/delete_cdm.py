@@ -131,8 +131,9 @@ def initialize_program():
     if not ARG.TEMPLATE:
         terminate_program("No template was selected")
     if not ARG.LIBRARY:
-        ARG.LIBRARY = NB.get_library_from_aws(S3['client'], ARG.BUCKET, ARG.TEMPLATE,
-                                              'FlyEM' if is_light(ARG.ITEM) else 'FlyLight')
+        ARG.LIBRARY = NB.get_library(source='aws', client=S3['client'], bucket=ARG.BUCKET,
+                                     template=ARG.TEMPLATE, exclude='FlyEM' if is_light(ARG.ITEM) else 'FlyLight')
+
     if not ARG.LIBRARY:
         terminate_program("No library was selected")
 
