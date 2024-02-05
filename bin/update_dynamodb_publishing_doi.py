@@ -28,6 +28,8 @@ DOI = {}
 EMDOI = {}
 MAPPING = {}
 # Database
+#MONGO_SOURCE = 'neuronMetadata'
+MONGO_SOURCE = 'publishedURL'
 ITEMS = []
 PUBLISHING_DATABASE = ["mbew", "gen1mcfo"]
 DATABASE = {}
@@ -254,13 +256,15 @@ def get_citation(doi):
     if doi not in CITATION:
         if 'in prep' in doi or 'janelia' in doi:
             CITATION[doi] = doi
+            print(f"Internal DOI: {doi}")
             return doi
         rec = call_responder('crossref', doi)
         if rec:
             CITATION[doi] = from_crossref(rec)
+            print(f"Crossref DOI: {doi}: {CITATION[doi]}")
         else:
             CITATION[doi] = from_datacite(doi)
-        print(f"{doi}: {CITATION[doi]}")
+            print(f"DataCite DOI: {doi}: {CITATION[doi]}")
     return CITATION[doi]
 
 
@@ -388,8 +392,10 @@ def process_em():
     payload = [{"$unwind": "$tags"},
                {"$project": {"_id": 0, "libraryName": 1, "tags": 1}},
                {"$group": {"_id": {"lib": "$libraryName", "tag": "$tags"},
-                           "count":{"$sum": 1}}}]
-    coll = DATABASE["NB"]["neuronMetadata"]
+                           "count":{"$sum": 1}}},
+               {"$sort": {"_id.lib": 1, "_id.tag": 1}}
+              ]
+    coll = DATABASE["NB"][MONGO_SOURCE]
     results = coll.aggregate(payload)
     for row in results:
         library = row["_id"]["lib"]
@@ -467,9 +473,9 @@ def perform_mapping():
         process_lm()
     if ITEMS:
         write_dynamodb()
-    print(f"Publishing names/body IDs read:   {COUNT['read']}")
-    print(f"Unique publishing names/body IDs: {len(MAPPING)}")
-    print(f"Records written to DynamoDB:      {COUNT['dynamodb']}")
+    print(f"Publishing names/body IDs read:   {COUNT['read']:,}")
+    print(f"Unique publishing names/body IDs: {len(MAPPING):,}")
+    print(f"Records written to DynamoDB:      {COUNT['dynamodb']:,}")
 
 
 # -----------------------------------------------------------------------------
@@ -480,11 +486,11 @@ if __name__ == '__main__':
         description='Update DynamoDB table janelia-neuronbridge-publishing-doi')
     PARSER.add_argument('--release', dest='RELEASE', default='', help='ALPS release or EM dataset')
     PARSER.add_argument('--source', dest='SOURCE', choices=['', 'em', 'lm'], default='',
-                        help='Source release (em or lm)')
+                        help='Source release ([blank], em, or lm)')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
-                        choices=['staging', 'prod'], default='prod', help='MySQL manifold')
+                        choices=['staging', 'prod'], default='prod', help='MySQL manifold (staging, [prod])')
     PARSER.add_argument('--mongo', dest='MONGO', action='store',
-                        default='prod', choices=['dev', 'prod'], help='MongoDB manifold')
+                        default='prod', choices=['dev', 'prod'], help='MongoDB manifold (dev, [prod])')
     PARSER.add_argument('--write', action='store_true', dest='WRITE',
                         default=False, help='Write to DynamoDB')
     PARSER.add_argument('--verbose', action='store_true', dest='VERBOSE',
