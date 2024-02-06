@@ -22,10 +22,10 @@ function run_import_job {
         declare EXCLUDED_LIBS_ARG=""
     fi
 
-    if [[ -n ${RELEASE_NAMES} ]]; then
-	declare DATA_RELEASES_ARG="-r ${RELEASE_NAMES}"
+    if [[ "${RELEASE_NAMES}" == "" ]]; then
+	declare DATA_RELEASES_ARG=
     else
-	declare DATA_RELEASES_ARG=""
+	declare DATA_RELEASES_ARG="-r ${RELEASE_NAMES}"
     fi
 
     if [[ -n ${PUBLISHED_NAMES_FILTER} ]]; then
@@ -45,8 +45,8 @@ function run_import_job {
         -as ${ALIGNMENT_SPACE}
         -l ${LIBNAME}
         --librariesVariants ${SEARCHABLE_MIPS} ${GRAD_MIPS} ${ZGAP_MIPS}
+        ${DATA_RELEASES_ARG}
         ${EXCLUDED_LIBS_ARG}
-	${DATA_RELEASES_ARG}
         ${PUBLISHED_NAMES_FILTER_ARG}
         ${TAG_ARG}
         --for-update

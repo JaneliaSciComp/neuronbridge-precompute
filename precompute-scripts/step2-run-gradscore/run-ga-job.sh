@@ -32,6 +32,11 @@ function run_ga_job {
     else
         TARGET_NEURONS_FILTER_ARG=""
     fi
+    if [[ -n ${TARGETS_DATASETS} ]]; then
+        TARGETS_DATASETS_ARG="--targets-datasets ${TARGETS_DATASETS}"
+    else
+        TARGETS_DATASETS_ARG=""
+    fi
     if [[ -n ${TARGETS_TAGS} ]]; then
         TARGETS_TAGS_ARG="--target-tags ${TARGETS_TAGS}"
     else
@@ -89,6 +94,7 @@ function run_ga_job {
         ${MASKS_TAGS_ARG} \
         ${TARGETS_ARG} \
         ${TARGET_NEURONS_FILTER_ARG} \
+        ${TARGETS_DATASETS_ARG} \
         ${TARGETS_TAGS_ARG} \
         ${MATCHES_TAGS_ARG} \
         --nBestLines ${TOP_RESULTS} \
