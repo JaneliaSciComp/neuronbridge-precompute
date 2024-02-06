@@ -156,7 +156,7 @@ def perform_checks():
     count = COLL['neuronMetadata'].count_documents(payload)
     if not count:
         terminate_program(f"There are no processed tags for version {ARG.VERSION} in {ARG.LIBRARY}")
-    print(f"Images in {ARG.LIBRARY} {ARG.VERSION}: {count}")
+    print(f"Images in {ARG.LIBRARY} {ARG.VERSION}: {count:,}")
     sql = "SELECT DISTINCT slide_code,alps_release FROM image_data_mv WHERE display=1 AND " \
           + "alps_release IS NULL OR alps_release IN (%s)"
     if ARG.RAW:
@@ -172,13 +172,13 @@ def perform_checks():
     for row in tqdm(results, desc="publishedName", total=count):
         COUNT['images'] += 1
         check_image(row, non_public)
-    print(f"Images found:    {COUNT['images']}")
-    print(f"Images to retag: {COUNT['found']}")
+    print(f"Images found:    {COUNT['images']:,}")
+    print(f"Images to retag: {COUNT['found']:,}")
     if COUNT['found']:
-        print(f"Images retagged: {COUNT['updated']}")
-        print(f"Unreleased:      {COUNT['unreleased']}")
+        print(f"Images retagged: {COUNT['updated']:,}")
+        print(f"Unreleased:      {COUNT['unreleased']:,}")
         for key, val in RELEASE.items():
-            print(f"{key}: {val}")
+            print(f"{key}: {val:,}")
     if SLIDES:
         process_slide_codes()
 
