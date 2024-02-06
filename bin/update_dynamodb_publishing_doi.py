@@ -31,7 +31,7 @@ MAPPING = {}
 #MONGO_SOURCE = 'neuronMetadata'
 MONGO_SOURCE = 'publishedURL'
 ITEMS = []
-PUBLISHING_DATABASE = ["mbew", "gen1mcfo"]
+PUBLISHING_DATABASE = ["mbew", "gen1mcfo", "raw"]
 DATABASE = {}
 CONN = {}
 CURSOR = {}
@@ -443,6 +443,10 @@ def process_lm():
             if database == "gen1mcfo" and "Gen1 MCFO" not in ARG.RELEASE:
                 continue
             if database != "gen1mcfo" and "Gen1 MCFO" in ARG.RELEASE:
+                continue
+            if database == "raw" and ARG.RELEASE != 'Split-GAL4 Omnibus Broad':
+                continue
+            if database != "raw" and ARG.RELEASE == 'Split-GAL4 Omnibus Broad':
                 continue
         LOGGER.info("Fetching lines from %s", database)
         try:
