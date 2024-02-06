@@ -322,7 +322,7 @@ def initialize_program():
             CONF['FULL_NAME'] = response['payload']['full_name']
             LOGGER.info("Authenticated as %s", CONF['FULL_NAME'])
     if not ARG.MANIFOLD:
-        print("Select a manifold")
+        print("Select an AWS S3 manifold")
         terminal_menu = TerminalMenu(MANIFOLDS)
         chosen = terminal_menu.show()
         if chosen is None:
@@ -1111,7 +1111,7 @@ def get_published_samples():
     '''
     coll = DBM.publishedLMImage
     rows = coll.distinct("sampleRef")
-    LOGGER.info("Found %d published sample IDs", len(rows))
+    LOGGER.info(f"Found {len(rows):,} published sample IDs")
     return dict.fromkeys(rows, True)
 
 
@@ -1162,8 +1162,8 @@ def upload_cdms():
     for smp in tqdm(data):
         if 'flylight' in ARG.LIBRARY and smp['slideCode'] in NON_PUBLIC:
             COUNT['Sample not published'] += 1
-            LOGGER.warning("Sample %s is in non-public release %s", smp['sourceRefId'],
-                           NON_PUBLIC[smp['slideCode']])
+            #LOGGER.warning("Sample %s is in non-public release %s", smp['sourceRefId'],
+            #               NON_PUBLIC[smp['slideCode']])
             continue
         if 'flylight' in ARG.LIBRARY and smp['sourceRefId'] not in published_sample:
             COUNT['Sample not published'] += 1
@@ -1304,7 +1304,7 @@ if __name__ == '__main__':
             keyfile.write(f"{json.dumps(KEY_LIST)}\n")
     print(f"Elapsed time: {STOP_TIME - START_TIME}")
     for key in sorted(COUNT):
-        print(f"{key + ':' : <21} {COUNT[key]}")
+        print(f"{key + ':' : <21} {COUNT[key]:,}")
     if VARIANT_UPLOADS:
         print('Uploaded variants:')
         for key in sorted(VARIANT_UPLOADS):
