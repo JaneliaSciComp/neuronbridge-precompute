@@ -1,8 +1,9 @@
-''' This program downloads an AWS bucket inventory as a CSV file
+''' This program downloads an AWS bucket inventory as a CSV file. We only use the first column.
 '''
 
 import argparse
 import csv
+from datetime import datetime
 import gzip
 import json
 import re
@@ -15,7 +16,6 @@ from aws_s3_lib import get_prefixes
 
 # AWS
 S3 = {}
-IBUCKET = 'janelia-flylight-inventory'
 
 
 def terminate_program(msg=None):
@@ -77,7 +77,7 @@ def get_manifest():
           data: latest manifest as JSON
     '''
     ibase = f"{ARG.BUCKET}/BasicInventory"
-    prefixes = get_prefixes(IBUCKET, prefix=ibase, client=S3['client'])
+    prefixes = get_prefixes(ARG.INVENTORY, prefix=ibase, client=S3['client'])
     prefix = ''
     for pfx in prefixes:
         if not re.match(r"^\d{4}-", pfx):
@@ -86,11 +86,26 @@ def get_manifest():
             prefix = pfx
     LOGGER.info(f"Downloading manifest from {prefix}")
     try:
-        contents = get_object(IBUCKET, f"{ibase}/{prefix}/manifest.json").decode("utf-8")
+        contents = get_object(ARG.INVENTORY, f"{ibase}/{prefix}/manifest.json").decode("utf-8")
         data = json.loads(contents)
     except Exception as err:
         terminate_program(err)
     return data
+
+
+def humansize(num, suffix='B'):
+    ''' Return a human-readable storage size
+        Keyword arguments:
+          num: size
+          suffix: default suffix
+        Returns:
+          string
+    '''
+    for unit in ['', 'K', 'M', 'G', 'T']:
+        if abs(num) < 1024.0:
+            return f"{num:.1f}{unit}{suffix}"
+        num /= 1024.0
+    return "{num:.1f}P{suffix}"
 
 
 def get_csv():
@@ -109,7 +124,8 @@ def get_csv():
     bucket = data['destinationBucket'].split(':')[-1]
     LOGGER.info(f"Getting manifest for {source}")
     lines = 0
-    filename = f"{source}_manifest.txt"
+    filename = f"{source}_manifest.{datetime.today().strftime('%Y%m%d')}.txt"
+    total = 0
     with open(filename, 'w', encoding='ascii') as outstream:
         for file in data['files']:
             cdata = get_object(bucket, file['key'])
@@ -122,8 +138,10 @@ def get_csv():
                     outstream.write(f"{row[1]}\n")
                 except Exception as err:
                     terminate_program(err)
+                total += int(row[2])
                 lines += 1
     print(f"Wrote {lines:,} keys to {filename}")
+    print(f"Bucket size: {humansize(total)}")
 
 
 if __name__ == '__main__':
@@ -131,6 +149,8 @@ if __name__ == '__main__':
         description="Download AWS S3 manifest")
     PARSER.add_argument('--bucket', dest='BUCKET', action='store',
                         default='janelia-flylight-color-depth', help='AWS S3 bucket')
+    PARSER.add_argument('--inventory', dest='INVENTORY', action='store',
+                        default='janelia-flylight-inventory', help='Inventory bucket')
     PARSER.add_argument('--manifest', dest='MANIFEST', action='store',
                         help='Manifest file')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
