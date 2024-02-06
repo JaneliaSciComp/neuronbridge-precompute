@@ -93,7 +93,7 @@ def initialize_program():
     DATABASE['NB'] = JRC.connect_database(dbo)
     # DynamoDB
     if not ARG.VERSION:
-        ARG.VERSION = NB.get_neuronbridge_version(DATABASE["NB"]["neuronMetadata"])
+        ARG.VERSION = NB.get_neuronbridge_version(DATABASE["NB"]["publishedURL"])
         if not ARG.VERSION:
             terminate_program("No NeuronBridge version selected")
     if ARG.DDBVERSION:
