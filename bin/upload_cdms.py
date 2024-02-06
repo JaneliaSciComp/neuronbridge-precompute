@@ -1,19 +1,18 @@
 ''' This program will use JSON data to update neuronbridge.publishedURL and create
     an order file to upload imagery to AWS S3.
 '''
-__version__ = '2.2.3'
+__version__ = '2.2.4'
 
 import argparse
 from copy import deepcopy
 from datetime import datetime
-import glob
 import json
 from operator import attrgetter
 import os
 import re
 import socket
 import sys
-from time import strftime, time
+from time import strftime
 from types import SimpleNamespace
 import boto3
 from botocore.exceptions import ClientError
@@ -56,6 +55,7 @@ REC = {'line': '', 'slide_code': '', 'gender': '', 'objective': '', 'area': ''}
 CONF = {}
 DRIVER = {} # Driver by line
 KEY_LIST = []
+MANIFEST = {}
 NON_PUBLIC = {}
 NO_RELEASE = {}
 PNAME = {}
@@ -183,15 +183,14 @@ def get_library():
         updated[row["library"]] = {"manifold": row["manifold"],
                                    "updateDate": row["updateDate"].strftime("%Y-%m-%d %H:%M:%S")}
     coll = DBM.neuronMetadata
-    if ARG.SOURCE == 'mongo':
-        mongo_libs = coll.distinct("libraryName")
+    mongo_libs = coll.distinct("libraryName")
     print("Select a library:")
     cdmlist = []
     liblist = []
     for cdmlib in LIBRARY:
         if ARG.MANIFOLD not in LIBRARY[cdmlib]:
             LIBRARY[cdmlib][ARG.MANIFOLD] = {'updated': None}
-        if ARG.SOURCE == 'mongo' and cdmlib not in mongo_libs:
+        if cdmlib not in mongo_libs:
             continue
         liblist.append(cdmlib)
         text = cdmlib
@@ -213,28 +212,16 @@ def get_parms():
         Returns:
             None
     """
+    if not ARG.ALIGNMENT:
+        ARG.ALIGNMENT = NB.get_template(S3_CLIENT, AWS.s3_bucket.cdm)
     if not ARG.LIBRARY:
         get_library()
     if not ARG.NEURONBRIDGE:
-        if ARG.SOURCE == 'file':
-            ARG.NEURONBRIDGE = NB.get_neuronbridge_version_from_file()
-        else:
-            ARG.NEURONBRIDGE = NB.get_neuronbridge_version(DBM.neuronMetadata, ARG.LIBRARY)
-            if ARG.NEURONBRIDGE:
-                ARG.NEURONBRIDGE = "v" + ARG.NEURONBRIDGE
+        ARG.NEURONBRIDGE = NB.get_neuronbridge_version(DBM.neuronMetadata, ARG.LIBRARY)
+        if ARG.NEURONBRIDGE:
+            ARG.NEURONBRIDGE = "v" + ARG.NEURONBRIDGE
         if not ARG.NEURONBRIDGE:
             terminate_program("No NeuronBridge version selected")
-    if not ARG.JSON and ARG.SOURCE == 'file':
-        print("Select a JSON file:")
-        json_base = CLOAD.json_dir + f"/{ARG.NEURONBRIDGE}"
-        jsonlist = list(map(lambda jfile: jfile.split('/')[-1],
-                            glob.glob(json_base + "/*.json")))
-        jsonlist.sort()
-        terminal_menu = TerminalMenu(jsonlist)
-        chosen = terminal_menu.show()
-        if chosen is None:
-            terminate_program("No JSON file selected")
-        ARG.JSON = '/'.join([json_base, jsonlist[chosen]])
 
 
 def get_flyem_dataset():
@@ -285,8 +272,6 @@ def set_searchable_subdivision(smp):
     SUBDIVISION['prefix'] = maxnum + 1
     LOGGER.warning("Will upload searchable neurons starting with subdivision %s",
                    SUBDIVISION['prefix'])
-    CONF['ALIGNMENT_SPACE'] = smp["alignmentSpace"]
-    LOGGER.info("Alignment space set to %s", CONF['ALIGNMENT_SPACE'])
 
 
 def select_uploads():
@@ -337,7 +322,7 @@ def initialize_program():
             CONF['FULL_NAME'] = response['payload']['full_name']
             LOGGER.info("Authenticated as %s", CONF['FULL_NAME'])
     if not ARG.MANIFOLD:
-        print("Select a manifold")
+        print("Select an AWS S3 manifold")
         terminal_menu = TerminalMenu(MANIFOLDS)
         chosen = terminal_menu.show()
         if chosen is None:
@@ -355,13 +340,13 @@ def initialize_program():
         DBM = JRC.connect_database(dbo)
     except Exception as err: # pylint: disable=broad-exception-caught
         terminate_program(err)
+    # AWS S3
+    initialize_s3()
     # Get parms
     get_parms()
     if ARG.LIBRARY not in LIBRARY:
         terminate_program(f"Unknown library {ARG.LIBRARY}")
     select_uploads()
-    # AWS S3
-    initialize_s3()
     # Get non-public slide codes
     coll = DBM['lmRelease']
     results = coll.find({"public": False})
@@ -408,6 +393,13 @@ def get_s3_names(bucket, newname):
     return bucket, object_name
 
 
+def already_uploaded(ukey):
+    if ukey in MANIFEST:
+        print(f"{ukey} in manifest")
+    return True if ukey in MANIFEST else False
+
+
+
 def upload_aws(bucket, dirpath, fname, newname, force=False):
     ''' Transfer a file to Amazon S3
         Keyword arguments:
@@ -442,6 +434,8 @@ def upload_aws(bucket, dirpath, fname, newname, force=False):
     if (not ARG.WRITE) and (not os.path.exists(complete_fpath)):
         terminate_program(f"File {complete_fpath} does not exist")
     LOGGER.debug("Uploading %s to S3 as %s", complete_fpath, object_name)
+    if ARG.MANIFEST and already_uploaded(object_name):
+        return
     S3CP.write(f"{complete_fpath}\t{'/'.join([bucket, object_name])}\n")
     if ARG.AWS:
         LOGGER.info("Upload %s", object_name)
@@ -990,10 +984,8 @@ def confirm_run():
     print(f"Library:              {ARG.LIBRARY}")
     if "flyem_" in ARG.LIBRARY:
         print(f"NeuPrint dataset:     {CONF['DATASET']}")
-    print(f"Alignment space:      {CONF['ALIGNMENT_SPACE']}")
+    print(f"Alignment space:      {ARG.ALIGNMENT}")
     print(f"NeuronBridge version: {ARG.NEURONBRIDGE}")
-    if ARG.SOURCE == 'file':
-        print(f"JSON file:            {ARG.JSON}")
     if WILL_LOAD:
         print(f"Files to upload:      {', '.join(WILL_LOAD)}")
     print(f"Required products:    {', '.join(REQUIRED_PRODUCTS)}")
@@ -1016,35 +1008,25 @@ def read_json():
           JSON
     '''
     stime = datetime.now()
-    if ARG.SOURCE == 'file':
-        print("Loading JSON file")
-        time_diff = datetime.now() - stime
-        LOGGER.info("JSON read in %fsec", time_diff.total_seconds())
-        stime = datetime.now()
-        with open(ARG.JSON, 'r', encoding='ascii') as jfile:
-            data = json.load(jfile)
-        time_diff = datetime.now() - stime
-        LOGGER.info("JSON parsed in %fsec", time_diff.total_seconds())
-    else:
-        print(f"Loading JSON from Mongo for {ARG.LIBRARY}")
-        coll = DBM.neuronMetadata
-        tagged = ARG.TAG if ARG.TAG else ARG.NEURONBRIDGE.replace("v", "")
-        payload = {"libraryName": ARG.LIBRARY,
-                   "$and": [{"tags": tagged},
-                            {"tags": {"$nin": ["unreleased"]}}],
-                   "publishedName": {"$exists": True}}
-        if ARG.PUBLISHED:
-            payload["publishedName"] = ARG.PUBLISHED
-        elif ARG.SLIDE:
-            payload["slideCode"] = ARG.SLIDE
-        if ARG.ALIGNMENT:
-            payload['alignmentSpace'] = ARG.ALIGNMENT
-        LOGGER.info("Checking neuronMetadata for %s library entries tagged as %s",
-                    ARG.LIBRARY, tagged)
-        data = list(coll.find(payload, allow_disk_use=True).sort("slide_code", 1))
-        time_diff = datetime.now() - stime
-        LOGGER.info("JSON read in %fsec", time_diff.total_seconds())
-        print(f"Documents read from Mongo: {len(data)}")
+    print(f"Loading JSON from Mongo for {ARG.LIBRARY}")
+    coll = DBM.neuronMetadata
+    tagged = ARG.TAG if ARG.TAG else ARG.NEURONBRIDGE.replace("v", "")
+    payload = {"libraryName": ARG.LIBRARY,
+               "$and": [{"tags": tagged},
+                        {"tags": {"$nin": ["unreleased"]}}],
+               "publishedName": {"$exists": True}}
+    if ARG.PUBLISHED:
+        payload["publishedName"] = ARG.PUBLISHED
+    elif ARG.SLIDE:
+        payload["slideCode"] = ARG.SLIDE
+    if ARG.ALIGNMENT:
+        payload['alignmentSpace'] = ARG.ALIGNMENT
+    LOGGER.info("Checking neuronMetadata for %s library entries tagged as %s",
+                ARG.LIBRARY, tagged)
+    data = list(coll.find(payload, allow_disk_use=True).sort("slide_code", 1))
+    time_diff = datetime.now() - stime
+    LOGGER.info("JSON read in %fsec", time_diff.total_seconds())
+    print(f"Documents read from Mongo: {len(data):,}")
     return data
 
 
@@ -1082,25 +1064,23 @@ def remap_sample(smp):
         Returns:
           None
     '''
-    if smp["alignmentSpace"] != CONF['ALIGNMENT_SPACE']:
+    if smp["alignmentSpace"] != ARG.ALIGNMENT:
+        print(smp["alignmentSpace"], ARG.ALIGNMENT)
         terminate_program(f"ID {smp['_id']} contains multiple alignment spaces")
-    if ARG.SOURCE == 'file':
-        smp['_id'] = smp['id']
-    else:
-        if 'SourceColorDepthImage' not in smp['computeFiles']:
-            terminate_program(f"Missing SourceColorDepthImage for {smp['sourceRefId']}")
-        smp['cdmPath'] = smp['computeFiles']['SourceColorDepthImage']
-        smp['sampleRef'] = smp['sourceRefId']
-        smp['variants'] = {}
-        if 'ZGapImage' in smp['computeFiles']:
-            smp['variants']['zgap'] = smp['computeFiles']['ZGapImage']
-        if 'InputColorDepthImage' in smp['computeFiles']:
-            full = smp['computeFiles']['InputColorDepthImage']
-            smp['imageArchivePath'] = os.path.dirname(full)
-            smp['imageName'] = os.path.basename(full)
-            smp['variants']['searchable_neurons'] = full
-        if 'GradientImage' in smp['computeFiles']:
-            smp['variants']['gradient'] = smp['computeFiles']['GradientImage']
+    if 'SourceColorDepthImage' not in smp['computeFiles']:
+        terminate_program(f"Missing SourceColorDepthImage for {smp['sourceRefId']}")
+    smp['cdmPath'] = smp['computeFiles']['SourceColorDepthImage']
+    smp['sampleRef'] = smp['sourceRefId']
+    smp['variants'] = {}
+    if 'ZGapImage' in smp['computeFiles']:
+        smp['variants']['zgap'] = smp['computeFiles']['ZGapImage']
+    if 'InputColorDepthImage' in smp['computeFiles']:
+        full = smp['computeFiles']['InputColorDepthImage']
+        smp['imageArchivePath'] = os.path.dirname(full)
+        smp['imageName'] = os.path.basename(full)
+        smp['variants']['searchable_neurons'] = full
+    if 'GradientImage' in smp['computeFiles']:
+        smp['variants']['gradient'] = smp['computeFiles']['GradientImage']
 
 
 def write_output_files(json_out, names_out):
@@ -1111,10 +1091,10 @@ def write_output_files(json_out, names_out):
         Returns:
           None
     '''
-    if ARG.SOURCE == 'mongo' and json_out:
+    if json_out:
         LOGGER.info("Writing JSON file")
-        with open(JSONO_FILE, 'w', encoding='ascii') as jsonfile:
-            jsonfile.write(json.dumps(json_out, indent=4, default=str))
+    with open(JSONO_FILE, 'w', encoding='ascii') as jsonfile:
+        jsonfile.write(json.dumps(json_out, indent=4, default=str))
     if names_out:
         LOGGER.info("Writing names file")
         with open(NAMES_FILE, 'w', encoding='ascii') as namefile:
@@ -1131,7 +1111,7 @@ def get_published_samples():
     '''
     coll = DBM.publishedLMImage
     rows = coll.distinct("sampleRef")
-    LOGGER.info("Found %d published sample IDs", len(rows))
+    LOGGER.info(f"Found {len(rows):,} published sample IDs")
     return dict.fromkeys(rows, True)
 
 
@@ -1145,7 +1125,7 @@ def upload_cdms():
     '''
     data = read_json()
     entries = len(data)
-    print(f"Number of entries in JSON: {entries}")
+    print(f"Number of entries in JSON: {entries:,}")
     if not entries:
         terminate_program("No entries to process")
     if 'flyem_' in ARG.LIBRARY:
@@ -1163,6 +1143,17 @@ def upload_cdms():
         # Get published samples
         published_sample = get_published_samples()
     set_searchable_subdivision(data[0])
+    # Manifest
+    added = tried = 0
+    if ARG.MANIFEST:
+        with open(ARG.MANIFEST, 'r', encoding='ascii') as instream:
+            rows = instream.read().splitlines()
+            for row in rows:
+                tried += 1
+                if row.startswith(f"{ARG.ALIGNMENT}/{LIBRARY[ARG.LIBRARY]['name']}"):
+                    MANIFEST[row] = True
+                    added += 1
+        LOGGER.info(f"Added {added:,}/{tried:,} entries from manifest")
     if not confirm_run():
         return
     print(f"Processing {ARG.LIBRARY} on {ARG.MANIFOLD} manifold")
@@ -1171,8 +1162,8 @@ def upload_cdms():
     for smp in tqdm(data):
         if 'flylight' in ARG.LIBRARY and smp['slideCode'] in NON_PUBLIC:
             COUNT['Sample not published'] += 1
-            LOGGER.warning("Sample %s is in non-public release %s", smp['sourceRefId'],
-                           NON_PUBLIC[smp['slideCode']])
+            #LOGGER.warning("Sample %s is in non-public release %s", smp['sourceRefId'],
+            #               NON_PUBLIC[smp['slideCode']])
             continue
         if 'flylight' in ARG.LIBRARY and smp['sourceRefId'] not in published_sample:
             COUNT['Sample not published'] += 1
@@ -1209,12 +1200,8 @@ def update_library_config():
           None
     '''
     if ARG.WRITE or ARG.CONFIG:
-        if ARG.SOURCE == "mongo":
-            method = "MongoDB"
-            source = "neuronMetadata"
-        else:
-            method = "JSON file"
-            source = ARG.JSON
+        method = "MongoDB"
+        source = "neuronMetadata"
         if NB.update_library_status(DBM.cdmLibraryStatus,
                                     library=ARG.LIBRARY,
                                     manifold=ARG.MANIFOLD,
@@ -1236,9 +1223,8 @@ def update_library_config():
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
         description="Upload Color Depth MIPs to AWS S3")
-    PARSER.add_argument('--source', dest='SOURCE', action='store',
-                        default='mongo', choices=['file', 'mongo'],
-                        help='JSON source [file, mongo]')
+    PARSER.add_argument('--manifest', dest='MANIFEST', action='store',
+                        default='', help='Manifest file')
     PARSER.add_argument('--library', dest='LIBRARY', action='store',
                         default='', help='color depth library')
     PARSER.add_argument('--tag', dest='TAG', action='store',
@@ -1251,8 +1237,6 @@ if __name__ == '__main__':
                         help='NeuPrint dataset, e.g. vnc:v0.6')
     PARSER.add_argument('--alignment', dest='ALIGNMENT', action='store',
                         help='alignment space')
-    PARSER.add_argument('--json', dest='JSON', action='store',
-                        help='JSON file')
     PARSER.add_argument('--backcheck', dest='BACKCHECK', action='store_true',
                         default=False, help='Perform publishing database backcheck and exit')
     PARSER.add_argument('--internal', dest='INTERNAL', action='store_true',
@@ -1293,8 +1277,6 @@ if __name__ == '__main__':
     PARSER.add_argument('--debug', dest='DEBUG', action='store_true',
                         default=False, help='Flag, Very chatty')
     ARG = PARSER.parse_args()
-    if ARG.SOURCE == 'mongo':
-        ARG.JSON = 'MongoDB'
     LOGGER = JRC.setup_logging(ARG)
     S3CP = ERR = ''
     REST = create_config_object("rest_services")
@@ -1307,11 +1289,10 @@ if __name__ == '__main__':
     S3CP_FILE = f"{ARG.LIBRARY}_s3cp_{STAMP}.txt"
     S3CP = open(S3CP_FILE, 'w', encoding='ascii')
     NAMES_FILE = f"{ARG.LIBRARY}_{STAMP}.names"
-    if ARG.SOURCE == 'mongo':
-        if ARG.RELEASE:
-            JSONO_FILE = f"{ARG.LIBRARY}_{ARG.RELEASE}_{STAMP}.json"
-        else:
-            JSONO_FILE = f"{ARG.LIBRARY}_{STAMP}.json"
+    if ARG.RELEASE:
+        JSONO_FILE = f"{ARG.LIBRARY}_{ARG.RELEASE}_{STAMP}.json"
+    else:
+        JSONO_FILE = f"{ARG.LIBRARY}_{STAMP}.json"
     START_TIME = datetime.now()
     upload_cdms()
     STOP_TIME = datetime.now()
@@ -1323,7 +1304,7 @@ if __name__ == '__main__':
             keyfile.write(f"{json.dumps(KEY_LIST)}\n")
     print(f"Elapsed time: {STOP_TIME - START_TIME}")
     for key in sorted(COUNT):
-        print(f"{key + ':' : <21} {COUNT[key]}")
+        print(f"{key + ':' : <21} {COUNT[key]:,}")
     if VARIANT_UPLOADS:
         print('Uploaded variants:')
         for key in sorted(VARIANT_UPLOADS):

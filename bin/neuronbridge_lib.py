@@ -32,57 +32,41 @@ def get_all_s3_objects(s3c, **base_kwargs):
         continuation_token = response.get('NextContinuationToken')
 
 
-def get_library_from_config(cdm_libs):
-    """ Get a NeuronBridge library from provided configuration JSON
+def get_library(source='aws', **kwarg):
+    """ Get NeuronBridge libraries from AWS, MongoDB, or a config file
         Keyword arguments:
-          cdm_libs: "cdm_library" configuration JSON
+          source: data source [aws, config, mongo]
+          bucket: S3 bucket (source=aws)
+          client: S3 client (source=aws)
+          template: template (source=aws)
+          config: config data (source=config)
+          coll: MongoDB collection (source=mongo)
+          exclude: exclusion string
         Returns:
           Library
     """
-    print("Select a library:")
-    cdmlist = []
-    for cdmlib in cdm_libs:
-        if cdm_libs[cdmlib]['name'] not in cdmlist:
-            cdmlist.append(cdm_libs[cdmlib]['name'])
-    terminal_menu = TerminalMenu(cdmlist)
-    chosen = terminal_menu.show()
-    return cdmlist[chosen].replace(' ', '_') if chosen is not None else None
-
-
-def get_library_from_aws(client, bucket, prefix, filtertext=None):
-    """ Get a NeuronBridge library from S3
-        Keyword arguments:
-          client: AWS S3 client
-          bucket: AWS S3 bucket
-          prefix: alignment template
-        Returns:
-          Library
-    """
-    print("Select a library:")
-    cdmlist = []
-    paginator = client.get_paginator('list_objects')
-    result = paginator.paginate(Bucket=bucket, Prefix=prefix + '/', Delimiter='/')
-    for pfx in result.search('CommonPrefixes'):
-        key = pfx.get('Prefix')
-        if re.search(r".+/", key) and filtertext not in key:
-            cdmlist.append((key.split("/"))[1])
-    terminal_menu = TerminalMenu(cdmlist)
-    chosen = terminal_menu.show()
-    return cdmlist[chosen].replace(' ', '_') if chosen is not None else None
-
-
-def get_library(coll, exclude=None):
-    ''' Allow the user to select a NeuronBridge library from MongoDB
-        Keyword arguments:
-          coll: MongoDB collection
-        Returns:
-          NeuronBridge version or None
-    '''
-    results = coll.distinct("libraryName")
     libraries = []
-    for row in results:
-        if (not exclude) or (exclude not in row):
-            libraries.append(row)
+    if source == 'aws':
+        for key in ('bucket', 'client', 'template'):
+            if key not in kwarg:
+                print(f"Missing argument {key} to get_library({source})")
+                sys.exit(0)
+        paginator = kwarg['client'].get_paginator('list_objects')
+        result = paginator.paginate(Bucket=kwarg['bucket'], Prefix=kwarg['template'] + '/', Delimiter='/')
+        for pfx in result.search('CommonPrefixes'):
+            key = pfx.get('Prefix')
+            if re.search(r".+/", key) and ((not kwarg['exclude']) or (kwarg['exclude'] not in key)):
+                libraries.append((key.split("/"))[1])
+    elif source == 'config':
+        for cdmlib in kwarg['config']:
+            if config[cdmlib]['name'] not in libraries:
+                libraries.append(config[cdmlib]['name'])
+    elif source == 'mongo':
+        results = kwarg['coll'].distinct("libraryName")
+        for row in results:
+            if (not kwarg['exclude']) or (kwarg['exclude'] not in row):
+                libraries.append(row)
+    # Display dialog
     libraries.sort()
     print("Select a NeuronBridge library:")
     terminal_menu = TerminalMenu(libraries)
@@ -184,6 +168,7 @@ def get_template(s3_client, bucket):
     terminal_menu = TerminalMenu(template)
     chosen = terminal_menu.show()
     return template[chosen] if chosen is not None else None
+
 
 def generate_jacs_uid(deployment_context=2, last_uid=None):
     """ Generate a JACS-style UID

@@ -43,6 +43,8 @@ AREA = {"s3-cdm": "AWS S3 color depth", "s3-thumbnail": "AWS S3 color depth thum
         "published-stacks": f"DynamoDB {DDBASE}-published-stacks",
         "publishing-doi": f"DynamoDB {DDBASE}-publishing-doi"}
 COUNT = {}
+NEURON_TO_DELETE = ('neuronType', 'neuronInstance')
+OTHER = {}
 
 
 def terminate_program(msg=None):
@@ -129,8 +131,9 @@ def initialize_program():
     if not ARG.TEMPLATE:
         terminate_program("No template was selected")
     if not ARG.LIBRARY:
-        ARG.LIBRARY = NB.get_library_from_aws(S3['client'], ARG.BUCKET, ARG.TEMPLATE,
-                                              'FlyEM' if is_light(ARG.ITEM) else 'FlyLight')
+        ARG.LIBRARY = NB.get_library(source='aws', client=S3['client'], bucket=ARG.BUCKET,
+                                     template=ARG.TEMPLATE, exclude='FlyEM' if is_light(ARG.ITEM) else 'FlyLight')
+
     if not ARG.LIBRARY:
         terminate_program("No library was selected")
 
@@ -311,6 +314,28 @@ def check_publishedurl():
     LOGGER.info(f"publishedURL records found: {len(TARGET['publishedURL']):,}")
 
 
+def check_neuronmetadata():
+    """ Check for images with a template/library/body ID in the neuronMetadata collection
+        Keyword arguments:
+          None
+        Returns:
+          None
+    """
+    libname = get_library_name()
+    coll = DB['NB']['neuronMetadata']
+    payload = {"alignmentSpace": ARG.TEMPLATE,
+               "libraryName": libname}
+    payload['publishedName'] = ARG.ITEM
+    LOGGER.info(f"Searching neuronMetadata for {ARG.TEMPLATE}/{libname} {ARG.ITEM}")
+    try:
+        row = coll.find_one(payload)
+    except Exception as err:
+        terminate_program(err)
+    for col in NEURON_TO_DELETE:
+        if row[col]:
+            OTHER[col] = row[col]
+
+
 def check_published_stacks():
     """ Check for records in the janelia-neuronbridge-published-stacks table. These
         are keyed by slide code/objective/template.
@@ -450,6 +475,39 @@ def publishedurl(area):
             terminate_program(err)
 
 
+def remove_from_bidlist(area, tbl, keytype, bkey):
+    nkey = OTHER[keytype].lower()
+    try:
+        response = tbl.query(KeyConditionExpression= \
+                             Key('itemType').eq('searchString') & Key('searchKey').eq(nkey))
+        if response:
+            payload = response['Items'][0]
+            new_bids = []
+            bids = payload['bodyIDs']
+            for bid in bids:
+                if list(bid.keys())[0] != bkey:
+                    new_bids.append(bid)
+            if len(new_bids) == len(bids):
+                return
+            LOGGER.debug(f"Updating {nkey}")
+            payload['bodyIDs'] = new_bids
+            if ARG.WRITE:
+                try:
+                    response = tbl.put_item(Item=payload)
+                    if response['ResponseMetadata']['HTTPStatusCode'] == 200:
+                        COUNT[AREA[area]] += 1
+                except ClientError:
+                    terminate_program("Couldn't update {nkey} in {area}: {response['Error']['Message']}")
+                except Exception as err:
+                    terminate_program(err)
+            else:
+                COUNT[AREA[area]] += 1
+        else:
+            LOGGER.warning(f"{keytype} {nkey} not found in DynamoDB published table")
+    except Exception as err:
+        terminate_program(err)
+
+
 def delete_from_published(area):
     """ Delete objects from the janelia-neuronbridge-published-[version] table
         Keyword arguments:
@@ -460,18 +518,22 @@ def delete_from_published(area):
     tbl = DB[area]
     for key in TARGET[area]:
         LOGGER.debug(f"Deleting {key}")
-        try:
-            if ARG.WRITE:
+        if ARG.WRITE:
+            try:
                 response = tbl.delete_item(Key={"itemType": 'searchString', "searchKey": key})
                 if response['ResponseMetadata']['HTTPStatusCode'] == 200:
                     COUNT[AREA[area]] += 1
-            else:
-                COUNT[AREA[area]] += 1
-        except ClientError:
-            terminate_program("Couldn't delete {key} from {area}: {response['Error']['Message']}")
-        except Exception as err:
-            terminate_program(err)
-
+                else:
+                    COUNT[AREA[area]] += 1
+            except ClientError:
+                terminate_program("Couldn't delete {key} from {area}: {response['Error']['Message']}")
+            except Exception as err:
+                terminate_program(err)
+        if not is_light(key):
+            for ktype in ('neuronType', 'neuronInstance'):
+                if ktype in OTHER and OTHER[ktype]:
+                    remove_from_bidlist(area, tbl, ktype, key)
+            
 
 def publishing_doi(area):
     """ Delete objects from the janelia-neuronbridge-publishing-doi table
@@ -561,6 +623,8 @@ def process_slide():
     if is_light(ARG.ITEM):
         check_publishedlmimage()
     check_publishedurl()
+    if not is_light(ARG.ITEM):
+        check_neuronmetadata()
     # DynamoDB
     if is_light(ARG.ITEM):
         check_published_stacks()

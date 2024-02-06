@@ -96,7 +96,8 @@ def get_parms():
         bucket = 'janelia-flylight-color-depth'
         if ARG.MANIFOLD != 'prod':
             bucket += f"-{ARG.MANIFOLD}"
-        ARG.LIBRARY = NB.get_library_from_aws(AWSS3["client"], bucket, ARG.TEMPLATE)
+        ARG.LIBRARY = NB.get_library(source='aws', client=AWSS3["client"], bucket=bucket,
+                                     template=ARG.TEMPLATE)
         if not ARG.LIBRARY:
             terminate_program("No library selected")
     if not ARG.VERSION:
@@ -209,12 +210,12 @@ def get_batch_dict(prefix, first_batch, key_list, max_batch, total_objects):
                   'max_batch': max_batch}
     for which in key_list:
         print(which)
-        print(f"  Total objects: {total_objects[which]}")
-        print(f"  Total keys:    {len(key_list[which])}")
+        print(f"  Total objects: {total_objects[which]:,}")
+        print(f"  Total keys:    {len(key_list[which]):,}")
         if which in batch_size:
-            print(f"  Batch size:    {batch_size[which]}")
+            print(f"  Batch size:    {batch_size[which]:,}")
             print(f"  Max batch:     {max_batch[which]}")
-    print(f"Skipped objects: {COUNT['skipped']}")
+    print(f"Skipped objects: {COUNT['skipped']:,}")
     return batch_dict
 
 
@@ -241,6 +242,8 @@ def populate_batch_dict():
             continue
         keys.append(obj['Key'])
     for key in tqdm(keys, desc="Keys"):
+        if "/KEYS/" in key:
+            continue
         which = 'default'
         LOGGER.debug(key)
         splitkey = key.split('/')
@@ -259,7 +262,11 @@ def populate_batch_dict():
         total_objects[which] += 1
         key_list[which].append(key)
         if which in DISTRIBUTE_FILES:
-            num = int(key.split("/")[3])
+            try:
+                num = int(key.split("/")[3])
+            except Exception as err:
+                LOGGER.error(f"Could not get number from {key}")
+                terminate_program(err)
             if not first_batch[which]:
                 first_batch[which] = num
             if num > max_batch[which]:
@@ -295,13 +302,13 @@ def denormalize():
                 payload['subprefixes'][which]['batch_size'] = batch_dict['size'][which]
                 payload['subprefixes'][which]['num_batches'] = batch_dict['max_batch'][which]
                 print(which)
-                print(f"  Batch size: {batch_dict['size'][which]}")
+                print(f"  Batch size: {batch_dict['size'][which]:,}")
                 print(f"  Batches:    {batch_dict['max_batch'][which]}")
         else:
             payload['count'] = batch_dict['count'][which]
             payload['prefix'] = prefix_template % (ARG.BUCKET, prefix)
         object_name = '/'.join([prefix, KEYFILE])
-        print(f"{which} objects: {batch_dict['count'][which]}")
+        print(f"{which} objects: {batch_dict['count'][which]:,}")
         random.shuffle(batch_dict['keys'][which])
         if which in DISTRIBUTE_FILES:
             order_file.append(write_order_file(which, json.dumps(batch_dict['keys'][which],
