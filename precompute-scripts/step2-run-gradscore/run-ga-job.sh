@@ -23,7 +23,7 @@ function run_ga_job {
         MASK_NEURONS_FILTER_ARG=""
     fi
     if [[ -n ${MASKS_TAGS} ]]; then
-        MASKS_TAGS_ARG="--mask-tags ${MASKS_TAGS}"
+        MASKS_TAGS_ARG="--masks-tags ${MASKS_TAGS}"
     else
         MASKS_TAGS_ARG=""
     fi
@@ -38,7 +38,7 @@ function run_ga_job {
         TARGETS_DATASETS_ARG=""
     fi
     if [[ -n ${TARGETS_TAGS} ]]; then
-        TARGETS_TAGS_ARG="--target-tags ${TARGETS_TAGS}"
+        TARGETS_TAGS_ARG="--targets-tags ${TARGETS_TAGS}"
     else
         TARGETS_TAGS_ARG=""
     fi
