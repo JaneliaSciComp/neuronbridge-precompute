@@ -60,6 +60,7 @@ NON_PUBLIC = {}
 NO_RELEASE = {}
 PNAME = {}
 RELEASE = {}
+RELPUB = {}
 UPLOADED_NAME = {}
 VARIANT_UPLOADS = {}
 
@@ -877,6 +878,11 @@ def check_image(smp):
     if result and not ARG.REWRITE:
         COUNT['Already in Mongo'] += 1
         return False
+    if 'flyem_' not in ARG.LIBRARY:
+        if smp['alpsRelease'] not in RELPUB:
+            RELPUB[smp['alpsRelease']] = 1
+        else:
+            RELPUB[smp['alpsRelease']] += 1
     return True
 
 
@@ -1308,5 +1314,13 @@ if __name__ == '__main__':
     if VARIANT_UPLOADS:
         print('Uploaded variants:')
         for key in sorted(VARIANT_UPLOADS):
-            print(f"  {key + ':' : <21} {VARIANT_UPLOADS[key]}")
+            print(f"  {key + ':' : <21} {VARIANT_UPLOADS[key]:,}")
+    if 'flyem_' not in ARG.LIBRARY and len(RELPUB):
+        print("Release counts:")
+        maxlen = 0
+        for key in RELPUB:
+            if len(key) > maxlen:
+                maxlen = len(key)
+        for key, val in sorted(RELPUB.items()):
+            print(f"{key+':':<{maxlen+1}} {val:,}")
     terminate_program()
