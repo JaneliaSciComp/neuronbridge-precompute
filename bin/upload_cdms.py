@@ -1322,5 +1322,5 @@ if __name__ == '__main__':
             if len(key) > maxlen:
                 maxlen = len(key)
         for key, val in sorted(RELPUB.items()):
-            print(f"{key:<{maxlen}}: {val:,}")
+            print(f"{key+':':<{maxlen+1}} {val:,}")
     terminate_program()
