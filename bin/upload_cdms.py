@@ -882,7 +882,7 @@ def check_image(smp):
         if smp['alpsRelease'] not in RELPUB:
             RELPUB[smp['alpsRelease']] = 1
         else:
-            RELPUB[smp['alpsRelease']] = +1
+            RELPUB[smp['alpsRelease']] += 1
     return True
 
 
@@ -1321,6 +1321,6 @@ if __name__ == '__main__':
         for key in RELPUB:
             if len(key) > maxlen:
                 maxlen = len(key)
-        for key, val in RELPUB.items():
+        for key, val in sorted(RELPUB.items()):
             print(f"{key:<{maxlen}}: {val:,}")
     terminate_program()
