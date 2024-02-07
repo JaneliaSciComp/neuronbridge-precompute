@@ -1316,7 +1316,7 @@ if __name__ == '__main__':
         for key in sorted(VARIANT_UPLOADS):
             print(f"  {key + ':' : <21} {VARIANT_UPLOADS[key]:,}")
     if 'flyem_' not in ARG.LIBRARY and len(RELPUB):
-        print("Release counts")
+        print("Release counts:")
         maxlen = 0
         for key in RELPUB:
             if len(key) > maxlen:
