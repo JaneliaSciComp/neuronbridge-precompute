@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block css %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-select/1.13.1/css/bootstrap-select.css" />
+<link href="https://unpkg.com/gijgo@1.9.13/css/gijgo.min.css" rel="stylesheet" type="text/css" />
+{% endblock %}
+{% block script %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-cookie/1.4.1/jquery.cookie.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-select/1.13.1/js/bootstrap-select.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/xcash/bootstrap-autocomplete@v2.3.7/dist/latest/bootstrap-autocomplete.min.js"></script>
+<script src="https://unpkg.com/gijgo@1.9.13/js/gijgo.min.js" type="text/javascript"></script>
+<script>
+
+function go_to_pname() {
+  if (!$('#pname').val()) {
+    alert("You must enter a publishing name or body ID");
+    return;
+  }
+  url = "/pname/" + $("#pname").val();
+  window.location = url;
+}
+</script>
+{% endblock %}
+
+{% block content %}
+  {{navbar|safe}}
+  <div style="padding:15px">
+  <form>
+  <h2>Search</h2>
+  <br>
+  <input type="text" class="form-control basicAutoComplete col-sm-1" id="pname">
+  Enter a publishing name or body ID (i.e. <a href="pname/LH2448">LH2448</a>
+  or <a href="pname/1912436017">1912436017</a>)
+  <br><br>
+  <button type="submit" id="s" class="btn btn-primary btn-sm" onclick="go_to_pname(); return false;" href="#">Search</button>
+  <br>
+{% endblock %}
