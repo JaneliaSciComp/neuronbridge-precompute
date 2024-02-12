@@ -43,7 +43,7 @@ S3_SECONDS = 60 * 60 * 12
 # Counters
 COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'Missing consensus': 0,
          'No sampleRef': 0, 'No publishing name': 0, 'No driver': 0, 'Sample not published': 0,
-         'Line not published': 0, 'Already in Mongo': 0,
+         'Line not published': 0, 'Already in Mongo': 0, 'Not in Mongo': 0,
          'Bad driver': 0, 'Duplicate objects': 0, 'Unparsable files': 0, 'Updated on JACS': 0,
          'Mongo insertions': 0, 'Mongo upserts': 0,
          'FlyEM flips': 0, 'Images processed': 0, 'Missing release': 0, 'Skipped release': 0}
@@ -876,6 +876,7 @@ def check_image(smp):
     if result and not ARG.REWRITE:
         COUNT['Already in Mongo'] += 1
         return False
+    COUNT['Not in Mongo'] += 1
     if 'flyem_' not in ARG.LIBRARY:
         if smp['alpsRelease'] not in RELPUB:
             RELPUB[smp['alpsRelease']] = 1
