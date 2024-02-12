@@ -1,5 +1,12 @@
 boto3==1.27.0
 botocore==1.30.0
+colorlog
 Flask==2.2.3
 Flask-Cors==3.0.10
-git+https://github.com/JaneliaSciComp/jrc_common.git@9958f27a98fc73d23881ef038e6ee387fe715954
+gunicorn
+mysqlclient==2.1.1
+psycopg2
+PyJWT==2.6.0
+pymongo==3.12.0
+requests
+Werkzeug==2.2.2

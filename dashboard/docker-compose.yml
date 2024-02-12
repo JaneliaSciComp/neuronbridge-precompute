@@ -23,6 +23,7 @@ services:
     environment:
       - TZ=America/New_York
       - PYTHONUNBUFFERED=1
+      - CONFIG_SERVER_URL=https://config.int.janelia.org/
     networks:
         - nb-precompute-net
 
