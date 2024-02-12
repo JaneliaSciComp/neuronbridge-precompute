@@ -217,12 +217,10 @@ def get_parms():
         ARG.ALIGNMENT = NB.get_template(S3_CLIENT, AWS.s3_bucket.cdm)
     if not ARG.LIBRARY:
         get_library()
-    if not ARG.NEURONBRIDGE:
-        ARG.NEURONBRIDGE = NB.get_neuronbridge_version(DBM.neuronMetadata, ARG.LIBRARY)
-        if ARG.NEURONBRIDGE:
-            ARG.NEURONBRIDGE = "v" + ARG.NEURONBRIDGE
-        if not ARG.NEURONBRIDGE:
-            terminate_program("No NeuronBridge version selected")
+    if not ARG.TAG:
+        ARG.TAG = NB.get_neuronbridge_version(DBM.neuronMetadata, ARG.LIBRARY)
+        if not ARG.TAG:
+            terminate_program("No NeuronBridge version tag selected")
 
 
 def get_flyem_dataset():
@@ -991,7 +989,7 @@ def confirm_run():
     if "flyem_" in ARG.LIBRARY:
         print(f"NeuPrint dataset:     {CONF['DATASET']}")
     print(f"Alignment space:      {ARG.ALIGNMENT}")
-    print(f"NeuronBridge version: {ARG.NEURONBRIDGE}")
+    print(f"NeuronBridge version: {ARG.TAG}")
     if WILL_LOAD:
         print(f"Files to upload:      {', '.join(WILL_LOAD)}")
     print(f"Required products:    {', '.join(REQUIRED_PRODUCTS)}")
@@ -1016,9 +1014,8 @@ def read_json():
     stime = datetime.now()
     print(f"Loading JSON from Mongo for {ARG.LIBRARY}")
     coll = DBM.neuronMetadata
-    tagged = ARG.TAG if ARG.TAG else ARG.NEURONBRIDGE.replace("v", "")
     payload = {"libraryName": ARG.LIBRARY,
-               "$and": [{"tags": tagged},
+               "$and": [{"tags": ARG.TAG},
                         {"tags": {"$nin": ["unreleased"]}}],
                "publishedName": {"$exists": True}}
     if ARG.PUBLISHED:
@@ -1028,7 +1025,7 @@ def read_json():
     if ARG.ALIGNMENT:
         payload['alignmentSpace'] = ARG.ALIGNMENT
     LOGGER.info("Checking neuronMetadata for %s library entries tagged as %s",
-                ARG.LIBRARY, tagged)
+                ARG.LIBRARY, ARG.TAG)
     data = list(coll.find(payload, allow_disk_use=True).sort("slide_code", 1))
     time_diff = datetime.now() - stime
     LOGGER.info("JSON read in %fsec", time_diff.total_seconds())
@@ -1215,7 +1212,6 @@ def update_library_config():
                                     source=source,
                                     dataset=ARG.DATASET,
                                     neuprint=ARG.NEUPRINT,
-                                    neuronbridge=ARG.NEURONBRIDGE,
                                     release=ARG.RELEASE,
                                     tag=ARG.TAG,
                                     images=COUNT['Images processed'],
