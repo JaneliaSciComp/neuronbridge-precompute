@@ -417,7 +417,7 @@ def upload_aws(bucket, dirpath, fname, newname, force=False):
     url = url.replace(' ', '+')
     if object_name in UPLOADED_NAME:
         if complete_fpath != UPLOADED_NAME[object_name]:
-            err_text = "f{object_name} was already uploaded from {UPLOADED_NAME[object_name]}, " \
+            err_text = f"{object_name} was already uploaded from {UPLOADED_NAME[object_name]}, " \
                        + f"but is now being uploaded from {complete_fpath}"
             LOGGER.error(err_text)
             ERR.write(err_text + "\n")
@@ -1215,6 +1215,7 @@ def update_library_config():
                                     neuprint=ARG.NEUPRINT,
                                     release=ARG.RELEASE,
                                     tag=ARG.TAG,
+                                    neuronbridge=f"v{ARG.TAG}",
                                     images=COUNT['Images processed'],
                                     samples=COUNT['Samples'],
                                     updatedBy=CONF['FULL_NAME']):
