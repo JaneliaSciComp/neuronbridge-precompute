@@ -23,9 +23,15 @@ function run_import_job {
     fi
 
     if [[ "${RELEASE_NAMES}" == "" ]]; then
-	declare DATA_RELEASES_ARG=
+        declare DATA_RELEASES_ARG=
     else
-	declare DATA_RELEASES_ARG="-r ${RELEASE_NAMES}"
+        declare DATA_RELEASES_ARG="-r ${RELEASE_NAMES}"
+    fi
+
+    if [[ -n ${NEURON_NAMES} ]]; then
+        declare NEURON_NAMES_ARG="--included-neurons ${NEURON_NAMES}"
+    else
+        declare NEURON_NAMES_ARG=
     fi
 
     if [[ -n ${PUBLISHED_NAMES_FILTER} ]]; then
@@ -47,6 +53,7 @@ function run_import_job {
         --librariesVariants ${SEARCHABLE_MIPS} ${GRAD_MIPS} ${ZGAP_MIPS}
         ${DATA_RELEASES_ARG}
         ${EXCLUDED_LIBS_ARG}
+        ${NEURON_NAMES_ARG}
         ${PUBLISHED_NAMES_FILTER_ARG}
         ${TAG_ARG}
         --for-update
