@@ -111,7 +111,7 @@ def check_image(row, non_public):
             LOGGER.warning("Sample %s (%s) is in non-public release %s", row['_id'],
                            row['slideCode'], release)
         else:
-            LOGGER.warning("Sample %s (%s) is not prestaged", row['_id'], row['slideCode'])
+            LOGGER.warning(f"Sample {row['_id']} ({row['slideCode']}) is not prestaged")
             SLIDES.append(row['slideCode'])
         tag_release(row, release)
     elif not row['publishedName']:
@@ -162,7 +162,7 @@ def perform_checks():
     if ARG.RAW:
         non_public.append('Split-GAL4 Omnibus Broad')
     sql = sql % ('"' + '","'.join(non_public) + '"',)
-    LOGGER.info("Finding non-public images in SAGE")
+    LOGGER.info(f"Finding non-public images ({','.join(non_public)}) in SAGE")
     DB['sage']['cursor'].execute(sql)
     rows =  DB['sage']['cursor'].fetchall()
     non_public = {row['slide_code']: row['alps_release']  for row in rows}
