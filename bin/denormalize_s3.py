@@ -316,7 +316,7 @@ def denormalize():
         upload_to_aws(AWSS3["resource"], json.dumps(batch_dict['keys'][which],
                                                     indent=4), object_name)
         object_name = '/'.join([prefix, COUNTFILE])
-        LOGGER.info("Uploading %s count file (%d)", which, batch_dict['count'][which])
+        LOGGER.info(f"Uploading {which} count file ({batch_dict['count'][which]:,})")
         upload_to_aws(AWSS3["resource"], json.dumps({"objectCount": batch_dict['count'][which]},
                                                     indent=4), object_name)
     if ARG.WRITE:

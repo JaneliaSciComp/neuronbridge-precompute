@@ -46,6 +46,8 @@ def get_library(source='aws', **kwarg):
           Library
     """
     libraries = []
+    if 'exclude' not in kwarg:
+        kwarg['exclude'] = None
     if source == 'aws':
         for key in ('bucket', 'client', 'template'):
             if key not in kwarg:
