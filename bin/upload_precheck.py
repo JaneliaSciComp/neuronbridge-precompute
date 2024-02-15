@@ -8,11 +8,15 @@ import argparse
 from operator import attrgetter
 import sys
 from time import strftime
+import boto3
 import MySQLdb
 from tqdm import tqdm
 import jrc_common.jrc_common as JRC
 import neuronbridge_lib as NB
 
+# AWS
+S3 = {}
+S3_SECONDS = 60 * 60 * 12
 # Database
 DB = {}
 COLL = {}
@@ -31,6 +35,31 @@ def terminate_program(msg=None):
     if msg:
         LOGGER.critical(msg)
     sys.exit(-1 if msg else 0)
+
+
+def initialize_s3():
+    try:
+        aws = JRC.get_config("aws")
+    except Exception as err:
+        terminate_program(err)
+    LOGGER.info("Opening S3 client and resource")
+    if "dev" in ARG.MANIFOLD:
+        S3['client'] = boto3.client('s3')
+        S3['resource'] = boto3.resource('s3')
+    else:
+        sts_client = boto3.client('sts')
+        aro = sts_client.assume_role(RoleArn=aws.role_arn,
+                                     RoleSessionName="AssumeRoleSession1",
+                                     DurationSeconds=S3_SECONDS)
+        credentials = aro['Credentials']
+        S3['client'] = boto3.client('s3',
+                                    aws_access_key_id=credentials['AccessKeyId'],
+                                    aws_secret_access_key=credentials['SecretAccessKey'],
+                                    aws_session_token=credentials['SessionToken'])
+        S3['resource'] = boto3.resource('s3',
+                                        aws_access_key_id=credentials['AccessKeyId'],
+                                        aws_secret_access_key=credentials['SecretAccessKey'],
+                                        aws_session_token=credentials['SessionToken'])
 
 
 def initialize_program():
@@ -58,7 +87,11 @@ def initialize_program():
             terminate_program(JRC.sql_error(err))
         except Exception as err: # pylint: disable=broad-exception-caught
             terminate_program(err)
+    # S3
+    initialize_s3()
     # Parms
+    if not ARG.TEMPLATE:
+        ARG.TEMPLATE = NB.get_template(S3["client"], 'janelia-flylight-color-depth')
     if not ARG.LIBRARY:
         ARG.LIBRARY = NB.get_library(source='mongo', coll=DB['neuronbridge'].neuronMetadata, exclude="flyem")
     if not ARG.VERSION:
@@ -108,8 +141,8 @@ def check_image(row, non_public):
     if row['slideCode'] in non_public:
         release = non_public[row['slideCode']]
         if release:
-            LOGGER.warning("Sample %s (%s) is in non-public release %s", row['_id'],
-                           row['slideCode'], release)
+            LOGGER.debug("Sample %s (%s) is in non-public release %s", row['_id'],
+                         row['slideCode'], release)
         else:
             LOGGER.warning(f"Sample {row['_id']} ({row['slideCode']}) is not prestaged")
             SLIDES.append(row['slideCode'])
@@ -151,6 +184,7 @@ def perform_checks():
     non_public = [row['release'] for row in results]
     COLL['neuronMetadata'] = DB['neuronbridge'].neuronMetadata
     payload = {"libraryName": ARG.LIBRARY,
+               "alignmentSpace": ARG.TEMPLATE,
                "$and": [{"tags": ARG.VERSION},
                         {"tags": {"$nin": ["unreleased"]}}]}
     count = COLL['neuronMetadata'].count_documents(payload)
@@ -158,10 +192,10 @@ def perform_checks():
         terminate_program(f"There are no processed tags for version {ARG.VERSION} in {ARG.LIBRARY}")
     print(f"Images in {ARG.LIBRARY} {ARG.VERSION}: {count:,}")
     sql = "SELECT DISTINCT slide_code,alps_release FROM image_data_mv WHERE display=1 AND " \
-          + "alps_release IS NULL OR alps_release IN (%s)"
+          + "alignment_space_cdm=%s AND (alps_release IS NULL OR alps_release IN (%s))"
     if ARG.RAW:
         non_public.append('Split-GAL4 Omnibus Broad')
-    sql = sql % ('"' + '","'.join(non_public) + '"',)
+    sql = sql % (f"'{ARG.TEMPLATE}'", '"' + '","'.join(non_public) + '"',)
     LOGGER.info(f"Finding non-public images ({','.join(non_public)}) in SAGE")
     DB['sage']['cursor'].execute(sql)
     rows =  DB['sage']['cursor'].fetchall()
@@ -186,6 +220,8 @@ def perform_checks():
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
         description="Upload prechecks")
+    PARSER.add_argument('--template', dest='TEMPLATE', action='store',
+                        help='Template')
     PARSER.add_argument('--library', dest='LIBRARY', action='store',
                         default='', help='color depth library')
     PARSER.add_argument('--version', dest='VERSION', action='store',
@@ -205,6 +241,7 @@ if __name__ == '__main__':
                         default=False, help='Flag, Very chatty')
     ARG = PARSER.parse_args()
     LOGGER = JRC.setup_logging(ARG)
+    
     initialize_program()
     perform_checks()
     terminate_program()
