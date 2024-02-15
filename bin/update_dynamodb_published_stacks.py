@@ -116,7 +116,7 @@ def process_mongo():
         count = coll.count_documents({})
     except Exception as err:
         terminate_program(TEMPLATE % (type(err).__name__, err.args))
-    LOGGER.info("Records in Mongo publishedLMImage: %d", count)
+    LOGGER.info(f"Records in Mongo publishedLMImage: {count:,}")
     LOGGER.info("Building payload list for DynamoDB update")
     for row in tqdm(rows, total=count):
         payload = set_payload(row)
@@ -126,9 +126,9 @@ def process_mongo():
     else:
         COUNT["write"] = count
     tcolor = Fore.GREEN if count == COUNT["write"] else Fore.RED
-    print(f"Items read:    {tcolor + str(count) + Style.RESET_ALL}")
-    print(f"Slide codes:   {len(SLIDE_CODE)}")
-    print(f"Items written: {tcolor + str(COUNT['write']) + Style.RESET_ALL}")
+    print(f"Items read:    {tcolor}{count:,}{Style.RESET_ALL}")
+    print(f"Slide codes:   {len(SLIDE_CODE):,}")
+    print(f"Items written: {tcolor}{COUNT['write']:,}{Style.RESET_ALL}")
 
 
 if __name__ == '__main__':
