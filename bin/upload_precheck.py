@@ -2,7 +2,7 @@
     sample issues, optionally retagging documents. Documents will be tagged
     with the word "unreleased" as well as the ALPS release.
 '''
-__version__ = '0.0.3'
+__version__ = '0.0.4'
 
 import argparse
 from operator import attrgetter
@@ -13,6 +13,8 @@ import MySQLdb
 from tqdm import tqdm
 import jrc_common.jrc_common as JRC
 import neuronbridge_lib as NB
+
+#pylint: disable=broad-exception-caught,logging-fstring-interpolation
 
 # AWS
 S3 = {}
@@ -38,6 +40,12 @@ def terminate_program(msg=None):
 
 
 def initialize_s3():
+    ''' Intialize S3
+        Keyword arguments:
+          None
+        Returns:
+          None
+    '''
     try:
         aws = JRC.get_config("aws")
     except Exception as err:
@@ -93,7 +101,8 @@ def initialize_program():
     if not ARG.TEMPLATE:
         ARG.TEMPLATE = NB.get_template(S3["client"], 'janelia-flylight-color-depth')
     if not ARG.LIBRARY:
-        ARG.LIBRARY = NB.get_library(source='mongo', coll=DB['neuronbridge'].neuronMetadata, exclude="flyem")
+        ARG.LIBRARY = NB.get_library(source='mongo', coll=DB['neuronbridge'].neuronMetadata,
+                                     exclude="flyem")
     if not ARG.VERSION:
         ARG.VERSION = NB.get_neuronbridge_version(DB['neuronbridge'].neuronMetadata)
 
@@ -241,7 +250,6 @@ if __name__ == '__main__':
                         default=False, help='Flag, Very chatty')
     ARG = PARSER.parse_args()
     LOGGER = JRC.setup_logging(ARG)
-    
     initialize_program()
     perform_checks()
     terminate_program()
