@@ -13,14 +13,14 @@ import re
 import sys
 from types import SimpleNamespace
 import boto3
-import colorlog
 import MySQLdb
 from neuprint import Client, fetch_custom, set_default_client
 from pymongo import MongoClient
 import requests
 from tqdm import tqdm
+import jrc_common.jrc_common as JRC
 
-# pylint: disable=R1710, W0703
+# pylint: disable=broad-exception-caught,inconsistent-return-statements,logging-fstring-interpolation
 # Configuration
 GEN1_MCFO_DOI = "10.7554/eLife.80660"
 CITATION = {}
@@ -28,7 +28,6 @@ DOI = {}
 EMDOI = {}
 MAPPING = {}
 # Database
-#MONGO_SOURCE = 'neuronMetadata'
 MONGO_SOURCE = 'publishedURL'
 ITEMS = []
 PUBLISHING_DATABASE = ["mbew", "gen1mcfo", "raw"]
@@ -56,19 +55,6 @@ def terminate_program(msg=None):
     if msg:
         LOGGER.critical(msg)
     sys.exit(-1 if msg else 0)
-
-
-def sql_error(err):
-    """ Log a critical SQL error and exit
-        Keyword arguments:
-          err: error text
-        Returns:
-          None
-    """
-    try:
-        terminate_program(f"MySQL error {err.args[0]}: {err.args[1]}")
-    except IndexError:
-        terminate_program(f"MySQL error: {err}")
 
 
 def call_responder(server, endpoint, authenticate=False):
@@ -109,12 +95,28 @@ def db_connect(dbc):
         conn = MySQLdb.connect(host=dbc.host, user=dbc.user,
                                passwd=dbc.password, db=dbc.name)
     except MySQLdb.Error as err:
-        sql_error(err)
+        terminate_program(JRC.sql_error(err))
     try:
         cursor = conn.cursor(MySQLdb.cursors.DictCursor)
         return conn, cursor
     except MySQLdb.Error as err:
-        sql_error(err)
+        terminate_program(JRC.sql_error(err))
+
+
+def simplenamespace_to_dict(nspace):
+    """ Convert a simplenamespace to a dict recursively
+        Keyword arguments:
+          nspace: simplenamespace to convert
+        Returns:
+          The converted dict
+    """
+    result = {}
+    for key, value in nspace.__dict__.items():
+        if isinstance(value, SimpleNamespace):
+            result[key] = simplenamespace_to_dict(value)
+        else:
+            result[key] = value
+    return result
 
 
 def create_dynamodb_table(dynamodb, table):
@@ -191,6 +193,13 @@ def initialize_program():
         create_dynamodb_table(dynamodb, table)
     LOGGER.info("Writing results to DynamoDB table %s", table)
     DATABASE["DOI"] = dynamodb.Table(table)
+    # Releases
+    reldict = simplenamespace_to_dict(JRC.get_config("releases"))
+    for _, rel in reldict.items():
+        if 'publication' in rel['doi']:
+            CITATION[rel['doi']['publication']] = rel['citation']
+        if 'preprint' in rel['doi']:
+            CITATION[rel['doi']['preprint']] = rel['citation']
 
 
 def from_crossref(rec):
@@ -256,15 +265,17 @@ def get_citation(doi):
     if doi not in CITATION:
         if 'in prep' in doi or 'janelia' in doi:
             CITATION[doi] = doi
-            print(f"Internal DOI: {doi}")
+            LOGGER.info(f"Internal DOI: {doi}")
             return doi
         rec = call_responder('crossref', doi)
         if rec:
             CITATION[doi] = from_crossref(rec)
-            print(f"Crossref DOI: {doi}: {CITATION[doi]}")
+            LOGGER.info(f"Crossref DOI: {doi}: {CITATION[doi]}")
         else:
             CITATION[doi] = from_datacite(doi)
-            print(f"DataCite DOI: {doi}: {CITATION[doi]}")
+            LOGGER.info(f"DataCite DOI: {doi}: {CITATION[doi]}")
+    if not CITATION[doi]:
+        terminate_program(f"No citation for {doi}")
     return CITATION[doi]
 
 
@@ -414,8 +425,9 @@ def process_single_lm_image(row, database):
           None
     """
     if row['line'] in MAPPING:
-        LOGGER.error("DOI %s does not match previous %s for publishing name %s",
-                     row['doi'], MAPPING[row['line']], row['line'])
+        if row['doi'] != MAPPING[row['line']]:
+            LOGGER.error("DOI %s does not match previous %s for publishing name %s",
+                         row['doi'], MAPPING[row['line']], row['line'])
     else:
         doi = row['doi']
         MAPPING[row['line']] = doi
@@ -458,7 +470,7 @@ def process_lm():
             if ARG.RELEASE and not rows:
                 terminate_program(f"{ARG.RELEASE} is not a valid release for FlyLight")
         except MySQLdb.Error as err:
-            sql_error(err)
+            terminate_program(JRC.sql_error(err))
         for row in tqdm(rows, desc=database):
             COUNT['read'] += 1
             process_single_lm_image(row, database)
@@ -492,9 +504,11 @@ if __name__ == '__main__':
     PARSER.add_argument('--source', dest='SOURCE', choices=['', 'em', 'lm'], default='',
                         help='Source release ([blank], em, or lm)')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
-                        choices=['staging', 'prod'], default='prod', help='MySQL manifold (staging, [prod])')
+                        choices=['staging', 'prod'], default='prod',
+                        help='MySQL manifold (staging, [prod])')
     PARSER.add_argument('--mongo', dest='MONGO', action='store',
-                        default='prod', choices=['dev', 'prod'], help='MongoDB manifold (dev, [prod])')
+                        default='prod', choices=['dev', 'prod'],
+                        help='MongoDB manifold (dev, [prod])')
     PARSER.add_argument('--write', action='store_true', dest='WRITE',
                         default=False, help='Write to DynamoDB')
     PARSER.add_argument('--verbose', action='store_true', dest='VERBOSE',
@@ -502,21 +516,11 @@ if __name__ == '__main__':
     PARSER.add_argument('--debug', action='store_true', dest='DEBUG',
                         default=False, help='Turn on debug output')
     ARG = PARSER.parse_args()
-    LOGGER = colorlog.getLogger()
-    ATTR = colorlog.colorlog.logging if "colorlog" in dir(colorlog) else colorlog
-    if ARG.DEBUG:
-        LOGGER.setLevel(ATTR.DEBUG)
-    elif ARG.VERBOSE:
-        LOGGER.setLevel(ATTR.INFO)
-    else:
-        LOGGER.setLevel(ATTR.WARNING)
-    HANDLER = colorlog.StreamHandler()
-    HANDLER.setFormatter(colorlog.ColoredFormatter())
-    LOGGER.addHandler(HANDLER)
+    LOGGER = JRC.setup_logging(ARG)
     if ARG.RELEASE and not ARG.SOURCE:
         terminate_program("If you specify a release, you must also specify a source")
-    REST = create_config_object("rest_services")
-    SERVER = create_config_object("servers")
+    REST = JRC.get_config("rest_services")
+    SERVER = JRC.get_config("servers")
     initialize_program()
     perform_mapping()
     terminate_program()
