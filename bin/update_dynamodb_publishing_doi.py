@@ -256,15 +256,15 @@ def get_citation(doi):
     if doi not in CITATION:
         if 'in prep' in doi or 'janelia' in doi:
             CITATION[doi] = doi
-            print(f"Internal DOI: {doi}")
+            LOGGER.info(f"Internal DOI: {doi}")
             return doi
         rec = call_responder('crossref', doi)
         if rec:
             CITATION[doi] = from_crossref(rec)
-            print(f"Crossref DOI: {doi}: {CITATION[doi]}")
+            LOGGER.info(f"Crossref DOI: {doi}: {CITATION[doi]}")
         else:
             CITATION[doi] = from_datacite(doi)
-            print(f"DataCite DOI: {doi}: {CITATION[doi]}")
+            LOGGER.info(f"DataCite DOI: {doi}: {CITATION[doi]}")
     return CITATION[doi]
 
 
@@ -414,8 +414,9 @@ def process_single_lm_image(row, database):
           None
     """
     if row['line'] in MAPPING:
-        LOGGER.error("DOI %s does not match previous %s for publishing name %s",
-                     row['doi'], MAPPING[row['line']], row['line'])
+        if row['doi'] != MAPPING[row['line']]:
+            LOGGER.error("DOI %s does not match previous %s for publishing name %s",
+                         row['doi'], MAPPING[row['line']], row['line'])
     else:
         doi = row['doi']
         MAPPING[row['line']] = doi
