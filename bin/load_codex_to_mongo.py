@@ -8,6 +8,7 @@ __version__ = '0.0.1'
 import argparse
 import csv
 from datetime import datetime
+import json
 from operator import attrgetter
 import socket
 import sys
@@ -23,8 +24,8 @@ import jrc_common.jrc_common as JRC
 DB = {}
 # UUIDs
 KEYS = {}
-# Codex IDs and types
-CODEX_TYPE = {}
+# Codex IDs and labels
+CODEX_LABEL = {}
 # Actions
 ACTION = {}
 # Counters
@@ -146,9 +147,7 @@ def insert_dataset(coll):
         Returns:
           UID
     """
-    if not ACTION['MongoDB']:
-        return None
-    LOGGER.warning("Dataset codex:%s will be created", ARG.VERSION)
+    LOGGER.warning(f"Dataset codex:v{ARG.VERSION} will be created")
     dtm = datetime.now()
     payload = {'class': 'org.janelia.model.domain.flyem.EMDataSet',
                'ownerKey': 'group:flyem',
@@ -156,7 +155,7 @@ def insert_dataset(coll):
                'writers': ['group:flyem'],
                'name': 'codex',
                'version': ARG.VERSION,
-               'uuid': ARG.VERSION,
+               'uuid': f"FlyWire codex:v{ARG.VERSION}",
                'gender': '',
                'anatomicalArea': 'Brain',
                'creationDate': dtm,
@@ -169,26 +168,30 @@ def insert_dataset(coll):
     if ACTION['MongoDB'] and ARG.WRITE:
         result = coll.insert(payload)
         return result
-    return None
+    return '1'
 
 
-def create_body_payload(entry, dtm, dsid):
+def create_body_payload(name, types, dtm, dsid):
     """ Create the payload for an insertion into jacs.emBody
         Keyword arguments:
-          entry: contains Codex root ID and neuron type
+          name: Codex root ID
+          types: list of labels
           dtm: date timestamp
           dsid: dataset ID in jacs.emDataSet
         Returns:
           payload
     """
     payload = {'class': 'org.janelia.model.domain.flyem.EMBody',
-               'dataSetIdentifier': f"codex:{ARG.VERSION}",
+               'dataSetIdentifier': f"codex:v{ARG.VERSION}",
                'ownerKey': 'group:flyem',
                'readers': ['group:flyem'],
                'writers': ['group:flyem'],
                'dataSetRef': f"EMDataSet#{dsid}",
+               'name': name,
+               'terms': types,
                'status': None,
                'statusLabel': None,
+               'neuronType': None,
                'neuronInstance': None,
                'voxelSize': None,
                'creationDate': dtm,
@@ -196,10 +199,8 @@ def create_body_payload(entry, dtm, dsid):
               }
     last_uid = generate_uid()
     payload['_id'] = last_uid
-    payload['name'] = entry[0]
-    payload['neuronType'] = entry[1]
+    COUNT['minsertions'] += 1
     return payload
-
 
 
 def read_neuron_type(ntype, tbl):
@@ -229,7 +230,7 @@ def add_body_ids(htype, payload):
     rec = read_neuron_type(htype, tbl)
     # Build a list of associated body IDs. Start with Codex IDs, then add EM bodies.
     body_ids = {}
-    for cid in CODEX_TYPE[htype]:
+    for cid in CODEX_LABEL[htype]:
         body_ids[cid] = True
     if rec and rec['Items']:
         for itm in rec['Items']:
@@ -251,7 +252,7 @@ def write_dynamodb(codex_id):
     """
     LOGGER.debug(codex_id)
     hbatch = []
-    for htype in tqdm(CODEX_TYPE, desc='Processing Codex types'):
+    for htype in tqdm(CODEX_LABEL, desc='Processing Codex types'):
         payload = {'itemType': 'searchString',
                    'searchKey': htype.lower(),
                    'filterKey': htype.lower(),
@@ -280,52 +281,79 @@ def write_dynamodb(codex_id):
             COUNT["iinsertions"] += 1
 
 
-def create_dynamo_id_payload(entry):
+def create_dynamo_id_payload(name, types):
     """ Create the payload for a Codex ID insertion into DynamoDB
         Keyword arguments:
-          entry: contains Codex root ID and neuron type
+          name: Codex root ID
+          types: list of labels
         Returns:
           payload
     """
     # Codex ID
-    cid = entry[0]
     payload = {'itemType': 'searchString',
-               'searchKey': cid,
-               'filterKey': cid,
+               'searchKey': name,
+               'filterKey': name,
                'keyType': 'bodyID',
-               'name': cid}
-    # Hemibrain type
-    if entry[1]:
-        for htype in entry[1].split(","):
-            if htype not in CODEX_TYPE:
-                CODEX_TYPE[htype] = {}
-            CODEX_TYPE[htype][cid] = True
+               'name': name}
+    # Label
+    if types:
+        for lab in types:
+            if lab not in CODEX_LABEL:
+                CODEX_LABEL[lab] = {}
+            CODEX_LABEL[lab][name] = True
     return payload
 
 
-def process_entries(entries, dsid):
+def process_entries(labels, dsid):
     """ Build an array of records to insert into jacs.emBody
         Keyword arguments:
-          entries: list of Codex root IDs and neuron types
+          labels: dict of Codex root IDs and labels
           dsid: dataset ID in jacs.emDataSet
         Returns:
           payload
     """
     dtm = datetime.now()
-    LOGGER.info(f"Found {len(entries):,} entries")
     coll = DB['jacs'].emBody
     docs = []
     codex_id = []
-    for entry in tqdm(entries, desc='Building insert list'):
-        docs.append(create_body_payload(entry, dtm, dsid))
-        codex_id.append(create_dynamo_id_payload(entry))
+    for key, val in tqdm(labels.items(), desc='Building insert list'):
+        docs.append(create_body_payload(key, val, dtm, dsid))
+        codex_id.append(create_dynamo_id_payload(key, val))
     if ACTION['MongoDB'] and ARG.WRITE:
         print(f"Writing {len(docs):,} records to emBody")
         coll.insert_many(docs)
     if ACTION['DynamoDB']:
         print(f"Found {len(codex_id):,} Codex IDs")
-        print(f"Found {len(CODEX_TYPE):,} Codex hemibrain types")
+        print(f"Found {len(CODEX_LABEL):,} Codex labels")
         write_dynamodb(codex_id)
+
+
+def process_files(dsid):
+    entriesl = []
+    labels = {}
+    file = f"classification_{ARG.VERSION}.csv"
+    # Add cell_type and hemibrain_type from classification
+    with open(file, 'r', encoding='ascii') as instream:
+        for row in csv.reader(instream, quotechar='"', delimiter=','):
+            if not row[0] or row[0] == 'root_id':
+                continue
+            labels[row[0]] = []
+            entriesl.append([row[0], row[6]])
+            if row[5]:
+                labels[row[0]].append(row[5])
+            if row[6]:
+                for lab in row[6].split(','):
+                    if lab not in labels[row[0]]:
+                        labels[row[0]].append(lab)
+        LOGGER.info(f"Found {len(labels):,} entries in classification")
+    # Add group from neurons
+    file = f"neurons_{ARG.VERSION}.csv"
+    with open(file, 'r', encoding='ascii') as instream:
+        for row in csv.reader(instream, quotechar='"', delimiter=','):
+            if not row[0] or row[0] == 'root_id' or not row[1]:
+                continue
+            labels[row[0]].append(row[1])
+    process_entries(labels, dsid)
 
 
 def process_codex():
@@ -336,19 +364,13 @@ def process_codex():
           None
     """
     coll = DB['jacs'].emDataSet
-    result = coll.count_documents({'name': 'codex', 'version': ARG.VERSION})
+    result = coll.find_one({'name': 'codex', 'version': ARG.VERSION})
     if result and ACTION['MongoDB']:
         LOGGER.warning('Dataset codex:%s already exists', ARG.VERSION)
-        terminate_program()
+        dsid = result['_id']
     else:
         dsid = insert_dataset(coll)
-    entries = []
-    with open(ARG.FILE, 'r', encoding='ascii') as instream:
-        for row in csv.reader(instream, quotechar='"', delimiter=','):
-            if not row[0] or row[0] == 'root_id':
-                continue
-            entries.append([row[0], row[6]])
-    process_entries(entries, dsid)
+    process_files(dsid)
     print(f"MongoDB Codex ID updates:    {COUNT['minsertions']:,}")
     print(f"DynamoDB Codex ID updates:   {COUNT['iinsertions']:,}")
     print(f"DynamoDB Codex type updates: {COUNT['hinsertions']:,}")
@@ -359,8 +381,6 @@ def process_codex():
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
         description="Upload data from Codex")
-    PARSER.add_argument('--file', dest='FILE', action='store',
-                        required=True, help='Codex file')
     PARSER.add_argument('--version', dest='VERSION', action='store',
                         required=True, help='Codex version (snapshot)')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
