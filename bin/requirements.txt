@@ -9,8 +9,6 @@ pillow
 pyjwt
 pymongo==3.12.0
 python-rapidjson
-requests
 simple_term_menu
 tqdm
-mysqlclient
 git+https://github.com/JaneliaSciComp/jrc_common.git
