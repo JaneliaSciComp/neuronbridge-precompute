@@ -74,6 +74,13 @@ function run_export_job() {
         declare CONFIG_ARG=
     fi
 
+    if [[ -n ${EXPORTED_DATA_VERSION} ]]; then
+        declare NEURON_TAGS_ARG="--neuron-tags ${EXPORTED_DATA_VERSION}"
+    else
+        echo "No database configuration set or found! Will use a default local database"
+        declare NEURON_TAGS_ARG=
+    fi
+
     declare OUTPUT_DIR=${EXPORT_DIR}/${AREA}
     declare JACS_AUTH="${JACS_AUTH_TYPE} ${JACS_AUTH_TOKEN}"
     export_cmd_args=(
@@ -88,6 +95,7 @@ function run_export_job() {
         --image-stores-per-neuron-meta "JRC2018_VNC_Unisex_40x_DS:${VNC_STORE}"
         -l ${LIBNAMES[@]}
         ${TARGET_LIB_ARG}
+        ${NEURON_TAGS_ARG}
         ${EXCLUDED_MASK_TAGS_ARG}
         ${EXCLUDED_TARGET_TAGS_ARG}
         ${EXCLUDED_MATCHES_ARGS}
@@ -96,7 +104,8 @@ function run_export_job() {
         --default-relative-url-index 1
         -od "${OUTPUT_DIR}"
         --subdir ${SUBDIR}
-        --offset 0 --size 0
+        --offset ${EXPORT_OFFSET}
+        --size ${EXPORT_SIZE}
     )
 
     echo "$HOSTNAME $(date):> ${JAVA_EXEC} ${export_cmd_args[@]} --authorization \"${JACS_AUTH}\""

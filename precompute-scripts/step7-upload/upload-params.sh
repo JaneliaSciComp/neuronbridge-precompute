@@ -1,8 +1,8 @@
 export S3_BUCKET=${S3_BUCKET:="janelia-neuronbridge-data-devpre"}
 
-export S3_DATA_VERSION=${S3_DATA_VERSION:="${DATA_VERSION//\./_}"}
+export S3_DATA_VERSION=${S3_DATA_VERSION:="v${DATA_VERSION//\./_}"}
 
-export LOCAL_DATA_VERSION=${LOCAL_DATA_VERSION:="${DATA_VERSION}"}
+export LOCAL_DATA_VERSION=${LOCAL_DATA_VERSION:="v${DATA_VERSION}"}
 export LOCAL_DATA_DIR=${LOCAL_DATA_DIR:="/nrs/neuronbridge/${LOCAL_DATA_VERSION}"}
 
 export AWSRUNNER=${AWSRUNNER=echo}
