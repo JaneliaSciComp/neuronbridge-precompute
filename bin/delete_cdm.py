@@ -26,6 +26,8 @@ S3_SECONDS = 60 * 60 * 12
 DB = {}
 DDBASE = "janelia-neuronbridge"
 READ = {"LINE": "SELECT DISTINCT line FROM image_data_mv WHERE slide_code=%s",
+        "PFALLBACK": "SELECT publishing_name FROM publishing_name_vw WHERE line=%s "
+                     + "AND display_genotype=0 AND preferred_name=1",
         "PNAME": "SELECT publishing_name FROM publishing_name_vw WHERE "
                  + "display_genotype=0 AND line=%s",
         "RELEASES": "SELECT DISTINCT published_to,alps_release FROM image_data_mv WHERE "
@@ -122,7 +124,8 @@ def initialize_program():
     except Exception as err:
         terminate_program(err)
     for dbname in ('sage', 'neuronbridge'):
-        dbo = attrgetter(f"{dbname}.prod.read")(dbconfig)
+        rwp = 'write' if dbname == 'neuronbridge' and ARG.WRITE else 'read'
+        dbo = attrgetter(f"{dbname}.prod.{rwp}")(dbconfig)
         LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, 'prod', dbo.host, dbo.user)
         DB[dbname if dbname == 'sage' else 'NB'] = JRC.connect_database(dbo)
     initialize_aws()
@@ -159,6 +162,17 @@ def get_sage_info():
     except MySQLdb.Error as err:
         terminate_program(JRC.sql_error(err))
     pname = rows[0]['publishing_name']
+    if not pname:
+        try:
+            DB['sage']['cursor'].execute(READ['PFALLBACK'], (line,))
+            rows = DB['sage']['cursor'].fetchall()
+        except MySQLdb.Error as err:
+            terminate_program(JRC.sql_error(err))
+        if not rows:
+            terminate_program(f"Not publishing name found for {line}")
+        if len(rows) > 1:
+            terminate_program(f"Multiple publishing names found for {line}")
+        pname = rows[0]['publishing_name']
     print(f"Slide code {ARG.ITEM} is in line {line} ({pname})")
     try:
         DB['sage']['cursor'].execute(READ['RELEASES'], (pname, ARG.ITEM))
@@ -433,10 +447,17 @@ def s3_cdm(area):
         try:
             obj = S3['resource'].Object(ARG.BUCKET, key)
             if ARG.WRITE:
-                obj.delete()
-                COUNT[AREA[area]] += 1
+                response = obj.delete()
+                if response['ResponseMetadata']['HTTPStatusCode'] in (200, 204):
+                    COUNT[AREA[area]] += 1
             else:
-                COUNT[AREA[area]] += 1
+                try:
+                    response = obj.get()
+                    COUNT[AREA[area]] += 1
+                except Exception as err:
+                    if err.response['Error']['Code'] != 'NoSuchKey':
+                        LOGGER.warning(key)
+                        LOGGER.warning(err)
         except Exception as err:
             terminate_program(err)
 
@@ -453,7 +474,28 @@ def s3_thumbnail(area):
         try:
             obj = S3['resource'].Object( ARG.BUCKET + '-thumbnails', key)
             if ARG.WRITE:
-                obj.delete()
+                response = obj.delete()
+                if response['ResponseMetadata']['HTTPStatusCode'] in (200, 204):
+                    COUNT[AREA[area]] += 1
+            else:
+                try:
+                    response = obj.get()
+                    COUNT[AREA[area]] += 1
+                except Exception as err:
+                    if err.response['Error']['Code'] != 'NoSuchKey':
+                        LOGGER.warning(key)
+                        LOGGER.warning(err)
+        except Exception as err:
+            terminate_program(err)
+
+
+def publishedurl(area):
+    coll = DB['NB']['publishedURL']
+    for key in TARGET[area]:
+        LOGGER.debug(f"Deleting {key}")
+        try:
+            if ARG.WRITE:
+                _ = coll.delete_one({"_id": key})
                 COUNT[AREA[area]] += 1
             else:
                 COUNT[AREA[area]] += 1
@@ -461,8 +503,8 @@ def s3_thumbnail(area):
             terminate_program(err)
 
 
-def publishedurl(area):
-    coll = DB['NB']['publishedURL']
+def publishedlmimage(area):
+    coll = DB['NB']['publishedLMImage']
     for key in TARGET[area]:
         LOGGER.debug(f"Deleting {key}")
         try:
@@ -518,17 +560,28 @@ def delete_from_published(area):
     tbl = DB[area]
     for key in TARGET[area]:
         LOGGER.debug(f"Deleting {key}")
-        if ARG.WRITE:
-            try:
-                response = tbl.delete_item(Key={"itemType": 'searchString', "searchKey": key})
-                if response['ResponseMetadata']['HTTPStatusCode'] == 200:
-                    COUNT[AREA[area]] += 1
+        try:
+            if area == 'published-stacks':
+                if ARG.WRITE:
+                    response = tbl.delete_item(Key={"itemType": key})
                 else:
+                    response = tbl.query(KeyConditionExpression=Key("itemType").eq(key))
+            else:
+                if ARG.WRITE:
+                    response = tbl.delete_item(Key={"itemType": 'searchString', "searchKey": key})
+                else:
+                    response = tbl.query(KeyConditionExpression=Key("itemType").eq(searchString) \
+                                                                    & Key(searchKey).eq(key)
+                                        )
+            if response['ResponseMetadata']['HTTPStatusCode'] == 200:
+                if ARG.WRITE:
                     COUNT[AREA[area]] += 1
-            except ClientError:
-                terminate_program("Couldn't delete {key} from {area}: {response['Error']['Message']}")
-            except Exception as err:
-                terminate_program(err)
+                elif response['Count'] == 1:
+                    COUNT[AREA[area]] += 1
+        except ClientError:
+            terminate_program("Couldn't delete {key} from {area}: {response['Error']['Message']}")
+        except Exception as err:
+            terminate_program(err)
         if not is_light(key):
             for ktype in ('neuronType', 'neuronInstance'):
                 if ktype in OTHER and OTHER[ktype]:
