@@ -1,7 +1,7 @@
-anatomical_area=$1
-
 # Precompute tools location
 SCRIPT_DIR=$(dirname ${BASH_SOURCE[0]})
+
+anatomical_area=$1
 
 source "${SCRIPT_DIR}/../global-params.sh" ${anatomical_area}
 source "${SCRIPT_DIR}/ga-params.sh"
