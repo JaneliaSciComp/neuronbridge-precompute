@@ -3,7 +3,7 @@ SCRIPT_DIR=$(dirname ${BASH_SOURCE[0]})
 
 sh ${SCRIPT_DIR}/submit-export.sh brain+vnc EM_MIPS
 sh ${SCRIPT_DIR}/submit-export.sh brain+vnc LM_MIPS
-sh ${SCRIPT_DIR}/submit-export.sh brain EM_CD_MATCHES
+TOTAL_EXPORTS=30790 EXPORT_SIZE=2500 sh ${SCRIPT_DIR}/split-export-job.sh brain EM_CD_MATCHES
 sh ${SCRIPT_DIR}/submit-export.sh brain LM_CD_MATCHES
 sh ${SCRIPT_DIR}/submit-export.sh brain EM_PPP_MATCHES
 sh ${SCRIPT_DIR}/submit-export.sh vnc EM_CD_MATCHES
