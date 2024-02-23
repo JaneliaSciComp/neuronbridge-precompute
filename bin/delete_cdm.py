@@ -37,9 +37,10 @@ READ = {"LINE": "SELECT DISTINCT line FROM image_data_mv WHERE slide_code=%s",
 MANIFOLDS = ['dev', 'prod', 'devpre', 'prodpre']
 # Targets
 OBJECTIVE = ['20x', '40x', '63x']
-TARGET = {"s3-cdm": [], "s3-thumbnail": [], "publishedLMImage": [], "publishedURL": [],
-          "published-stacks": [], "publishing-doi": []}
+TARGET = {"s3-cdm": [], "s3-thumbnail": [], "neuronMetadata": [], "publishedLMImage": [],
+          "publishedURL": [], "published-stacks": [], "publishing-doi": []}
 AREA = {"s3-cdm": "AWS S3 color depth", "s3-thumbnail": "AWS S3 color depth thumbnails",
+        "neuronMetadata": "MongoDB NeuronBridge neuronmetadata",
         "publishedLMImage": "MongoDB NeuronBridge publishedLMImage",
         "publishedURL": "MongoDB NeuronBridge publishedURL",
         "published-stacks": f"DynamoDB {DDBASE}-published-stacks",
@@ -198,7 +199,7 @@ def check_for_thumbnail(obj):
     fname = obj.replace(".png", ".jpg")
     try:
         S3['client'].head_object(Bucket=ARG.BUCKET + '-thumbnails', Key=fname)
-        TARGET['s3-thumbnail'].append(obj)
+        TARGET['s3-thumbnail'].append(fname)
         return
     except botocore.exceptions.ClientError as err:
         if err.response["Error"]["Code"] == "404":
@@ -273,6 +274,54 @@ def get_library_name():
 # * Routines for checking areas                                                  *
 # ********************************************************************************
 
+def get_version():
+    """ Allow the user to select a NeuronBridge data version
+        Keyword arguments:
+          None
+        Returns:
+          None
+    """
+    tbl = 'published'
+    ddbr = boto3.resource("dynamodb")
+    dtables = list(ddbr.tables.all())
+    choices = []
+    for ddbtbl in dtables:
+        if ddbtbl.name.startswith(f"{DDBASE}-{tbl}-v"):
+            choices.append(ddbtbl.name.replace(f"{DDBASE}-{tbl}-", ""))
+    if not choices:
+        terminate_program(f"No {DDBASE}-{tbl} versions found")
+    print("Select the NeuronBridge data version:")
+    terminal_menu = TerminalMenu(choices)
+    answer = terminal_menu.show()
+    if not answer:
+        terminate_program("No version was selected")
+    ARG.VERSION = choices[answer]
+
+
+def check_neuronmetadata_lm():
+    """ Check for images with a template/slide code in the neuronMetadata collection
+        Keyword arguments:
+          None
+        Returns:
+          None
+    """
+    if not ARG.VERSION:
+        get_version()
+    tag = ARG.VERSION.replace("v", "")
+    coll = DB['NB']['neuronMetadata']
+    payload = {"alignmentSpace": ARG.TEMPLATE,
+               "slideCode": ARG.ITEM,
+               "tags": tag}
+    LOGGER.info(f"Searching neuronMetadata for {ARG.TEMPLATE} {ARG.ITEM} {tag}")
+    try:
+        results = coll.find(payload)
+    except Exception as err:
+        terminate_program(err)
+    for row in results:
+        TARGET['neuronMetadata'].append(row['_id'])
+    LOGGER.info(f"neuronMetadata records found: {len(TARGET['neuronMetadata']):,}")
+
+
 def check_publishedlmimage():
     """ Check for images with a template/slide code in the publishedLMImage collection
         Keyword arguments:
@@ -340,7 +389,7 @@ def check_publishedurl():
     LOGGER.info(f"publishedURL records found: {len(TARGET['publishedURL']):,}")
 
 
-def check_neuronmetadata():
+def check_neuronmetadata_em():
     """ Check for images with a template/library/body ID in the neuronMetadata collection
         Keyword arguments:
           None
@@ -394,20 +443,7 @@ def check_published(pname):
     """
     tbl = 'published'
     if not ARG.VERSION:
-        ddbr = boto3.resource("dynamodb")
-        dtables = list(ddbr.tables.all())
-        choices = []
-        for ddbtbl in dtables:
-            if ddbtbl.name.startswith(f"{DDBASE}-{tbl}-v"):
-                choices.append(ddbtbl.name.replace(f"{DDBASE}-{tbl}-", ""))
-        if not choices:
-            terminate_program(f"No {DDBASE}-{tbl} versions found")
-        print("Select the NeuronBridge data version:")
-        terminal_menu = TerminalMenu(choices)
-        answer = terminal_menu.show()
-        if not answer:
-            terminate_program("No version was selected")
-        ARG.VERSION = choices[answer]
+        get_version()
     TARGET[f"{tbl}-{ARG.VERSION}"] = []
     tbl += f"-{ARG.VERSION}"
     key = pname.lower()
@@ -488,7 +524,7 @@ def s3_thumbnail(area):
     for key in TARGET['s3-thumbnail']:
         LOGGER.debug(f"Deleting {key}")
         try:
-            obj = S3['resource'].Object( ARG.BUCKET + '-thumbnails', key)
+            obj = S3['resource'].Object(ARG.BUCKET + '-thumbnails', key)
             if ARG.WRITE:
                 response = obj.delete()
                 if response['ResponseMetadata']['HTTPStatusCode'] in (200, 204):
@@ -539,6 +575,34 @@ def publishedlmimage(area):
             if ARG.WRITE:
                 _ = coll.delete_one({"_id": key})
                 COUNT[AREA[area]] += 1
+            else:
+                COUNT[AREA[area]] += 1
+        except Exception as err:
+            terminate_program(err)
+
+
+def neuronmetadata(area):
+    """ Untag objects from the neuronMetadata MongoDB table
+        Keyword arguments:
+          area: deletion area
+        Returns:
+          None
+    """
+    coll = DB['NB']['neuronMetadata']
+    tag = ARG.VERSION.replace("v", "")
+    for key in TARGET[area]:
+        LOGGER.debug(f"Updating tags for {key}")
+        try:
+            row = coll.find_one({"_id": key})
+            newlist = row['tags']
+            newlist.remove(tag)
+            if ARG.WRITE:
+                payload = { "$set": { 'tags': newlist} }
+                result = coll.update_one({"_id": row['_id']}, payload)
+                if result.modified_count:
+                    COUNT[AREA[area]] += 1
+                else:
+                    LOGGER.error("Could not update %s in neuronMetadata", row['_id'])
             else:
                 COUNT[AREA[area]] += 1
         except Exception as err:
@@ -720,10 +784,11 @@ def process_slide():
     check_manifest()
     # MongoDB
     if is_light(ARG.ITEM):
+        check_neuronmetadata_lm()
         check_publishedlmimage()
+    else:
+        check_neuronmetadata_em()
     check_publishedurl()
-    if not is_light(ARG.ITEM):
-        check_neuronmetadata()
     # DynamoDB
     if is_light(ARG.ITEM):
         check_published_stacks()
@@ -736,7 +801,7 @@ def process_slide():
         if len(area) > maxlen:
             maxlen = len(area)
     if len(COUNT):
-        print("Deletions:" if ARG.WRITE else "Simulated deletions:")
+        print("Deletions/updates:" if ARG.WRITE else "Simulated deletions/updates:")
         for key, val in COUNT.items():
             print(f"{key+':':<{maxlen+1}} {val}")
 
