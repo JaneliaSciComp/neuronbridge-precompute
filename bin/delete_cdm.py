@@ -9,15 +9,15 @@ from types import SimpleNamespace
 import boto3
 from boto3.dynamodb.conditions import Key
 import botocore
+from botocore.exceptions import ClientError
 import inquirer
-import json
 import MySQLdb
 from simple_term_menu import TerminalMenu
 from tqdm import tqdm
 import jrc_common.jrc_common as JRC
 import neuronbridge_lib as NB
 
-# pylint: disable=broad-exception-caught,logging-fstring-interpolation
+# pylint: disable=broad-exception-caught,eval-used,logging-fstring-interpolation
 
 # AWS
 S3 = {}
@@ -26,6 +26,8 @@ S3_SECONDS = 60 * 60 * 12
 DB = {}
 DDBASE = "janelia-neuronbridge"
 READ = {"LINE": "SELECT DISTINCT line FROM image_data_mv WHERE slide_code=%s",
+        "PFALLBACK": "SELECT publishing_name FROM publishing_name_vw WHERE line=%s "
+                     + "AND display_genotype=0 AND preferred_name=1",
         "PNAME": "SELECT publishing_name FROM publishing_name_vw WHERE "
                  + "display_genotype=0 AND line=%s",
         "RELEASES": "SELECT DISTINCT published_to,alps_release FROM image_data_mv WHERE "
@@ -122,7 +124,8 @@ def initialize_program():
     except Exception as err:
         terminate_program(err)
     for dbname in ('sage', 'neuronbridge'):
-        dbo = attrgetter(f"{dbname}.prod.read")(dbconfig)
+        rwp = 'write' if dbname == 'neuronbridge' and ARG.WRITE else 'read'
+        dbo = attrgetter(f"{dbname}.prod.{rwp}")(dbconfig)
         LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, 'prod', dbo.host, dbo.user)
         DB[dbname if dbname == 'sage' else 'NB'] = JRC.connect_database(dbo)
     initialize_aws()
@@ -132,7 +135,8 @@ def initialize_program():
         terminate_program("No template was selected")
     if not ARG.LIBRARY:
         ARG.LIBRARY = NB.get_library(source='aws', client=S3['client'], bucket=ARG.BUCKET,
-                                     template=ARG.TEMPLATE, exclude='FlyEM' if is_light(ARG.ITEM) else 'FlyLight')
+                                     template=ARG.TEMPLATE, exclude='FlyEM' \
+                                     if is_light(ARG.ITEM) else 'FlyLight')
 
     if not ARG.LIBRARY:
         terminate_program("No library was selected")
@@ -159,6 +163,17 @@ def get_sage_info():
     except MySQLdb.Error as err:
         terminate_program(JRC.sql_error(err))
     pname = rows[0]['publishing_name']
+    if not pname:
+        try:
+            DB['sage']['cursor'].execute(READ['PFALLBACK'], (line,))
+            rows = DB['sage']['cursor'].fetchall()
+        except MySQLdb.Error as err:
+            terminate_program(JRC.sql_error(err))
+        if not rows:
+            terminate_program(f"Not publishing name found for {line}")
+        if len(rows) > 1:
+            terminate_program(f"Multiple publishing names found for {line}")
+        pname = rows[0]['publishing_name']
     print(f"Slide code {ARG.ITEM} is in line {line} ({pname})")
     try:
         DB['sage']['cursor'].execute(READ['RELEASES'], (pname, ARG.ITEM))
@@ -209,7 +224,8 @@ def check_manifest():
     flylight = is_light(ARG.ITEM)
     searchkey = f"-{ARG.ITEM}-" if flylight else f"{ARG.ITEM}-{ARG.TEMPLATE}-"
     for obj in tqdm(manifest, desc='Checking manifest'):
-        if obj.startswith(base) and (searchkey in obj or ((not flylight) and obj.endswith(f"{ARG.ITEM}.swc"))):
+        if obj.startswith(base) and (searchkey in obj or \
+                                     ((not flylight) and obj.endswith(f"{ARG.ITEM}.swc"))):
             TARGET['s3-cdm'].append(obj)
             check_for_thumbnail(obj)
     LOGGER.info(f"Objects found: {len(TARGET['s3-cdm']):,}")
@@ -253,6 +269,9 @@ def get_library_name():
         terminate_program(f"Could not find library for {ARG.LIBRARY}")
     return libname
 
+# ********************************************************************************
+# * Routines for checking areas                                                  *
+# ********************************************************************************
 
 def check_publishedlmimage():
     """ Check for images with a template/slide code in the publishedLMImage collection
@@ -275,6 +294,12 @@ def check_publishedlmimage():
 
 
 def full_body_id(libname=None):
+    """ Return a fully-qualified body ID
+        Keyword arguments:
+          libname: library (optional)
+        Returns:
+          None
+    """
     if not libname:
         libname = get_library_name()
     prefix = libname.replace('flyem_', '')
@@ -310,7 +335,8 @@ def check_publishedurl():
             uploaded.append(ufile)
     on_s3 = len(TARGET['s3-cdm']) + len(TARGET['s3-thumbnail'])
     if uploaded and (len(uploaded)+1 != on_s3):
-        LOGGER.warning(f"Mismatch between uploaded files ({len(uploaded)}) and files found on AWS S3 ({on_s3})")
+        LOGGER.warning(f"Mismatch between uploaded files ({len(uploaded)}) " \
+                       + f"and files found on AWS S3 ({on_s3})")
     LOGGER.info(f"publishedURL records found: {len(TARGET['publishedURL']):,}")
 
 
@@ -421,6 +447,10 @@ def check_publishing_doi(pname):
     LOGGER.info(f"{tbl} records found: {len(TARGET[tbl]):,}")
 
 
+# ********************************************************************************
+# * Routines for deleting items                                                  *
+# ********************************************************************************
+
 def s3_cdm(area):
     """ Delete objects from the janelia-flylight-color-depth bucket
         Keyword arguments:
@@ -433,10 +463,17 @@ def s3_cdm(area):
         try:
             obj = S3['resource'].Object(ARG.BUCKET, key)
             if ARG.WRITE:
-                obj.delete()
-                COUNT[AREA[area]] += 1
+                response = obj.delete()
+                if response['ResponseMetadata']['HTTPStatusCode'] in (200, 204):
+                    COUNT[AREA[area]] += 1
             else:
-                COUNT[AREA[area]] += 1
+                try:
+                    response = obj.get()
+                    COUNT[AREA[area]] += 1
+                except Exception as err:
+                    if type(err).__name__ != 'NoSuchKey':
+                        LOGGER.warning(key)
+                        LOGGER.warning(err)
         except Exception as err:
             terminate_program(err)
 
@@ -453,15 +490,28 @@ def s3_thumbnail(area):
         try:
             obj = S3['resource'].Object( ARG.BUCKET + '-thumbnails', key)
             if ARG.WRITE:
-                obj.delete()
-                COUNT[AREA[area]] += 1
+                response = obj.delete()
+                if response['ResponseMetadata']['HTTPStatusCode'] in (200, 204):
+                    COUNT[AREA[area]] += 1
             else:
-                COUNT[AREA[area]] += 1
+                try:
+                    response = obj.get()
+                    COUNT[AREA[area]] += 1
+                except Exception as err:
+                    if type(err).__name__ != 'NoSuchKey':
+                        LOGGER.warning(key)
+                        LOGGER.warning(err)
         except Exception as err:
             terminate_program(err)
 
 
 def publishedurl(area):
+    """ Delete objects from the publishedURL MongoDB table
+        Keyword arguments:
+          area: deletion area
+        Returns:
+          None
+    """
     coll = DB['NB']['publishedURL']
     for key in TARGET[area]:
         LOGGER.debug(f"Deleting {key}")
@@ -475,7 +525,36 @@ def publishedurl(area):
             terminate_program(err)
 
 
+def publishedlmimage(area):
+    """ Delete objects from the publishedLMImage MongoDB table
+        Keyword arguments:
+          area: deletion area
+        Returns:
+          None
+    """
+    coll = DB['NB']['publishedLMImage']
+    for key in TARGET[area]:
+        LOGGER.debug(f"Deleting {key}")
+        try:
+            if ARG.WRITE:
+                _ = coll.delete_one({"_id": key})
+                COUNT[AREA[area]] += 1
+            else:
+                COUNT[AREA[area]] += 1
+        except Exception as err:
+            terminate_program(err)
+
+
 def remove_from_bidlist(area, tbl, keytype, bkey):
+    """ Remove a body ID from the list stored with neuron types
+        Keyword arguments:
+          area: deletion area
+          tbl: DynamoDB table object
+          keytype: key type
+          bkey: body ID
+        Returns:
+          None
+    """
     nkey = OTHER[keytype].lower()
     try:
         response = tbl.query(KeyConditionExpression= \
@@ -497,7 +576,8 @@ def remove_from_bidlist(area, tbl, keytype, bkey):
                     if response['ResponseMetadata']['HTTPStatusCode'] == 200:
                         COUNT[AREA[area]] += 1
                 except ClientError:
-                    terminate_program("Couldn't update {nkey} in {area}: {response['Error']['Message']}")
+                    terminate_program("Couldn't update {nkey} in {area}: " \
+                                      + f"{response['Error']['Message']}")
                 except Exception as err:
                     terminate_program(err)
             else:
@@ -508,8 +588,24 @@ def remove_from_bidlist(area, tbl, keytype, bkey):
         terminate_program(err)
 
 
+def bump_dynamo_counter(response, area):
+    """ Bump area counter based on DynamoDB delete (or get) response
+        Keyword arguments:
+          response: DynamoDB delete (or get) response
+          area: deletion area
+        Returns:
+          None
+    """
+    if response['ResponseMetadata']['HTTPStatusCode'] == 200:
+        if ARG.WRITE:
+            COUNT[AREA[area]] += 1
+        elif response['Count'] == 1:
+            COUNT[AREA[area]] += 1
+
+
 def delete_from_published(area):
-    """ Delete objects from the janelia-neuronbridge-published-[version] table
+    """ Delete objects from the janelia-neuronbridge-published-stacks or
+        janelia-neuronbridge-published-[version] table
         Keyword arguments:
           area: deletion area
         Returns:
@@ -518,22 +614,30 @@ def delete_from_published(area):
     tbl = DB[area]
     for key in TARGET[area]:
         LOGGER.debug(f"Deleting {key}")
-        if ARG.WRITE:
-            try:
-                response = tbl.delete_item(Key={"itemType": 'searchString', "searchKey": key})
-                if response['ResponseMetadata']['HTTPStatusCode'] == 200:
-                    COUNT[AREA[area]] += 1
+        try:
+            if area == 'published-stacks':
+                if ARG.WRITE:
+                    response = tbl.delete_item(Key={"itemType": key})
                 else:
-                    COUNT[AREA[area]] += 1
-            except ClientError:
-                terminate_program("Couldn't delete {key} from {area}: {response['Error']['Message']}")
-            except Exception as err:
-                terminate_program(err)
+                    response = tbl.query(KeyConditionExpression=Key("itemType").eq(key))
+            else:
+                if ARG.WRITE:
+                    response = tbl.delete_item(Key={"itemType": 'searchString', "searchKey": key})
+                else:
+                    response = tbl.query(KeyConditionExpression=Key("itemType").eq("searchString") \
+                                                                    & Key("searchKey").eq(key)
+                                        )
+            bump_dynamo_counter(response, area)
+        except ClientError as err:
+            LOGGER.error(err)
+            terminate_program("Couldn't delete {key} from {area}: {response['Error']['Message']}")
+        except Exception as err:
+            terminate_program(err)
         if not is_light(key):
             for ktype in ('neuronType', 'neuronInstance'):
                 if ktype in OTHER and OTHER[ktype]:
                     remove_from_bidlist(area, tbl, ktype, key)
-            
+
 
 def publishing_doi(area):
     """ Delete objects from the janelia-neuronbridge-publishing-doi table
@@ -548,15 +652,18 @@ def publishing_doi(area):
         try:
             if ARG.WRITE:
                 response = tbl.delete_item(Key={"name": key})
-                if response['ResponseMetadata']['HTTPStatusCode'] == 200:
-                    COUNT[AREA[area]] += 1
             else:
-                COUNT[AREA[area]] += 1
+                response = tbl.query(KeyConditionExpression=Key("name").eq(key))
+            bump_dynamo_counter(response, area)
         except ClientError as err:
+            LOGGER.error(err)
             terminate_program("Couldn't delete {key} from {area}: {response['Error']['Message']}")
         except Exception as err:
             terminate_program(err)
 
+# ********************************************************************************
+# * Main processing                                                              *
+# ********************************************************************************
 
 def delete_items():
     """ Get user input on which items to delete, then delete them
@@ -595,14 +702,6 @@ def delete_items():
             delete_from_published(area)
         else:
             eval(area.replace('-', '_').lower() + '(area)')
-    maxlen = 0
-    for area in COUNT:
-        if len(area) > maxlen:
-            maxlen = len(area)
-    if len(COUNT):
-        print("Deletions:" if ARG.WRITE else "Simulated deletions:")
-        for key, val in COUNT.items():
-            print(f"{key+':':<{maxlen+1}} {val}")
 
 
 def process_slide():
@@ -632,6 +731,14 @@ def process_slide():
         check_published(publishing)
         check_publishing_doi(publishing)
     delete_items()
+    maxlen = 0
+    for area in COUNT:
+        if len(area) > maxlen:
+            maxlen = len(area)
+    if len(COUNT):
+        print("Deletions:" if ARG.WRITE else "Simulated deletions:")
+        for key, val in COUNT.items():
+            print(f"{key+':':<{maxlen+1}} {val}")
 
 
 if __name__ == '__main__':
