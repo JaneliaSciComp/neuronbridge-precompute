@@ -45,6 +45,7 @@ esac
 
 export JOB_TYPE
 export EXPORT_TYPE
+export AREA
 
 echo "Source global_params from ${SCRIPT_DIR}/../global-params.sh"
 source "${SCRIPT_DIR}/../global-params.sh" ${AREA}

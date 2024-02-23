@@ -19,7 +19,6 @@ function prepare_and_run_export {
     Exports offset: ${EXPORT_OFFSET};
     "
 
-#    export EXPORT_OFFSET
     run_export_job
 }
 
