@@ -8,7 +8,6 @@ __version__ = '0.0.1'
 import argparse
 import csv
 from datetime import datetime
-import json
 from operator import attrgetter
 import socket
 import sys
@@ -145,18 +144,19 @@ def insert_dataset(coll):
         Keyword arguments:
           coll: MongoDB collection
         Returns:
-          UID
+          Data set identifier
     """
-    LOGGER.warning(f"Dataset codex:v{ARG.VERSION} will be created")
+    uuid = f"{ARG.DATASET}:v{ARG.VERSION}"
+    LOGGER.warning(f"Dataset {uuid} will be created")
     dtm = datetime.now()
     payload = {'class': 'org.janelia.model.domain.flyem.EMDataSet',
                'ownerKey': 'group:flyem',
                'readers': ['group:flyem'],
                'writers': ['group:flyem'],
-               'name': 'codex',
+               'name': ARG.DATASET,
                'version': ARG.VERSION,
-               'uuid': f"FlyWire codex:v{ARG.VERSION}",
-               'gender': '',
+               'uuid': uuid,
+               'gender': 'f',
                'anatomicalArea': 'Brain',
                'creationDate': dtm,
                'updatedDate': dtm,
@@ -166,8 +166,8 @@ def insert_dataset(coll):
     last_uid = generate_uid()
     payload['_id'] = last_uid
     if ACTION['MongoDB'] and ARG.WRITE:
-        result = coll.insert(payload)
-        return result
+        result = coll.insert_one(payload)
+        return result.inserted_id
     return '1'
 
 
@@ -182,7 +182,7 @@ def create_body_payload(name, types, dtm, dsid):
           payload
     """
     payload = {'class': 'org.janelia.model.domain.flyem.EMBody',
-               'dataSetIdentifier': f"codex:v{ARG.VERSION}",
+               'dataSetIdentifier': f"{ARG.DATASET}:v{ARG.VERSION}",
                'ownerKey': 'group:flyem',
                'readers': ['group:flyem'],
                'writers': ['group:flyem'],
@@ -329,6 +329,12 @@ def process_entries(labels, dsid):
 
 
 def process_files(dsid):
+    """ Get labels from codex files
+        Keyword arguments:
+          dsid: dataset ID in jacs.emDataSet
+        Returns:
+          None
+    """
     entriesl = []
     labels = {}
     file = f"classification_{ARG.VERSION}.csv"
@@ -364,9 +370,9 @@ def process_codex():
           None
     """
     coll = DB['jacs'].emDataSet
-    result = coll.find_one({'name': 'codex', 'version': ARG.VERSION})
+    result = coll.find_one({'name': ARG.DATASET, 'version': ARG.VERSION})
     if result and ACTION['MongoDB']:
-        LOGGER.warning('Dataset codex:%s already exists', ARG.VERSION)
+        LOGGER.warning(f"Dataset {result['uuid']} already exists")
         dsid = result['_id']
     else:
         dsid = insert_dataset(coll)
@@ -381,6 +387,8 @@ def process_codex():
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
         description="Upload data from Codex")
+    PARSER.add_argument('--dataset', dest='DATASET', action='store',
+                        default='flywire_fafb', help='Codex version (snapshot)')
     PARSER.add_argument('--version', dest='VERSION', action='store',
                         required=True, help='Codex version (snapshot)')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
