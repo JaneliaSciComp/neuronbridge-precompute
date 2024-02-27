@@ -315,7 +315,7 @@ def run_backcheck():
     errors = report_errors(mpname, mscode, apname, ascode)
     if errors:
         LOGGER.error("There are discrepancies in publishing names/slide codes")
-        with open('backcheck_mismatches.txt','w', encoding='ascii') as outstream:
+        with open('mongo_aws_mismatches.txt','w', encoding='ascii') as outstream:
             outstream.write(f"{ARG.TEMPLATE}/{ARG.LIBRARY}\n")
             for err in errors:
                 outstream.write(f"{err}\n")
