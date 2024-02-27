@@ -95,7 +95,8 @@ def initialize_program():
     if not ARG.TEMPLATE:
         terminate_program("No template was selected")
     if not ARG.LIBRARY:
-        ARG.LIBRARY = NB.get_library(source='aws', client=S3['client'], bucket=ARG.BUCKET, template=ARG.TEMPLATE)
+        ARG.LIBRARY = NB.get_library(source='aws', client=S3['client'], bucket=ARG.BUCKET,
+                                     template=ARG.TEMPLATE)
     if not ARG.LIBRARY:
         terminate_program("No library was selected")
 
@@ -168,8 +169,10 @@ def get_mongo_data():
                 scode[row['slideCode']] = row['publishedName']
                 if row['slideCode'] not in SLIDE:
                     SLIDE[row['slideCode']] = row['publishedName']
-                #elif SLIDE[row['slideCode']] != row['publishedName']:
-                #    terminate_program(f"Mismatched {ARG.SOURCE} publishing name for {row['slideCode']}")
+                elif SLIDE[row['slideCode']] != row['publishedName']:
+                    msg = f"Mismatched {ARG.SOURCE} publishing name {row['publishedName']} " \
+                          + f"{SLIDE[row['slideCode']]} for {row['slideCode']}"
+                    LOGGER.warning(msg)
     print(f"Found {len(pname):,} publishing names and {len(scode):,} slide codes in {ARG.SOURCE}")
     return pname, scode
 
@@ -275,25 +278,26 @@ def report_errors(mpname, mscode, apname, ascode):
     """
     errors = []
     checked = {}
-    # Slide codes
+    print(f"{ARG.SOURCE} --> {'S3 manifest' if ARG.MANIFEST else 'AWS S3'}")
+    for key in tqdm(mscode, desc=f"{ARG.SOURCE} slide codes"):
+        if key not in ascode:
+            rel = '' if library_type() == 'flyem' else get_releases(key)
+            errors.append(f"{key}{rel} is in {ARG.SOURCE} but not in S3")
+    for key in tqdm(mpname, desc=f"{ARG.SOURCE} publishing names"):
+        if key not in apname and key not in checked:
+            rel = '' if library_type() == 'flyem' else get_releases(key)
+            errors.append(f"{key}{rel} is in {ARG.SOURCE} but not in S3")
+    print(f"{ARG.SOURCE} <-- {'S3 manifest' if ARG.MANIFEST else 'AWS S3'}")
     for key in tqdm(ascode, desc='AWS S3 slide codes'):
         if key not in mscode:
             rel = '' if library_type() == 'flyem' else get_releases(key)
             errors.append(f"{key}{rel} ({SLIDE[key]}) is in S3 but not in {ARG.SOURCE}")
             checked[SLIDE[key]] = True
-    for key in tqdm(mscode, desc=f"{ARG.SOURCE} slide codes"):
-        if key not in ascode:
-            rel = '' if library_type() == 'flyem' else get_releases(key)
-            errors.append(f"{key}{rel} is in {ARG.SOURCE} but not in S3")
-    # Publishing names
     for key in tqdm(apname, desc='AWS S3 publishing names'):
         if key not in mpname and key not in checked:
             rel = '' if library_type() == 'flyem' else get_releases(key)
             errors.append(f"{key}{rel} is in S3 but not in {ARG.SOURCE}")
-    for key in tqdm(mpname, desc=f"{ARG.SOURCE} publishing names"):
-        if key not in apname and key not in checked:
-            rel = '' if library_type() == 'flyem' else get_releases(key)
-            errors.append(f"{key}{rel} is in {ARG.SOURCE} but not in S3")
+
     return errors
 
 
