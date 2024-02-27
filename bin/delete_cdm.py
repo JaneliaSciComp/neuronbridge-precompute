@@ -37,9 +37,12 @@ READ = {"LINE": "SELECT DISTINCT line FROM image_data_mv WHERE slide_code=%s",
 MANIFOLDS = ['dev', 'prod', 'devpre', 'prodpre']
 # Targets
 OBJECTIVE = ['20x', '40x', '63x']
-TARGET = {"s3-cdm": [], "s3-thumbnail": [], "neuronMetadata": [], "publishedLMImage": [],
+TARGET = {"s3-cdm": [], "s3-sn-tif": [], "s3-sn-png": [], "s3-thumbnail": [],
+          "neuronMetadata": [], "publishedLMImage": [],
           "publishedURL": [], "published-stacks": [], "publishing-doi": []}
-AREA = {"s3-cdm": "AWS S3 color depth", "s3-thumbnail": "AWS S3 color depth thumbnails",
+AREA = {"s3-cdm": "AWS S3 color depth", "s3-sn-tif": "AWS S3 searchable neuron TIFFs",
+        "s3-sn-png": "AWS S3 searchable neuron PNGs",
+        "s3-thumbnail": "AWS S3 color depth thumbnails",
         "neuronMetadata": "MongoDB NeuronBridge neuronmetadata",
         "publishedLMImage": "MongoDB NeuronBridge publishedLMImage",
         "publishedURL": "MongoDB NeuronBridge publishedURL",
@@ -48,6 +51,8 @@ AREA = {"s3-cdm": "AWS S3 color depth", "s3-thumbnail": "AWS S3 color depth thum
 COUNT = {}
 NEURON_TO_DELETE = ('neuronType', 'neuronInstance')
 OTHER = {}
+# Output file
+LINES = []
 
 
 def terminate_program(msg=None):
@@ -194,8 +199,6 @@ def check_for_thumbnail(obj):
         Returns:
           None
     """
-    if 'gradient' in obj or 'searchable' in obj or not obj.endswith('png'):
-        return
     fname = obj.replace(".png", ".jpg")
     try:
         S3['client'].head_object(Bucket=ARG.BUCKET + '-thumbnails', Key=fname)
@@ -224,12 +227,17 @@ def check_manifest():
     base = f"{ARG.TEMPLATE}/{ARG.LIBRARY}"
     flylight = is_light(ARG.ITEM)
     searchkey = f"-{ARG.ITEM}-" if flylight else f"{ARG.ITEM}-{ARG.TEMPLATE}-"
+    obj_cnt = 0
     for obj in tqdm(manifest, desc='Checking manifest'):
         if obj.startswith(base) and (searchkey in obj or \
                                      ((not flylight) and obj.endswith(f"{ARG.ITEM}.swc"))):
-            TARGET['s3-cdm'].append(obj)
+            tname = 's3-cdm'
+            if 'searchable' in obj:
+                tname = 's3-sn-png' if obj.endswith('.png') else 's3-sn-tif'
+            TARGET[tname].append(obj)
+            obj_cnt += 1
             check_for_thumbnail(obj)
-    LOGGER.info(f"Objects found: {len(TARGET['s3-cdm']):,}")
+    LOGGER.info(f"Objects found: {obj_cnt:,}")
     LOGGER.info(f"Thumbnail objects found: {len(TARGET['s3-thumbnail']):,}")
 
 
@@ -382,7 +390,8 @@ def check_publishedurl():
         TARGET['publishedURL'].append(row['_id'])
         for ufile in row['uploaded'].values():
             uploaded.append(ufile)
-    on_s3 = len(TARGET['s3-cdm']) + len(TARGET['s3-thumbnail'])
+    on_s3 = len(TARGET['s3-cdm']) + len(TARGET['s3-sn-tif']) + len(TARGET['s3-sn-png']) \
+            + len(TARGET['s3-thumbnail'])
     if uploaded and (len(uploaded)+1 != on_s3):
         LOGGER.warning(f"Mismatch between uploaded files ({len(uploaded)}) " \
                        + f"and files found on AWS S3 ({on_s3})")
@@ -494,7 +503,7 @@ def s3_cdm(area):
         Returns:
           None
     """
-    for key in TARGET['s3-cdm']:
+    for key in TARGET[area]:
         LOGGER.debug(f"Deleting {key}")
         try:
             obj = S3['resource'].Object(ARG.BUCKET, key)
@@ -502,10 +511,12 @@ def s3_cdm(area):
                 response = obj.delete()
                 if response['ResponseMetadata']['HTTPStatusCode'] in (200, 204):
                     COUNT[AREA[area]] += 1
+                    LINES.append(f"{ARG.BUCKET}/{key}")
             else:
                 try:
                     response = obj.get()
                     COUNT[AREA[area]] += 1
+                    LINES.append(f"{ARG.BUCKET}/{key}")
                 except Exception as err:
                     if type(err).__name__ != 'NoSuchKey':
                         LOGGER.warning(key)
@@ -529,10 +540,12 @@ def s3_thumbnail(area):
                 response = obj.delete()
                 if response['ResponseMetadata']['HTTPStatusCode'] in (200, 204):
                     COUNT[AREA[area]] += 1
+                    LINES.append(f"{ARG.BUCKET}-thumbnails/{key}")
             else:
                 try:
                     response = obj.get()
                     COUNT[AREA[area]] += 1
+                    LINES.append(f"{ARG.BUCKET}-thumbnails/{key}")
                 except Exception as err:
                     if type(err).__name__ != 'NoSuchKey':
                         LOGGER.warning(key)
@@ -557,6 +570,7 @@ def publishedurl(area):
                 COUNT[AREA[area]] += 1
             else:
                 COUNT[AREA[area]] += 1
+            LINES.append(f"publishedURL {key}")
         except Exception as err:
             terminate_program(err)
 
@@ -577,6 +591,7 @@ def publishedlmimage(area):
                 COUNT[AREA[area]] += 1
             else:
                 COUNT[AREA[area]] += 1
+            LINES.append(f"publishedLMImage {key}")
         except Exception as err:
             terminate_program(err)
 
@@ -605,6 +620,7 @@ def neuronmetadata(area):
                     LOGGER.error("Could not update %s in neuronMetadata", row['_id'])
             else:
                 COUNT[AREA[area]] += 1
+            LINES.append(f"neuronMetadata {key}")
         except Exception as err:
             terminate_program(err)
 
@@ -639,6 +655,7 @@ def remove_from_bidlist(area, tbl, keytype, bkey):
                     response = tbl.put_item(Item=payload)
                     if response['ResponseMetadata']['HTTPStatusCode'] == 200:
                         COUNT[AREA[area]] += 1
+                        LINES.append(f"{area} {nkey}")
                 except ClientError:
                     terminate_program("Couldn't update {nkey} in {area}: " \
                                       + f"{response['Error']['Message']}")
@@ -646,6 +663,7 @@ def remove_from_bidlist(area, tbl, keytype, bkey):
                     terminate_program(err)
             else:
                 COUNT[AREA[area]] += 1
+                LINES.append(f"{area} {nkey}")
         else:
             LOGGER.warning(f"{keytype} {nkey} not found in DynamoDB published table")
     except Exception as err:
@@ -691,6 +709,7 @@ def delete_from_published(area):
                     response = tbl.query(KeyConditionExpression=Key("itemType").eq("searchString") \
                                                                     & Key("searchKey").eq(key)
                                         )
+            LINES.append(f"{area} {key}")
             bump_dynamo_counter(response, area)
         except ClientError as err:
             LOGGER.error(err)
@@ -718,6 +737,7 @@ def publishing_doi(area):
                 response = tbl.delete_item(Key={"name": key})
             else:
                 response = tbl.query(KeyConditionExpression=Key("name").eq(key))
+            LINES.append(f"{area} {key}")
             bump_dynamo_counter(response, area)
         except ClientError as err:
             LOGGER.error(err)
@@ -764,6 +784,8 @@ def delete_items():
         COUNT[AREA[area]] = 0
         if 'janelia-neuronbridge-published-' in AREA[area]:
             delete_from_published(area)
+        elif area in ('s3-cdm', 's3-sn-tif', 's3-sn-png'):
+            s3_cdm(area)
         else:
             eval(area.replace('-', '_').lower() + '(area)')
 
@@ -796,6 +818,11 @@ def process_slide():
         check_published(publishing)
         check_publishing_doi(publishing)
     delete_items()
+    if LINES:
+        LOGGER.info("Writing cdm_deletions.txt")
+        with open("cdm_deletions.txt", "w", encoding="ascii") as outstream:
+            for line in LINES:
+                outstream.write(f"{line}\n")
     maxlen = 0
     for area in COUNT:
         if len(area) > maxlen:
