@@ -28,7 +28,6 @@ DOI = {}
 EMDOI = {}
 MAPPING = {}
 # Database
-MONGO_SOURCE = 'publishedURL'
 ITEMS = []
 PUBLISHING_DATABASE = ["mbew", "gen1mcfo", "raw"]
 DATABASE = {}
@@ -406,7 +405,7 @@ def process_em():
                            "count":{"$sum": 1}}},
                {"$sort": {"_id.lib": 1, "_id.tag": 1}}
               ]
-    coll = DATABASE["NB"][MONGO_SOURCE]
+    coll = DATABASE["NB"][ARG.EMSOURCE]
     results = coll.aggregate(payload)
     for row in results:
         library = row["_id"]["lib"]
@@ -503,6 +502,9 @@ if __name__ == '__main__':
     PARSER.add_argument('--release', dest='RELEASE', default='', help='ALPS release or EM dataset')
     PARSER.add_argument('--source', dest='SOURCE', choices=['', 'em', 'lm'], default='',
                         help='Source release ([blank], em, or lm)')
+    PARSER.add_argument('--table', dest='EMSOURCE', choices=['', 'em', 'lm'],
+                        default='publishedURL',
+                        help='Mongo table for EM data ([publishedURL] or neuronMetadata)')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         choices=['staging', 'prod'], default='prod',
                         help='MySQL manifold (staging, [prod])')
