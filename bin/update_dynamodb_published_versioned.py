@@ -24,7 +24,7 @@ DYNAMO = {}
 ITEMS = []
 # Counters
 COUNT = {"bodyID": 0, "publishingName": 0, "neuronInstance": 0, "neuronType": 0,
-         "images": 0, "missing": 0, "consensus": 0,
+        "images": 0, "missing": 0, "consensus": 0, "notreleased": 0,
          "insertions": 0}
 FAILURE = {}
 KEYS = {}
@@ -339,6 +339,8 @@ def display_counts():
         print(f"Missing publishing name:   {COUNT['missing']:,}")
     if COUNT['consensus']:
         print(f"No consensus:              {COUNT['consensus']:,}")
+    if COUNT['notreleased']:
+        print(f"Not released:              {COUNT['notreleased']:,}")
     print(f"Items written to DynamoDB: {COUNT['insertions']:,}")
     print(f"  bodyID:                  {COUNT['bodyID']:,}")
     print(f"  neuronInstance:          {COUNT['neuronInstance']:,}")
@@ -346,7 +348,7 @@ def display_counts():
     print(f"  publishingName:          {COUNT['publishingName']:,}")
 
 
-def process_results(count, results):
+def process_results(count, results, publishedurl):
     ''' Process results from neuronMetadata table
         Keyword arguments:
           count: document count
@@ -357,6 +359,7 @@ def process_results(count, results):
     matches = {}
     rlist = []
     library = {}
+    not_released = {}
     neurons = {"neuronInstance": {}, "neuronType": {}}
     for row in tqdm(results, desc="publishedName", total=count):
         if row["libraryName"] not in library:
@@ -366,13 +369,19 @@ def process_results(count, results):
         if not valid_row(row):
             continue
         pname = row["publishedName"]
+        if pname not in publishedurl:
+            not_released[pname] = True
+            COUNT['notreleased'] += 1
+            continue
         if pname not in matches:
             matches[pname] = {"cdm": False, "ppp": False}
             rlist.append(row)
-        if "ColorDepthSearch" in row["processedTags"] \
-           and ARG.VERSION in row["processedTags"]["ColorDepthSearch"]:
-            matches[pname]["cdm"] = True
-        if "PPPMatch" in row["processedTags"] \
+        #if "ColorDepthSearch" in row["processedTags"] \
+        #   and ARG.VERSION in row["processedTags"]["ColorDepthSearch"]:
+        #    matches[pname]["cdm"] = True
+        matches[pname]["cdm"] = True
+        if "processedTags" in row \
+           and "PPPMatch" in row["processedTags"] \
            and ARG.VERSION in row["processedTags"]["PPPMatch"]:
             matches[pname]["ppp"] = True
         # Accumulate neurons connected to a body id
@@ -380,6 +389,9 @@ def process_results(count, results):
             for ntype in NEURON_DATA:
                 if ntype in row and row[ntype]:
                     neurons[ntype][row[ntype]] = True
+    if not_released:
+        for pname in not_released:
+            LOGGER.warning(f"Published name {pname} is not in publishedURL")
     # matches: key=publishing name, value={cdm: boolean, ppp: boolean}
     # rlist: list of rows from neuronMetadata (distinct publishing names)
     # neurons: key=data type, value={neuron name or instance: boolean}
@@ -431,8 +443,16 @@ def update_dynamo():
         Returns:
           None
     '''
+    coll = DATABASE["NB"]["publishedURL"]
+    results = coll.distinct("publishedName")
+    publishedurl = {}
+    for res in results:
+        publishedurl[res] = True
+    LOGGER.info(f"Published names in publishedURL: {len(publishedurl):,}")
     coll = DATABASE["NB"]["neuronMetadata"]
-    payload = {"$or": [{"processedTags.ColorDepthSearch": ARG.VERSION},
+    #payload = {"$or": [{"processedTags.ColorDepthSearch": ARG.VERSION},
+    #                   {"processedTags.PPPMatch": ARG.VERSION}]}
+    payload = {"$or": [{"tags": ARG.VERSION},
                        {"processedTags.PPPMatch": ARG.VERSION}]}
     results = coll.aggregate([{"$match": payload}, {"$group": {"_id": "$libraryName",
                                                                "count": {"$sum":1}}}])
@@ -466,7 +486,7 @@ def update_dynamo():
     for row in pppresults:
         KNOWN_PPP[row.split("-")[0]] = True
     LOGGER.info(f"Processing neuronMetaData ({count:,} images)")
-    process_results(count, results)
+    process_results(count, results, publishedurl)
     if not ARG.WRITE:
         return
     coll = DATABASE["NB"]["ddb_published_versioned"]
