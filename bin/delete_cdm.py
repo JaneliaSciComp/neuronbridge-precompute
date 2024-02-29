@@ -839,11 +839,11 @@ if __name__ == '__main__':
     PARSER.add_argument('--bucket', dest='BUCKET', action='store',
                         default='janelia-flylight-color-depth', help='AWS S3 bucket')
     PARSER.add_argument('--template', dest='TEMPLATE', action='store',
-                        help='Alignment template')
+                        default='', help='Alignment template')
     PARSER.add_argument('--library', dest='LIBRARY', action='store',
                         default='', help='Color depth library')
     PARSER.add_argument('--item', dest='ITEM', action='store',
-                        default='20140623_32_F3', help='Slide code')
+                        required=True, help='Slide code')
     PARSER.add_argument('--version', dest='VERSION',
                         help='DynamoDB NeuronBridge version')
     PARSER.add_argument('--accept', dest='ACCEPT', action='store_true',
