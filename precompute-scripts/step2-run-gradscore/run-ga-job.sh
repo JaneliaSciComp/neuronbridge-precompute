@@ -50,6 +50,12 @@ function run_ga_job {
         MATCHES_TAGS_ARG=""
     fi
 
+    if [[ -n ${GA_TAG} ]]; then
+        PROCESS_TAG_ARG="--processing-tag ${GA_TAG}"
+    else
+        PROCESS_TAG_ARG=""
+    fi
+
     case ${ALIGNMENT_SPACE} in
         JRC2018_Unisex_20x_HR|JRC2018_VNC_Unisex_40x_DS)
             AS_ARG="-as ${ALIGNMENT_SPACE}"
@@ -87,6 +93,7 @@ function run_ga_job {
         ${CACHE_SIZE_ARG} \
         gradientScores \
         ${CONFIG_ARG} \
+        ${PROCESS_TAG_ARG} \
         ${CONCURRENCY_ARG} \
         ${AS_ARG} \
         ${MASKS_ARG} \
