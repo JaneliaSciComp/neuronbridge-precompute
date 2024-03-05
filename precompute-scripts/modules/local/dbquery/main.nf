@@ -8,7 +8,7 @@ process DBQUERY {
           val(mip_tag)
     
     output:
-    stdout
+    env(mips_count)
 
     script:
     def library_filter = "libraryName: \"${library_name}\","
@@ -24,7 +24,7 @@ process DBQUERY {
     mongodb_password=\$(grep -e "MongoDB.Password=" ${db_config_file} | sed s/MongoDB.Password=//)
     mongodb_replicaset=\$(grep -e "MongoDB.ReplicaSet=" ${db_config_file} | sed s/MongoDB.ReplicaSet=//)
 
-    mongosh "mongodb://\${mongodb_username}:\${mongodb_password}@\${mongodb_server}/\${mongodb_database}?authSource=\${mongodb_authdatabase}&replicaSet=\${mongodb_replicaset}" <<-EOF
+    mongosh "mongodb://\${mongodb_username}:\${mongodb_password}@\${mongodb_server}/\${mongodb_database}?authSource=\${mongodb_authdatabase}&replicaSet=\${mongodb_replicaset}" <<-EOF > mongo_output
     db.neuronMetadata.aggregate([
         {
             \\\$match: {
@@ -38,6 +38,6 @@ process DBQUERY {
         },
     ])    
     EOF
+    mips_count=\$(grep -e mips_count mongo_output | awk '{ print \$(NF-2)}')
     """
-
 }
