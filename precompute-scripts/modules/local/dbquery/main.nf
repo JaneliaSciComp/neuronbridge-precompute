@@ -1,19 +1,31 @@
+/**
+ DBQUERY queries the MIPs count from NeuronBridge.neuronMetadata collection.
+*/
+
+include { area_to_alignment_space } from '../../../nfutils/utils'
+
 process DBQUERY {
     container { task.ext.container ?: 'mongo:7.0.6' }
 
     input:
-    tuple path(db_config_file),
-          val(alignment_space),
+    tuple val(anatomical_area),
           val(library_name),
-          val(mip_tag)
+          val(mips_tag),
+          val(unique_mips)
+
+    path(db_config_file)
     
     output:
-    env(mips_count)
+    tuple val(anatomical_area), val(library_name), env(mips_count_res)
 
     script:
+    def alignment_space = area_to_alignment_space(anatomical_area)
     def library_filter = "libraryName: \"${library_name}\","
     def as_filter = "alignmentSpace: \"${alignment_space}\","
-    def tag_filter = mip_tag ? "tags: \"${mip_tag}\"," : ''
+    def tag_filter = mips_tag ? "tags: \"${mips_tag}\"," : ''
+    def unique_pipeline = unique_mips 
+        ? "{\\\$group: {_id: \"\\\$mipId\"}},"
+        : ''
     def match_op = '$match'
     def count_op = '$count'
     """
@@ -33,11 +45,13 @@ process DBQUERY {
                 ${tag_filter}
             }
         },
+        ${unique_pipeline}
         {
             \\\$count: "mips_count"
         },
     ])    
     EOF
-    mips_count=\$(grep -e mips_count mongo_output | awk '{ print \$(NF-2)}')
+    mips_count=\$(grep -o -e "mips_count.*[0-9]*" mongo_output | awk '{ print \$(NF-2)}')
+    mips_count_res=\${mips_count:-0}
     """
 }
