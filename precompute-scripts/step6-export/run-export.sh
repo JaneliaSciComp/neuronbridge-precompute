@@ -23,6 +23,6 @@ function prepare_and_run_export {
 }
 
 JOB_INDEX=$((${LSB_JOBINDEX:-$1}))
-OUTPUT_LOG=${JOB_LOGPREFIX}/${JOB_TYPE}_${JOB_INDEX}.log
+OUTPUT_LOG=${JOB_LOGPREFIX}/${AREA}-${JOB_TYPE}-${JOB_INDEX}.log
 echo "$(date) Run Job ${JOB_INDEX} (Output log: ${OUTPUT_LOG})"
 prepare_and_run_export ${JOB_INDEX} > ${OUTPUT_LOG} 2>&1
