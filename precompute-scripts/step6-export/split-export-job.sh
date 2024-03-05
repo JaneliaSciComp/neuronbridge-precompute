@@ -21,6 +21,11 @@ else
     exit 1
 fi
 
+echo "Source global_params from ${SCRIPT_DIR}/../global-params.sh"
+source "${SCRIPT_DIR}/../global-params.sh" ${AREA}
+echo "Source export_params from ${SCRIPT_DIR}/export-params.sh"
+source "${SCRIPT_DIR}/export-params.sh"
+
 case $EXPORT_TYPE in
     EM_CD_MATCHES)
         JOB_TYPE=em-cds
@@ -47,11 +52,6 @@ export JOB_TYPE
 export EXPORT_TYPE
 export AREA
 
-echo "Source global_params from ${SCRIPT_DIR}/../global-params.sh"
-source "${SCRIPT_DIR}/../global-params.sh" ${AREA}
-echo "Source export_params from ${SCRIPT_DIR}/export-params.sh"
-source "${SCRIPT_DIR}/export-params.sh"
-
 export TOTAL_EXPORTS=$((${TOTAL_EXPORTS:=0}))
 export START_EXPORT=$((${START_EXPORT:=0}))
 
@@ -64,7 +64,7 @@ export FIRST_JOB=${FIRST_JOB:-1}
 export LAST_JOB=${LAST_JOB:-${TOTAL_JOBS}}
 export RUN_CMD=${RUN_CMD:=localRun}
 
-source "${SCRIPT_DIR}/../run-functions.sh" "${SCRIPT_DIR}/run-export.sh" export-${JOB_TYPE}
+source "${SCRIPT_DIR}/../run-functions.sh" "${SCRIPT_DIR}/run-export.sh" export-${AREA}-${JOB_TYPE}
 
 echo "Total jobs: $TOTAL_JOBS"
 
