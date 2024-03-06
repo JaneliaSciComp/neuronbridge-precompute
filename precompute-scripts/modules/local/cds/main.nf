@@ -33,6 +33,7 @@ process CDS {
 
 
     script:
+    def concurrency_arg = cds_cpus ? "--task-concurrency ${2 * cds_cpus -1}" : ''
     def masks_arg = get_lib_arg(masks_library, masks_offset, masks_length)
     def targets_arg = get_lib_arg(targets_library, targets_offset, targets_length)
     def java_mem_opts = "-Xmx${cds_mem_gb}G -Xms${cds_mem_gb}G"
@@ -53,6 +54,7 @@ process CDS {
         ${cds_cache_size_arg} \
         colorDepthSearch \
         --config ${db_config_file} \
+        ${concurrency_arg} \
         -as ${alignment_space} \
         -m ${masks_arg} \
         -i ${targets_arg} \
