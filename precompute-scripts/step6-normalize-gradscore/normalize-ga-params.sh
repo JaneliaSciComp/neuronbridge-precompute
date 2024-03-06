@@ -1,6 +1,6 @@
 #!/bin/bash
 
-JOB_TYPE=${JOB_TYPE:=ga-em-vs-lm}
+JOB_TYPE=${JOB_TYPE:=normalize-ga-em-vs-lm}
 
 export JOB_LOGPREFIX=${JOB_LOGPREFIX:=${LOGS_DIR}/${JOB_TYPE}}
 
@@ -19,16 +19,12 @@ export MATCHES_TAGS=${MATCHES_TAGS:=""}
 
 export PROCESSING_PARTITION_SIZE=${PROCESSING_PARTITION_SIZE:=100}
 
-export TOP_RESULTS=${TOP_RESULTS:=300}
-export SAMPLES_PER_LINE=${SAMPLES_PER_LINE:=0}
-export BEST_MATCHES_PER_SAMPLE=${BEST_MATCHES_PER_SAMPLE:=0}
-
-if [[ -z ${GA_TAG} ]] ; then
-    echo "GA_TAG must be set in your .env file"
+if [[ -z ${NORMALIZE_GA_TAG} ]] ; then
+    echo "NORMALIZE_GA_TAG must be set in your .env file"
     exit 1
 fi
 
-export GA_TAG=${GA_TAG}
+export NORMALIZE_GA_TAG=${NORMALIZE_GA_TAG}
 
 export FIRST_JOB=${FIRST_JOB:-1}
 export LAST_JOB=${LAST_JOB:-${TOTAL_JOBS}}
