@@ -11,7 +11,8 @@ workflow {
         Channel.of([
             params.anatomical_area,
             params.masks_library,
-            '',
+            params.masks_published_names,
+            params.masks_tags,
             true,
         ]),
         db_config_file,
