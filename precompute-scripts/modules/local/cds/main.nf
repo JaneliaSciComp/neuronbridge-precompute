@@ -1,4 +1,7 @@
-include { area_to_alignment_space } from '../../../nfutils/utils'
+include { 
+    area_to_alignment_space;
+    get_lib_arg;
+} from '../../../nfutils/utils'
 
 process CDS {
     cpus { cds_cpus }
@@ -28,6 +31,8 @@ process CDS {
 
 
     script:
+    def masks_arg = get_lib_arg(masks_library, masks_offset, masks_length)
+    def targets_arg = get_lib_arg(targets_library, targets_offset, targets_length)
     def java_mem_opts = "-Xmx${cds_mem_gb}G -Xms${cds_mem_gb}G"
     def alignment_space = area_to_alignment_space(anatomical_area)
     def mirror_flag_arg = mirror_flag ? '--mirrorMask' : ''
@@ -44,6 +49,8 @@ process CDS {
         -jar ${app_jar} \
         colorDepthSearch \
         -as ${alignment_space} \
+        -m ${masks_arg} \
+        -i ${targets_arg} \
         ${mirror_flag_arg} \
         ${mask_th_arg} \
         ${target_th_arg} \
