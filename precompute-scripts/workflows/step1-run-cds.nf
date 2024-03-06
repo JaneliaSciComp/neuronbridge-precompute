@@ -12,7 +12,8 @@ workflow {
         Channel.of([
             params.anatomical_area,
             params.masks_library,
-            '',
+            params.masks_published_names,
+            params.masks_tags,
             false,
         ]),
         db_config_file,
@@ -22,7 +23,8 @@ workflow {
         Channel.of([
             params.anatomical_area,
             params.targets_library,
-            '',
+            params.targets_published_names,
+            params.targets_tags,
             false,
         ]),
         db_config_file,
@@ -66,6 +68,8 @@ workflow {
         [
             params.cds_processing_tag,
             params.cds_cache_size,
+            params.masks_published_names,
+            params.targets_published_names,
             params.mirror_flag,
             params.mask_th,
             params.target_th,

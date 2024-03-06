@@ -10,6 +10,7 @@ process DBQUERY {
     input:
     tuple val(anatomical_area),
           val(library_name),
+          val(published_names),
           val(mips_tag),
           val(unique_mips)
 
@@ -23,6 +24,7 @@ process DBQUERY {
     def library_filter = "libraryName: \"${library_name}\","
     def as_filter = "alignmentSpace: \"${alignment_space}\","
     def tag_filter = mips_tag ? "tags: \"${mips_tag}\"," : ''
+    def published_name_filter = published_names ? "publishedName: ${get_published_name_filter(published_names)}," : ''
     def unique_pipeline = unique_mips 
         ? "{\\\$group: {_id: \"\\\$mipId\"}},"
         : ''
@@ -43,6 +45,7 @@ process DBQUERY {
                 ${as_filter}
                 ${library_filter}
                 ${tag_filter}
+                ${published_name_filter}
             }
         },
         ${unique_pipeline}
@@ -54,4 +57,19 @@ process DBQUERY {
     mips_count=\$(grep -o -e "mips_count.*[0-9]*" mongo_output | awk '{ print \$(NF-2)}')
     mips_count_res=\${mips_count:-0}
     """
+}
+
+/**
+  This methods 
+*/
+def get_published_name_filter(published_names_str) {
+    def published_names = "${published_names_str}".split(',')
+        .collect {
+            "\"${it.trim()}\""
+        }
+        .inject('') {arg, item -> 
+            arg ? "${arg},${item}" : "${item}"
+        }
+    return "{\\\$in: [${published_names}]}"
+
 }

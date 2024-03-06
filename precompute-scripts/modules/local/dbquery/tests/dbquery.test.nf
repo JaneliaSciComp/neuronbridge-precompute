@@ -6,6 +6,7 @@ workflow all_mips {
         Channel.of([
             params.anatomical_area,
             params.library,
+            params.published_names,
             params.mips_tag,
             false,
         ]),
@@ -21,6 +22,7 @@ workflow unique_mips {
         Channel.of([
             params.anatomical_area,
             params.library,
+            params.published_names,
             params.mips_tag,
             true,
         ]),
