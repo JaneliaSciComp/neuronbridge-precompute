@@ -21,7 +21,8 @@ process CDS {
     val(cds_cpus)
     val(cds_mem_gb)
     val(java_opts)
-    tuple val(mirror_flag),
+    tuple val(cds_processing_tag),
+          val(mirror_flag),
           val(mask_th),
           val(target_th),
           val(pix_color_fluctuation),
@@ -48,9 +49,11 @@ process CDS {
         ${java_opts} ${java_mem_opts} \
         -jar ${app_jar} \
         colorDepthSearch \
+        --config ${db_config_file} \
         -as ${alignment_space} \
         -m ${masks_arg} \
         -i ${targets_arg} \
+        --processing-tag ${cds_processing_tag} \
         ${mirror_flag_arg} \
         ${mask_th_arg} \
         ${target_th_arg} \

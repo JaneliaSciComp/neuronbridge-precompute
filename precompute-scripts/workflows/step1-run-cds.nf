@@ -64,6 +64,7 @@ workflow {
         params.mem_gb,
         params.java_opts,
         [
+            params.cds_processing_tag,
             params.mirror_flag,
             params.mask_th,
             params.target_th,
