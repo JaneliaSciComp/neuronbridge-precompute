@@ -30,6 +30,7 @@ workflow {
         db_config_file,
     )
 
+    // split the work
     def cds_inputs = masks_count
     | join(targets_count)
     | flatMap { anatomical_area, masks_library, nmasks, targets_library, ntargets -> 
@@ -52,14 +53,13 @@ workflow {
                 ]
             }
     }
-
     cds_inputs.subscribe {
         log.debug "Run cds: $it"
     }
     CDS(cds_inputs,
         [
             file(params.app),
-            params.cds_runner
+            params.tool_runner,
         ],
         db_config_file,
         params.cpus,
