@@ -2,7 +2,6 @@ include { DBQUERY } from '../main.nf'
 
 workflow all_mips {
 
-    log.info "!!!! LIB ${params.library}"
     DBQUERY(
         Channel.of([
             params.anatomical_area,

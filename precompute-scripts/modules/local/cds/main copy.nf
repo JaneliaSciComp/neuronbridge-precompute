@@ -1,9 +1,9 @@
-include { area_to_alignment_space } from '../../../nfutils/utils'
+// include { area_to_alignment_space } from '../../../nfutils/utils'
 
 process CDS {
     cpus { cds_cpus }
-    memory "${cds_mem_gb} GB"
-    clusterOptions { task.ext.cluster_opts }
+    // memory "${cds_mem_gb} GB"
+    // clusterOptions { task.ext.cluster_opts }
 
     input:
     tuple val(anatomical_area),
@@ -13,18 +13,18 @@ process CDS {
           val(targets_library),
           val(targets_offset),
           val(targets_length)
-    tuple path(app_jar), val(cds_runner)
-    path(db_config_file)
+    // tuple path(app_jar), val(cds_runner)
+    // path(db_config_file)
     val(cds_cpus)
-    val(cds_mem_gb)
-    val(java_opts)
-    tuple val(mirror_flag),
-          val(mask_th),
-          val(target_th),
-          val(pix_color_fluctuation),
-          val(xy_shift),
-          val(pct_pos_pixels),
-          val(processing_size)
+    // val(cds_mem_gb)
+    // val(java_opts)
+    // tuple val(mirror_flag),
+    //       val(mask_th),
+    //       val(target_th),
+    //       val(pix_color_fluctuation),
+    //       val(xy_shift),
+    //       val(pct_pos_pixels),
+    //       val(processing_size)
 
 
     script:
@@ -41,7 +41,7 @@ process CDS {
     """
     ${cds_runner} java \
         ${java_opts} ${java_mem_opts} \
-        -jar ${app_jar} \
+        -jar ${app_jar) \
         colorDepthSearch \
         -as ${alignment_space} \
         ${mirror_flag_arg} \
