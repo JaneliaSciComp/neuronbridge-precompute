@@ -65,6 +65,7 @@ workflow {
         params.java_opts,
         [
             params.cds_processing_tag,
+            params.cds_cache_size,
             params.mirror_flag,
             params.mask_th,
             params.target_th,

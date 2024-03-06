@@ -22,6 +22,7 @@ process CDS {
     val(cds_mem_gb)
     val(java_opts)
     tuple val(cds_processing_tag),
+          val(cds_cache_size),
           val(mirror_flag),
           val(mask_th),
           val(target_th),
@@ -36,6 +37,7 @@ process CDS {
     def targets_arg = get_lib_arg(targets_library, targets_offset, targets_length)
     def java_mem_opts = "-Xmx${cds_mem_gb}G -Xms${cds_mem_gb}G"
     def alignment_space = area_to_alignment_space(anatomical_area)
+    def cds_cache_size_arg = cds_cache_size ? "--cacheSize ${cds_cache_size}" : ''
     def mirror_flag_arg = mirror_flag ? '--mirrorMask' : ''
     def mask_th_arg = mask_th ? "--maskThreshold ${mask_th}" : ''
     def target_th_arg = target_th ? "--dataThreshold ${target_th}" : ''
@@ -48,6 +50,7 @@ process CDS {
     ${cds_runner} java \
         ${java_opts} ${java_mem_opts} \
         -jar ${app_jar} \
+        ${cds_cache_size_arg} \
         colorDepthSearch \
         --config ${db_config_file} \
         -as ${alignment_space} \
