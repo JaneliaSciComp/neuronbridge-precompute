@@ -102,6 +102,6 @@ function run_normalize_ga_job {
 }
 
 JOB_INDEX=$((${LSB_JOBINDEX:-$1}))
-OUTPUT_LOG=${JOB_LOGPREFIX}/ga_${JOB_INDEX}.log
+OUTPUT_LOG=${JOB_LOGPREFIX}/normalize_ga_${JOB_INDEX}.log
 echo "$(date) Run Job ${JOB_INDEX} (Output log: ${OUTPUT_LOG})"
 run_normalize_ga_job ${JOB_INDEX} > ${OUTPUT_LOG} 2>&1
