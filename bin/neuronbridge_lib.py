@@ -32,6 +32,7 @@ def get_all_s3_objects(s3c, **base_kwargs):
         continuation_token = response.get('NextContinuationToken')
 
 
+<<<<<<< Updated upstream
 def get_library(source='aws', **kwarg):
     """ Get NeuronBridge libraries from AWS, MongoDB, or a config file
         Keyword arguments:
@@ -45,6 +46,58 @@ def get_library(source='aws', **kwarg):
         Returns:
           Library
     """
+=======
+def get_library_from_config(*args):
+    """ Get a NeuronBridge library from provided configuration
+        Keyword arguments:
+          config: "cdm_library" configuration JSON
+        Returns:
+          Library
+    """
+    print("Select a library:")
+    cdmlist = list()
+    cdm_libs = args[0]
+    for cdmlib in cdm_libs:
+        if cdm_libs[cdmlib]['name'] not in cdmlist:
+            cdmlist.append(cdm_libs[cdmlib]['name'])
+    terminal_menu = TerminalMenu(cdmlist)
+    chosen = terminal_menu.show()
+    return cdmlist[chosen].replace(' ', '_') if chosen is not None else None
+
+
+def get_library_from_aws(client, bucket, prefix, filter=None):
+    """ Get a NeuronBridge library from S3
+        Keyword arguments:
+          client: AWS S3 client
+          bucket: AWS S3 bucket
+          prefix: alignment template
+          filter: key filter (optional)
+        Returns:
+          Library
+    """
+    print("Select a library:")
+    cdmlist = list()
+    paginator = client.get_paginator('list_objects')
+    result = paginator.paginate(Bucket=bucket, Prefix=prefix + '/', Delimiter='/')
+    for pfx in result.search('CommonPrefixes'):
+        key = pfx.get('Prefix')
+        if re.search(r".+/", key):
+            if not filter or (filter and filter not in key):
+                cdmlist.append((key.split("/"))[1])
+    terminal_menu = TerminalMenu(cdmlist)
+    chosen = terminal_menu.show()
+    return cdmlist[chosen].replace(' ', '_') if chosen is not None else None
+
+
+def get_library(coll, exclude=None):
+    ''' Allow the user to select a NeuronBridge library from MongoDB
+        Keyword arguments:
+          coll: MongoDB collection
+        Returns:
+          NeuronBridge version or None
+    '''
+    results = coll.distinct("libraryName")
+>>>>>>> Stashed changes
     libraries = []
     if 'exclude' not in kwarg:
         kwarg['exclude'] = None
