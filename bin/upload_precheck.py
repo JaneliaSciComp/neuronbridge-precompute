@@ -23,7 +23,7 @@ S3_SECONDS = 60 * 60 * 12
 DB = {}
 COLL = {}
 # Counters
-COUNT = {"images": 0, "found": 0, "updated": 0, "unreleased": 0}
+COUNT = {"images": 0, "found": 0, "published": 1, "updated": 0, "unreleased": 0}
 RELEASE = {}
 SLIDES = []
 
@@ -153,7 +153,8 @@ def check_image(row, non_public):
             LOGGER.debug("Sample %s (%s) is in non-public release %s", row['_id'],
                          row['slideCode'], release)
         else:
-            LOGGER.warning(f"Sample {row['_id']} ({row['slideCode']}) is not prestaged")
+            LOGGER.warning(f"Sample {row['_id']} ({row['sourceRefId']} " \
+                           + f"{row['slideCode']}) is not prestaged")
             SLIDES.append(row['slideCode'])
         tag_release(row, release)
     elif not row['publishedName']:
@@ -212,19 +213,31 @@ def perform_checks():
     DB['sage']['cursor'].execute(sql)
     rows =  DB['sage']['cursor'].fetchall()
     non_public = {row['slide_code']: row['alps_release']  for row in rows}
+    # Get images from publishedURL
+    LOGGER.info("Finding images in publishedURL")
+    COLL['publishedURL'] = DB['neuronbridge'].publishedURL
+    published = {}
+    results = COLL['publishedURL'].find({"libraryName": ARG.LIBRARY,
+                                         "alignmentSpace": ARG.TEMPLATE}, {"_id": 1})
+    for row in results:
+        published[row['_id']] = True
     # Get images with correct library, alignment space, and version from neuronMetadata
     project = {"libraryName": 1, "publishedName": 1, "slideCode": 1,
-               "tags": 1, "neuronInstance": 1, "neuronType": 1}
+               "tags": 1, "neuronInstance": 1, "neuronType": 1, "sourceRefId": 1}
     results = COLL['neuronMetadata'].find(payload, project)
     # Process neuronMetadata images
     for row in tqdm(results, desc="publishedName", total=count):
+        if row['_id'] in published:
+            COUNT['published'] += 1
+            continue
         COUNT['images'] += 1
         check_image(row, non_public)
-    print(f"Images found:    {COUNT['images']:,}")
-    print(f"Images to retag: {COUNT['found']:,}")
+    print(f"Images found:        {COUNT['images']:,}")
+    print(f"Images published:    {COUNT['published']:,}")
+    print(f"Images to retag:     {COUNT['found']:,}")
     if COUNT['found']:
-        print(f"Images retagged: {COUNT['updated']:,}")
-        print(f"Unreleased:      {COUNT['unreleased']:,}")
+        print(f"Images retagged:     {COUNT['updated']:,}")
+        print(f"Unreleased:          {COUNT['unreleased']:,}")
         for key, val in RELEASE.items():
             print(f"{key}: {val:,}")
     if SLIDES:
