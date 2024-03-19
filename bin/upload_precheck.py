@@ -188,9 +188,11 @@ def perform_checks():
         Returns:
           None
     '''
+    # Find non-public releases
     COLL['lmRelease'] = DB['neuronbridge'].lmRelease
     results = COLL['lmRelease'].find({"public": False})
     non_public = [row['release'] for row in results]
+    # Get count of images with correct library, alignment space, and version from neuronMetadata
     COLL['neuronMetadata'] = DB['neuronbridge'].neuronMetadata
     payload = {"libraryName": ARG.LIBRARY,
                "alignmentSpace": ARG.TEMPLATE,
@@ -200,6 +202,7 @@ def perform_checks():
     if not count:
         terminate_program(f"There are no processed tags for version {ARG.VERSION} in {ARG.LIBRARY}")
     print(f"Images in {ARG.LIBRARY} {ARG.VERSION}: {count:,}")
+    # Get images from SAGE with no release or a release in the non-public list
     sql = "SELECT DISTINCT slide_code,alps_release FROM image_data_mv WHERE display=1 AND " \
           + "alignment_space_cdm=%s AND (alps_release IS NULL OR alps_release IN (%s))"
     if ARG.RAW:
@@ -209,9 +212,11 @@ def perform_checks():
     DB['sage']['cursor'].execute(sql)
     rows =  DB['sage']['cursor'].fetchall()
     non_public = {row['slide_code']: row['alps_release']  for row in rows}
+    # Get images with correct library, alignment space, and version from neuronMetadata
     project = {"libraryName": 1, "publishedName": 1, "slideCode": 1,
                "tags": 1, "neuronInstance": 1, "neuronType": 1}
     results = COLL['neuronMetadata'].find(payload, project)
+    # Process neuronMetadata images
     for row in tqdm(results, desc="publishedName", total=count):
         COUNT['images'] += 1
         check_image(row, non_public)
