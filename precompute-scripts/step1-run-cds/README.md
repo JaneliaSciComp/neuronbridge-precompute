@@ -18,3 +18,10 @@ then for brain run:
 `submit-cds.sh brain`
 or for VNC run:
 `submit-cds.sh vnc`
+
+
+## Run Color Depth Search with Nextflow
+If you have nextflow installed you can run it using
+`run-cds-workflow.sh brain [<additional_cds_args>]`
+or
+`run-cds-workflow.sh vnc [<additional_cds_args>]`
