@@ -318,7 +318,7 @@ def write_dynamodb():
         Returns:
           None
     '''
-    LOGGER.info("Batch writing %s items to DynamoDB", len(ITEMS))
+    LOGGER.info(f"Batch writing {len(ITEMS)} items to DynamoDB")
     with DATABASE["DYN"].batch_writer() as writer:
         for item in tqdm(ITEMS, desc="DynamoDB"):
             if ARG.THROTTLE and (not COUNT["insertions"] % ARG.THROTTLE):
@@ -413,9 +413,10 @@ def process_results(count, results, publishedurl):
     update_neuron_matches(neurons)
     LOGGER.info("Producing output files")
     for ntype in NEURON_DATA:
-        with open(f"neuron_{ntype}.txt", 'w', encoding='ascii') as outstream:
-            for row in neurons[ntype]:
-                outstream.write(f"{row}\n")
+        if neurons[ntype]:
+            with open(f"neuron_{ntype}.txt", 'w', encoding='ascii') as outstream:
+                for row in neurons[ntype]:
+                    outstream.write(f"{row}\n")
     if NBODY:
         with open('neuron_body_matches.txt', 'w', encoding='ascii') as outstream:
             for row in NBODY:
@@ -447,7 +448,10 @@ def update_dynamo():
     results = coll.distinct("publishedName")
     publishedurl = {}
     for res in results:
-        publishedurl[res] = True
+        pname = res
+        if ":" in pname:
+            pname = pname.split(':')[-1]
+        publishedurl[pname] = True
     LOGGER.info(f"Published names in publishedURL: {len(publishedurl):,}")
     coll = DATABASE["NB"]["neuronMetadata"]
     #payload = {"$or": [{"processedTags.ColorDepthSearch": ARG.VERSION},
@@ -463,14 +467,17 @@ def update_dynamo():
         lchoices.append((f"{res['_id']} ({res['count']:,})", res['_id']))
     if not lkeys:
         terminate_program(f"There are no processed tags for version {ARG.VERSION}")
+    lchoices.sort()
     questions = [inquirer.Checkbox("to_include",
-                                   message="Choose libraries to include",
+                                   message=f"Choose {ARG.VERSION} libraries to include",
                                    choices=lchoices,
                                    default=lkeys,
                                   )]
     answers = inquirer.prompt(questions)
-    if answers["to_include"]:
+    if answers and answers["to_include"]:
         payload["libraryName"] = {"$in": answers["to_include"]}
+    else:
+        terminate_program("No libraries were chosen")
     project = {"libraryName": 1, "publishedName": 1, "slideCode": 1,
                "processedTags": 1, "neuronInstance": 1, "neuronType": 1}
     count = coll.count_documents(payload)
@@ -478,7 +485,7 @@ def update_dynamo():
         LOGGER.error("There are no processed tags for version %s", ARG.VERSION)
         results = {}
     else:
-        LOGGER.info("Selecting images from neuronMetaData")
+        LOGGER.info("Selecting images from neuronMetadata")
         results = coll.find(payload, project)
     LOGGER.info("Finding PPP matches in pppMatches")
     coll = DATABASE["NB"]["pppMatches"]
