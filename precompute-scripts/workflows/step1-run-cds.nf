@@ -56,9 +56,9 @@ workflow {
                 ]
             }
             .findAll {
-                def (jobIdx) = it
-                (params.first_job <= 0 || jobIdx >= first_job) &&
-                (params.last_job <= 0 || jobIdx <= last_job)
+                def (job_idx) = it
+                (params.first_job <= 0 || job_idx >= params.first_job) &&
+                (params.last_job <= 0 || job_idx <= params.last_job)
             }
     }
     cds_inputs.subscribe {
