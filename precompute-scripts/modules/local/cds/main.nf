@@ -33,6 +33,7 @@ process CDS {
           val(xy_shift),
           val(pct_pos_pixels),
           val(processing_size)
+    val(update_matches)
 
 
     script:
@@ -51,6 +52,7 @@ process CDS {
     def xy_shift_arg = xy_shift ? "--xyShift ${xy_shift}" : ''
     def pct_pos_pixels_arg = pct_pos_pixels ? "--pctPositivePixels ${pct_pos_pixels}" : ''
     def processing_size_arg = processing_size ? "-ps ${processing_size}" : ''
+    def update_matches_arg = update_matches ? '--update-matches' : ''
 
     """
     echo "\$(date) Run job: ${job_id}"
@@ -73,7 +75,8 @@ process CDS {
         ${pix_color_fluctuation_arg} \
         ${xy_shift_arg} \
         ${pct_pos_pixels_arg} \
-        ${processing_size_arg}
+        ${processing_size_arg} \
+        ${update_matches_arg}
 
     """
 }

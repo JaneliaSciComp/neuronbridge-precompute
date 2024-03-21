@@ -85,7 +85,8 @@ workflow {
             params.xy_shift,
             params.pct_pos_pixels,
             params.cds_processing_size,
-        ]
+        ],
+        params.update_cds_matches,
     )
 
 }
