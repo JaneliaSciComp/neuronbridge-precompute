@@ -16,7 +16,7 @@ process GA {
           val(masks_offset),
           val(masks_length),
           val(targets_library)
-    tuple path(app_jar), val(ga_runner)
+    tuple path(app_jar), val(app_runner)
     path(db_config_file)
     val(ga_cpus)
     val(ga_mem_gb)
@@ -44,7 +44,7 @@ process GA {
 
     """
     echo "\$(date) Run job: ${job_id}"
-    ${ga_runner} java \
+    ${app_runner} java \
         ${java_opts} ${java_mem_opts} \
         -jar ${app_jar} \
         ${cache_size_arg} \

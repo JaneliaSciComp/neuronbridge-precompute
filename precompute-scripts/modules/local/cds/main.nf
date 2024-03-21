@@ -17,7 +17,7 @@ process CDS {
           val(targets_library),
           val(targets_offset),
           val(targets_length)
-    tuple path(app_jar), val(cds_runner)
+    tuple path(app_jar), val(app_runner)
     path(db_config_file)
     val(cds_cpus)
     val(cds_mem_gb)
@@ -56,7 +56,7 @@ process CDS {
 
     """
     echo "\$(date) Run job: ${job_id}"
-    ${cds_runner} java \
+    ${app_runner} java \
         ${java_opts} ${java_mem_opts} \
         -jar ${app_jar} \
         ${cache_size_arg} \
