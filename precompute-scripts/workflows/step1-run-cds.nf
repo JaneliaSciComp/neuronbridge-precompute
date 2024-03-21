@@ -34,6 +34,7 @@ workflow {
     def cds_inputs = masks_count
     | join(targets_count)
     | flatMap { anatomical_area, masks_library, nmasks, targets_library, ntargets -> 
+        log.info "Partition color depth search for ${nmasks} ${masks_library} masks and ${ntargets} ${targets_library} targets"
         def masks_jobs = partition_work(nmasks, params.cds_mask_batch_size)
         def targets_jobs = partition_work(ntargets, params.cds_target_batch_size)
         [masks_jobs, targets_jobs]
