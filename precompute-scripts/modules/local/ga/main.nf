@@ -5,7 +5,8 @@ process GA {
 
 
     input:
-    tuple val(anatomical_area),
+    tuple val(job_id),
+          val(anatomical_area),
           val(masks_library),
           val(targets_library)
     tuple path(app_jar), val(cds_runner)
@@ -16,6 +17,7 @@ process GA {
 
     script:
     """
+    echo "\$(date) Run job: ${job_id}"
     java -jar ${app_jar}
     """
 }

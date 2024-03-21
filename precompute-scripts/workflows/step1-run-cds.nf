@@ -38,11 +38,13 @@ workflow {
         def targets_jobs = partition_work(ntargets, params.cds_target_batch_size)
         [masks_jobs, targets_jobs]
             .combinations()
-            .collect {
-                def (masks_limits, targets_limits) = it
+            .withIndex()
+            .collect { mtpair, idx ->
+                def (masks_limits, targets_limits) = mtpair
                 def (masks_offset, masks_size) = masks_limits
                 def (targets_offset, targets_size) = targets_limits
                 [
+                    idx+1,
                     anatomical_area,
                     masks_library,
                     masks_offset,
@@ -51,6 +53,11 @@ workflow {
                     targets_offset,
                     targets_size,
                 ]
+            }
+            .findAll {
+                def (jobIdx) = it
+                (params.first_job <= 0 || jobIdx >= first_job) &&
+                (params.last_job <= 0 || jobIdx <= last_job)
             }
     }
     cds_inputs.subscribe {

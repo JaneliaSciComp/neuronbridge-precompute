@@ -9,7 +9,8 @@ process CDS {
     clusterOptions { task.ext.cluster_opts }
 
     input:
-    tuple val(anatomical_area),
+    tuple val(job_id),
+          val(anatomical_area),
           val(masks_library),
           val(masks_offset),
           val(masks_length),
@@ -52,6 +53,7 @@ process CDS {
     def processing_size_arg = processing_size ? "-ps ${processing_size}" : ''
 
     """
+    echo "\$(date) Run job: ${job_id}"
     ${cds_runner} java \
         ${java_opts} ${java_mem_opts} \
         -jar ${app_jar} \
