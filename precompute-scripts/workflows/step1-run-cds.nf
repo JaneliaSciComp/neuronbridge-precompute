@@ -46,7 +46,7 @@ workflow {
                 def (masks_offset, masks_size) = masks_limits
                 def (targets_offset, targets_size) = targets_limits
                 [
-                    idx+1,
+                    idx+1, // jobs are 1-indexed
                     anatomical_area,
                     masks_library,
                     masks_offset,
@@ -58,6 +58,7 @@ workflow {
             }
             .findAll {
                 def (job_idx) = it
+                // first_job and last_job parameters are 1-index and they are inclusive
                 (params.first_job <= 0 || job_idx >= params.first_job) &&
                 (params.last_job <= 0 || job_idx <= params.last_job)
             }

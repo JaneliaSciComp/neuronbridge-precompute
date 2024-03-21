@@ -19,9 +19,8 @@ then for brain run:
 or for VNC run:
 `submit-cds.sh vnc`
 
-
 ## Run Color Depth Search with Nextflow
 If you have nextflow installed you can run it using
-`run-cds-workflow.sh brain [<additional_cds_args>]`
+`run-cds-workflow.sh brain --db_config mylocal/proddb-config.properties [<additional_cds_args>]`
 or
-`run-cds-workflow.sh vnc [<additional_cds_args>]`
+`run-cds-workflow.sh vnc --db_config mylocal/proddb-config.properties [<additional_cds_args>]`

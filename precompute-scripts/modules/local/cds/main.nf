@@ -23,7 +23,7 @@ process CDS {
     val(cds_mem_gb)
     val(java_opts)
     tuple val(cds_processing_tag),
-          val(cds_cache_size),
+          val(cache_size),
           val(masks_published_names),
           val(targets_published_names),
           val(mirror_flag),
@@ -37,14 +37,14 @@ process CDS {
 
 
     script:
+    def java_mem_opts = "-Xmx${cds_mem_gb}G -Xms${cds_mem_gb}G"
+    def cache_size_arg = cache_size ? "--cacheSize ${cache_size}" : ''
     def concurrency_arg = cds_cpus ? "--task-concurrency ${2 * cds_cpus -1}" : ''
     def masks_arg = get_lib_arg(masks_library, masks_offset, masks_length)
     def masks_published_names_arg = masks_published_names ? "--masks-published-names ${masks_published_names}" : ''
     def targets_arg = get_lib_arg(targets_library, targets_offset, targets_length)
     def targets_published_names_arg = targets_published_names ? "--targets-published-names ${targets_published_names}" : ''
-    def java_mem_opts = "-Xmx${cds_mem_gb}G -Xms${cds_mem_gb}G"
     def alignment_space = area_to_alignment_space(anatomical_area)
-    def cds_cache_size_arg = cds_cache_size ? "--cacheSize ${cds_cache_size}" : ''
     def mirror_flag_arg = mirror_flag ? '--mirrorMask' : ''
     def mask_th_arg = mask_th ? "--maskThreshold ${mask_th}" : ''
     def target_th_arg = target_th ? "--dataThreshold ${target_th}" : ''
@@ -59,7 +59,7 @@ process CDS {
     ${cds_runner} java \
         ${java_opts} ${java_mem_opts} \
         -jar ${app_jar} \
-        ${cds_cache_size_arg} \
+        ${cache_size_arg} \
         colorDepthSearch \
         --config ${db_config_file} \
         ${concurrency_arg} \
