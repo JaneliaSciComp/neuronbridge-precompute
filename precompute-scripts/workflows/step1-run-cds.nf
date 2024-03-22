@@ -88,6 +88,7 @@ workflow {
             params.pct_pos_pixels,
             params.cds_processing_size,
         ],
+        file(params.mips_base_dir),
         params.update_cds_matches,
     )
 

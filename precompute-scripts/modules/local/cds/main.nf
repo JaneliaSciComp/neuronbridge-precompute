@@ -34,6 +34,7 @@ process CDS {
           val(xy_shift),
           val(pct_pos_pixels),
           val(processing_size)
+    path(mips_base_dir)
     val(update_matches)
 
 
@@ -57,6 +58,7 @@ process CDS {
 
     """
     echo "\$(date) Run job: ${job_id}"
+    echo "Mips base dir: \$(readlink ${mips_base_dir})
     ${app_runner} java \
         ${java_opts} ${java_mem_opts} \
         -jar ${app_jar} \

@@ -31,6 +31,7 @@ process GA {
           val(top_best_sample_matches_per_line),
           val(top_best_matches_per_sample),
           val(processing_size)
+    path(mips_base_dir)
 
     script:
     def java_mem_opts = "-Xmx${ga_mem_gb}G -Xms${ga_mem_gb}G"
@@ -45,6 +46,7 @@ process GA {
 
     """
     echo "\$(date) Run job: ${job_id}"
+    echo "Mips base dir: \$(readlink ${mips_base_dir})
     ${app_runner} java \
         ${java_opts} ${java_mem_opts} \
         -jar ${app_jar} \
