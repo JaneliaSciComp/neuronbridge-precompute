@@ -6,6 +6,7 @@ include { area_to_alignment_space } from '../../../nfutils/utils'
 
 process DBQUERY {
     container { task.ext.container ?: 'mongo:7.0.6' }
+    label 'always_use_local'
 
     input:
     tuple val(anatomical_area),
