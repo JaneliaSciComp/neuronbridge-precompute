@@ -46,7 +46,9 @@ process GA {
 
     """
     echo "\$(date) Run job: ${job_id}"
-    echo "Mips base dir: \$(readlink ${mips_base_dir})"
+    mips_base_fullpath=\$(readlink ${mips_base_dir})
+    echo "Mips base dir: \${mips_base_fullpath}"
+    ls \${mips_base_fullpath}
     ${app_runner} java \
         ${java_opts} ${java_mem_opts} \
         -jar ${app_jar} \
