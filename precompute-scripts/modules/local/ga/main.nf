@@ -34,6 +34,7 @@ process GA {
     path(mips_base_dir)
 
     script:
+    def java_app = app_jar ?: '/app/colormipsearch-3.1.0-jar-with-dependencies.jar'
     def java_mem_opts = "-Xmx${ga_mem_gb}G -Xms${ga_mem_gb}G"
     def cache_size_arg = cache_size ? "--cacheSize ${cache_size}" : ''
     def concurrency_arg = ga_cpus ? "--task-concurrency ${2 * ga_cpus -1}" : ''
@@ -51,7 +52,7 @@ process GA {
     ls \${mips_base_fullpath}
     ${app_runner} java \
         ${java_opts} ${java_mem_opts} \
-        -jar ${app_jar} \
+        -jar ${java_app} \
         ${cache_size_arg} \
         gradientScores \
         --config ${db_config_file} \

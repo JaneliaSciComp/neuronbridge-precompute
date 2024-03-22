@@ -48,7 +48,7 @@ workflow {
     }
     GA(gradscore_inputs,
        [
-           file(params.app),
+           params.app ? file(params.app) : [],
            params.tool_runner,
        ],
        db_config_file,
