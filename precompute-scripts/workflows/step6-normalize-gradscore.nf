@@ -1,4 +1,4 @@
-include { GA } from '../modules/local/ga/main.nf'
+include { NORMNALIZE_GA } from '../modules/local/normalize-ga/main.nf'
 include { DBQUERY as COUNT_MASKS } from '../modules/local/dbquery/main.nf'
 
 include { partition_work } from '../nfutils/utils'
@@ -19,7 +19,7 @@ workflow {
     )
 
     // split the work
-    def gradscore_inputs = unique_masks_count
+    def normalize_gradscore_inputs = unique_masks_count
     | flatMap { anatomical_area, masks_library, nmasks ->
         def gradscore_jobs = partition_work(nmasks, params.gradscore_batch_size)
         gradscore_jobs
@@ -42,10 +42,10 @@ workflow {
                 (params.last_job <= 0 || job_idx <= params.last_job)
             }
     }
-    gradscore_inputs.subscribe {
-        log.debug "Run grad score: $it"
+    normalize_gradscore_inputs.subscribe {
+        log.debug "Normalize grad score: $it"
     }
-    GA(gradscore_inputs,
+    NORMALIZE_GA(normalize_gradscore_inputs,
        [
            file(params.app),
            params.tool_runner,
@@ -55,14 +55,9 @@ workflow {
        params.mem_gb,
        params.java_opts,
         [
-            params.gradscore_processing_tag,
-            params.gradscore_cache_size,
+            params.normalize_ga_processing_tag,
             params.masks_published_names,
             params.targets_published_names,
-            params.mirror_flag,
-            params.top_best_line_matches,
-            params.top_best_sample_matches_per_line,
-            params.top_best_matches_per_sample,
             params.ga_processing_size,
         ],
     )
