@@ -22,6 +22,7 @@ workflow {
     def gradscore_inputs = unique_masks_count
     | flatMap { anatomical_area, masks_library, nmasks ->
         def gradscore_jobs = partition_work(nmasks, params.gradscore_batch_size)
+        log.info "Partition gradient score for ${nmasks} ${masks_library} masks into ${gradscore_jobs.size} jobs"
         gradscore_jobs
             .withIndex()
             .collect { job, idx ->

@@ -4,6 +4,7 @@ include {
 } from '../../../nfutils/utils'
 
 process CDS {
+    container { task.ext.container ?: 'janeliascicomp/colormipsearch-tools:3.1.0' }
     cpus { cds_cpus }
     memory "${cds_mem_gb} GB"
     clusterOptions { task.ext.cluster_opts }

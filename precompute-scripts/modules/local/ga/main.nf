@@ -4,6 +4,7 @@ include {
 } from '../../../nfutils/utils'
 
 process GA {
+    container { task.ext.container ?: 'janeliascicomp/colormipsearch-tools:3.1.0' }
     cpus { ga_cpus }
     memory "${ga_mem_gb} GB"
     clusterOptions { task.ext.cluster_opts }
