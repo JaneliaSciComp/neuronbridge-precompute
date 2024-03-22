@@ -18,7 +18,9 @@ process CDS {
           val(targets_library),
           val(targets_offset),
           val(targets_length)
-    tuple path(app_jar), val(app_runner)
+    tuple path(app_jar),
+          path(log_config),
+          val(app_runner)
     path(db_config_file)
     val(cds_cpus)
     val(cds_mem_gb)
@@ -40,6 +42,7 @@ process CDS {
 
     script:
     def java_app = app_jar ?: '/app/colormipsearch-3.1.0-jar-with-dependencies.jar'
+    def log_config_arg = log_config ? "-Dlog4j.configuration=${log_config}" : ''
     def java_mem_opts = "-Xmx${cds_mem_gb}G -Xms${cds_mem_gb}G"
     def cache_size_arg = cache_size ? "--cacheSize ${cache_size}" : ''
     def concurrency_arg = cds_cpus ? "--task-concurrency ${2 * cds_cpus -1}" : ''
@@ -64,6 +67,7 @@ process CDS {
     ls \${mips_base_fullpath}
     ${app_runner} java \
         ${java_opts} ${java_mem_opts} \
+        ${log_config_arg} \
         -jar ${java_app} \
         ${cache_size_arg} \
         colorDepthSearch \

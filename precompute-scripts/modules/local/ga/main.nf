@@ -17,7 +17,9 @@ process GA {
           val(masks_offset),
           val(masks_length),
           val(targets_library)
-    tuple path(app_jar), path(log_config), val(app_runner)
+    tuple path(app_jar),
+          path(log_config),
+          val(app_runner)
     path(db_config_file)
     val(ga_cpus)
     val(ga_mem_gb)
