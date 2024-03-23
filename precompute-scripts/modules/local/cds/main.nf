@@ -35,7 +35,8 @@ process CDS {
           val(pix_color_fluctuation),
           val(xy_shift),
           val(pct_pos_pixels),
-          val(processing_size)
+          val(processing_size),
+          val(write_batch_size)
     path(mips_base_dir)
     val(update_matches)
 
@@ -85,6 +86,7 @@ process CDS {
         ${xy_shift_arg} \
         ${pct_pos_pixels_arg} \
         ${processing_size_arg} \
+        --write-batch-size ${write_batch_size} \
         ${update_matches_arg}
 
     """
