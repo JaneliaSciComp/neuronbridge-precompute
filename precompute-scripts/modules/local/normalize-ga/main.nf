@@ -17,7 +17,9 @@ process NORMALIZE_GA {
           val(masks_offset),
           val(masks_length),
           val(targets_library)
-    tuple path(app_jar), val(app_runner)
+    tuple path(app_jar),
+          path(log_config),
+          val(app_runner)
     path(db_config_file)
     val(normalize_ga_cpus)
     val(normalize_ga_mem_gb)
@@ -28,6 +30,8 @@ process NORMALIZE_GA {
           val(processing_size)
 
     script:
+    def java_app = app_jar ?: '/app/colormipsearch-3.1.0-jar-with-dependencies.jar'
+    def log_config_arg = log_config ? "-Dlog4j.configurationFile=file:${log_config}" : ''
     def java_mem_opts = "-Xmx${normalize_ga_mem_gb}G -Xms${normalize_ga_mem_gb}G"
     def concurrency_arg = normalize_ga_cpus ? "--task-concurrency ${2 * normalize_ga_cpus -1}" : ''
     def alignment_space = area_to_alignment_space(anatomical_area)
@@ -41,6 +45,7 @@ process NORMALIZE_GA {
     echo "\$(date) Run job: ${job_id}"
     ${app_runner} java \
         ${java_opts} ${java_mem_opts} \
+        ${log_config_arg} \
         -jar ${app_jar} \
         mormalizeGradientScores \
         --config ${db_config_file} \
