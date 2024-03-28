@@ -4,6 +4,7 @@
 import argparse
 from operator import attrgetter
 import sys
+from colorama import Fore, Style
 import jrc_common.jrc_common as JRC
 
 #pylint: disable=broad-exception-caught
@@ -35,10 +36,22 @@ def initialize_program():
         dbconfig = JRC.get_config("databases")
     except Exception as err:
         terminate_program(err)
-    for dbname in ('jacs',):
+    for dbname in ('jacs', 'neuronbridge'):
         dbo = attrgetter(f"{dbname}.{ARG.MANIFOLD}.read")(dbconfig)
         LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, ARG.MANIFOLD, dbo.host, dbo.user)
         DB[dbname] = JRC.connect_database(dbo)
+
+
+def color(txt):
+    """ Color Yes/No text
+        Keyword arguments:
+          txt: text to color
+        Returns:
+          Colored text
+    """
+    if 'Yes' in txt:
+        return Fore.GREEN + txt + Style.RESET_ALL
+    return Fore.RED + txt + Style.RESET_ALL
 
 
 def get_datasets():
@@ -48,12 +61,25 @@ def get_datasets():
         Returns:
           None
     """
+    # Get data sets from neuronbridge
+    LOGGER.info("Getting libraries from NeuronBridge")
+    coll = DB['neuronbridge'].neuronMetadata
+    payload = [{"$group": {"_id": {"lib": "$libraryName"},
+                           "count": {"$sum": 1}}}]
+    rows = coll.aggregate(payload)
+    nblib = {}
+    for row in rows:
+        nblib[row['_id']['lib'].replace('flyem_', '')] = row['count']
+    # Get data sets from jacs
+    LOGGER.info("Getting datasets from JACS")
     coll = DB['jacs'].emDataSet
     rows = coll.find()
     dataset = {}
     for row in rows:
         dataset[str(row['_id'])] = {'active': 'Yes' if row['active'] else 'No',
                                     'published': 'Yes' if row['published'] else 'No'}
+    # Get body count from jacs
+    LOGGER.info("Getting bodies from JACS")
     coll = DB['jacs'].emBody
     payload = [{"$group": {"_id": {"ds": "$dataSetIdentifier", "dsr": "$dataSetRef"},
                            "count": {"$sum": 1}}}]
@@ -65,18 +91,29 @@ def get_datasets():
         dset = row['_id']['ds']
         if ':' in dset:
             dset, ver = dset.split(':')
+            dslib = '_'.join([dset, ver.replace('v', '').replace('.', '_')])
         else:
             ver = ''
+            dslib = dset
         if len(dset) > maxds:
             maxds = len(dset)
+        if dslib in nblib:
+            on_nb = color(f"{'Yes':^12}")
+        elif dataset[dsid]['active'] == 'Yes' and dataset[dsid]['published'] == 'Yes' \
+             and dset not in ('fib19', 'hemibrain'):
+            on_nb = color(f"{'No':^12}")
+        else:
+            on_nb = 'No'
         rep[row['_id']['ds']] = {'ds': dset, 'ver': ver,
+                                 'nb': on_nb,
                                  'cnt': row['count'], 'act': dataset[dsid]['active'],
                                  'pub': dataset[dsid]['published']}
-    print(f"{'Data set':<{maxds}}  Version  {'Active':6}  {'Public':6}  Bodies")
-    print(f"{'-'*maxds}  {'-'*7}  {'-'*6}  {'-'*6}  {'-'*7}")
+    # Display
+    print(f"{'Data set':<{maxds}}  Version  {'Active':6}  {'Public':6}  {'Bodies':7}  NeuronBridge")
+    print(f"{'-'*maxds}  {'-'*7}  {'-'*6}  {'-'*6}  {'-'*7}  {'-'*12}")
     for dset, data in sorted(rep.items()):
         print(f"{data['ds']:<{maxds}}  {data['ver']:<7}  {data['act']:^6}  " \
-              + f"{data['pub']:^6}  {data['cnt']:>7,}")
+              + f"{data['pub']:^6}  {data['cnt']:>7,}  {data['nb']:^12}")
 
 
 # -----------------------------------------------------------------------------
