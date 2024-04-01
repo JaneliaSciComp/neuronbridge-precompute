@@ -36,7 +36,8 @@ process CDS {
           val(xy_shift),
           val(pct_pos_pixels),
           val(processing_size),
-          val(write_batch_size)
+          val(write_batch_size),
+          val(parallelize_write_results)
     path(mips_base_dir)
     val(update_matches)
 
@@ -60,6 +61,7 @@ process CDS {
     def pct_pos_pixels_arg = pct_pos_pixels ? "--pctPositivePixels ${pct_pos_pixels}" : ''
     def processing_size_arg = processing_size ? "-ps ${processing_size}" : ''
     def update_matches_arg = update_matches ? '--update-matches' : ''
+    def parallelize_write_results_arg = parallelize_write_results ? '--parallel-write-results' : ''
 
     """
     echo "\$(date) Run job: ${job_id}"
@@ -87,6 +89,7 @@ process CDS {
         ${pct_pos_pixels_arg} \
         ${processing_size_arg} \
         --write-batch-size ${write_batch_size} \
+        ${parallelize_write_results_arg} \
         ${update_matches_arg}
 
     """
