@@ -47,6 +47,7 @@ process GA {
     def targets_library_arg = targets_library ? "--targets-libraries ${targets_library}" : ''
     def targets_published_names_arg = targets_published_names ? "--targets-published-names ${targets_published_names}" : ''
     def mirror_flag_arg = mirror_flag ? '--mirrorMask' : ''
+    def processing_size_arg = processing_size ? "-ps ${processing_size}" : ''
 
     """
     echo "\$(date) Run job: ${job_id}"
@@ -65,6 +66,7 @@ process GA {
         ${masks_published_names_arg} \
         ${targets_library_arg} \
         ${targets_published_names_arg} \
+        ${processing_size_arg} \
         ${mirror_flag_arg} \
         --nBestLines ${top_best_line_matches} \
         --nBestSamplesPerLine ${top_best_sample_matches_per_line} \
