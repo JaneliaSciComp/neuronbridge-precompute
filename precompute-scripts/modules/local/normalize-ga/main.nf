@@ -43,7 +43,7 @@ process NORMALIZE_GA {
 
     """
     echo "\$(date) Run job: ${job_id}"
-    ${app_runner} java \
+    ${app_runner} java -showversion \
         ${java_opts} ${java_mem_opts} \
         ${log_config_arg} \
         -jar ${app_jar} \

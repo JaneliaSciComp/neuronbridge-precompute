@@ -50,10 +50,10 @@ process GA {
     def processing_size_arg = processing_size ? "-ps ${processing_size}" : ''
 
     """
-    echo "\$(date) Run job: ${job_id}"
+    echo "\$(date) Run job: ${job_id} "
     mips_base_fullpath=\$(readlink ${mips_base_dir})
     echo "Mips base dir: \${mips_base_fullpath}"
-    ${app_runner} java \
+    ${app_runner} java -showversion \
         ${java_opts} ${java_mem_opts} \
         ${log_config_arg} \
         -jar ${java_app} \

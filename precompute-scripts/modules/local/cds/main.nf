@@ -67,7 +67,7 @@ process CDS {
     echo "\$(date) Run job: ${job_id}"
     mips_base_fullpath=\$(readlink ${mips_base_dir})
     echo "Mips base dir: \${mips_base_fullpath}"
-    ${app_runner} java \
+    ${app_runner} java -showversion \
         ${java_opts} ${java_mem_opts} \
         ${log_config_arg} \
         -jar ${java_app} \
