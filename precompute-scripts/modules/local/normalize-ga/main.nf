@@ -32,7 +32,7 @@ process NORMALIZE_GA {
     script:
     def java_app = app_jar ?: '/app/colormipsearch-3.1.0-jar-with-dependencies.jar'
     def log_config_arg = log_config ? "-Dlog4j.configurationFile=file:${log_config}" : ''
-    def java_mem_opts = "-Xmx${normalize_ga_mem_gb}G -Xms${normalize_ga_mem_gb}G"
+    def java_mem_opts = "-Xmx${normalize_ga_mem_gb-1}G -Xms${normalize_ga_mem_gb-1}G"
     def concurrency_arg = normalize_ga_cpus ? "--task-concurrency ${2 * normalize_ga_cpus -1}" : ''
     def alignment_space = area_to_alignment_space(anatomical_area)
     def masks_arg = get_lib_arg(masks_library, masks_offset, masks_length)

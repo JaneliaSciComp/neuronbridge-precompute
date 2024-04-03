@@ -38,7 +38,7 @@ process GA {
     script:
     def java_app = app_jar ?: '/app/colormipsearch-3.1.0-jar-with-dependencies.jar'
     def log_config_arg = log_config ? "-Dlog4j.configurationFile=file:${log_config}" : ''
-    def java_mem_opts = "-Xmx${ga_mem_gb}G -Xms${ga_mem_gb}G"
+    def java_mem_opts = "-Xmx${ga_mem_gb-1}G -Xms${ga_mem_gb-1}G"
     def cache_size_arg = cache_size ? "--cacheSize ${cache_size}" : ''
     def concurrency_arg = ga_cpus ? "--task-concurrency ${2 * ga_cpus -1}" : ''
     def alignment_space = area_to_alignment_space(anatomical_area)

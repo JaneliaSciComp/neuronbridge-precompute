@@ -45,7 +45,7 @@ process CDS {
     script:
     def java_app = app_jar ?: '/app/colormipsearch-3.1.0-jar-with-dependencies.jar'
     def log_config_arg = log_config ? "-Dlog4j.configurationFile=file:${log_config}" : ''
-    def java_mem_opts = "-Xmx${cds_mem_gb}G -Xms${cds_mem_gb}G"
+    def java_mem_opts = "-Xmx${cds_mem_gb-1}G -Xms${cds_mem_gb-1}G"
     def cache_size_arg = cache_size ? "--cacheSize ${cache_size}" : ''
     def concurrency_arg = cds_cpus ? "--task-concurrency ${2 * cds_cpus -1}" : ''
     def masks_arg = get_lib_arg(masks_library, masks_offset, masks_length)
