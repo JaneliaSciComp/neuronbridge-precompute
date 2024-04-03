@@ -60,7 +60,9 @@ def mongo_check():
     for collection in ["neuronMetadata", "publishedURL"]:
         coll = DATABASE['neuronbridge'][collection]
         col = "sourceRefId" if collection == "neuronMetadata" else "sampleRef"
-        payload  = {"libraryName": ARG.LIBRARY, "tags": ARG.VERSION}
+        payload = {"libraryName": ARG.LIBRARY}
+        if collection == 'neuronMetadata':
+            payload["tags"] = ARG.VERSION
         rows = coll.find(payload)
         for row in rows:
             cross[collection][row[col]] = True
@@ -89,7 +91,7 @@ if __name__ == '__main__':
     PARSER.add_argument('--library', dest='LIBRARY', action='store',
                         help='NeuronBridge library')
     PARSER.add_argument('--version', dest='VERSION', action='store',
-                        default="3.1.1", help='NeuronBridge version')
+                        default="3.2.1", help='NeuronBridge version')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         choices=["dev", "prod"], default="prod", help='MongoDB manifold')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
