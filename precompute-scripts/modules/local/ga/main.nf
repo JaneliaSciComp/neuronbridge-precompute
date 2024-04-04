@@ -32,7 +32,8 @@ process GA {
           val(top_best_line_matches),
           val(top_best_sample_matches_per_line),
           val(top_best_matches_per_sample),
-          val(processing_size)
+          val(processing_size),
+          val(process_partitions_concurrently)
     path(mips_base_dir)
 
     script:
@@ -48,6 +49,7 @@ process GA {
     def targets_published_names_arg = targets_published_names ? "--targets-published-names ${targets_published_names}" : ''
     def mirror_flag_arg = mirror_flag ? '--mirrorMask' : ''
     def processing_size_arg = processing_size ? "-ps ${processing_size}" : ''
+    def process_partitions_concurrently_arg = process_partitions_concurrently ? '--process-partitions-concurrently' : ''
 
     """
     echo "\$(date) Run job: ${job_id} "
@@ -67,6 +69,7 @@ process GA {
         ${targets_library_arg} \
         ${targets_published_names_arg} \
         ${processing_size_arg} \
+        ${process_partitions_concurrently_arg} \
         ${mirror_flag_arg} \
         --nBestLines ${top_best_line_matches} \
         --nBestSamplesPerLine ${top_best_sample_matches_per_line} \
