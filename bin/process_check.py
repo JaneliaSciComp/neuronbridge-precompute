@@ -105,7 +105,7 @@ def process_jacs_sync():
     dset = {}
     for row in results:
         if row["version"]:
-            vlib = ":v".join([row["name"], row["version"]])
+            vlib = ":v".join([row["name"].replace("flywire_", ""), row["version"]])
         else:
             vlib = row["name"]
         dset[vlib] = True
@@ -126,11 +126,11 @@ def process_neuronbridge(nb_coll):
     dset = {}
     results = coll.distinct("libraryName")
     for row in results:
-        if "flyem_" in row:
-            regex = re.search(r"flyem_([^_]+)_(.+)", row)
-            dset[":v".join([regex[1], regex[2].replace("_", ".")])] = True
-        else:
+        if row.startswith('flylight'):
             dset[row] = True
+        else:
+            regex = re.search(r"(flyem|flywire)_([^_]+)_(.+)", row)
+            dset[":v".join([regex[2], regex[3].replace("_", ".")])] = True
     return dset
 
 
@@ -155,7 +155,8 @@ def process_aws():
             libs =  get_prefixes(bucket, prefix)
             for lib in libs:
                 newlib = lib.lower().replace("flyem_", "").replace("_v", ":v")
-                if newlib.startswith("flylight_"):
+                newlib = lib.lower().replace("flywire_", "").replace("_v", ":v")
+                if newlib.startswith("flylight"):
                     newlib = newlib.replace("_drivers", "").replace("-", "_")
                     newlib += "_published"
                 awslib[newlib] = f"{manifold:>7}"
@@ -186,7 +187,7 @@ def check_process():
     first = "-"*width
     print(f"{first}  {'-'*8}  {'-'*6}  {'-'*8}  {'-'*9}  {'-'*7}")
     for dset in sorted(master):
-        if "flylight" in dset:
+        if dset.startswith('flylight'):
             nprint = sync = Fore.RED + f"{'N/A':>4}"
         else:
             nprint = step["neuprint"][dset] if dset in step["neuprint"] else Fore.RED + f"{'No':>4}"
