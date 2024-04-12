@@ -76,7 +76,7 @@ def set_payload(row):
     skey = "-".join([row["objective"], row["alignmentSpace"]])
     ckey = "-".join([key, skey])
     if ckey in INSERTED:
-        terminate_program(f"Key {ckey} is already in table")
+        terminate_program(f"Key {ckey} is already in publishedLMImage")
     SLIDE_CODE[row["slideCode"]] = True
     INSERTED[ckey] = True
     payload = {"itemType": ckey.lower(),
