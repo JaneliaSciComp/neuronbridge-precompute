@@ -1,5 +1,5 @@
-include { NORMNALIZE_GA } from '../modules/local/normalize-ga/main.nf'
-include { DBQUERY as COUNT_MASKS } from '../modules/local/dbquery/main.nf'
+include { EXPORT } from '../modules/local/export/main.nf'
+include { DBQUERY as COUNT_MIPS } from '../modules/local/dbquery/main.nf'
 
 include { partition_work } from '../nfutils/utils'
 
@@ -7,33 +7,33 @@ workflow {
 
     def db_config_file = file(params.db_config)
 
-    def unique_masks_count = COUNT_MASKS(
+    def unique_mips_count = COUNT_MIPS(
         Channel.of([
             params.anatomical_area,
-            params.masks_library,
-            params.masks_published_names,
-            params.masks_tags,
-            params.masks_excluded_tags,
+            params.mip_libraries,
+            params.mip_published_names,
+            params.mip_tags,
+            params.mip_excluded_tags,
             true,
         ]),
         db_config_file,
     )
 
     // split the work
-    def normalize_gradscore_inputs = unique_masks_count
-    | flatMap { anatomical_area, masks_library, nmasks ->
-        def gradscore_jobs = partition_work(nmasks, params.normalize_ga_batch_size)
-        gradscore_jobs
+    def export_inputs = unique_mips_count
+    | flatMap { anatomical_area, mips_libraries, nmips ->
+        def export_jobs = partition_work(nmips, params.export_batch_size)
+        log.info "Partition export for ${nmips} ${mips_libraries} mips into ${export_jobs.size} jobs"
+        export_jobs
             .withIndex()
             .collect { job, idx ->
                 def (job_offset, job_size) = job
                 [
                     idx+1, // jobs are 1-indexed
                     anatomical_area,
-                    masks_library,
+                    mips_libraries,
                     job_offset,
-                    job_size,
-                    params.targets_library
+                    job_size
                 ]
             }
             .findAll {
@@ -43,10 +43,10 @@ workflow {
                 (params.last_job <= 0 || job_idx <= params.last_job)
             }
     }
-    normalize_gradscore_inputs.subscribe {
-        log.debug "Normalize grad score: $it"
+    export_inputs.subscribe {
+        log.debug "Run export: $it"
     }
-    NORMALIZE_GA(normalize_gradscore_inputs,
+    EXPORT(export_inputs,
        [
            params.app ? file(params.app) : [],
            params.log_config ? file(params.log_config) : [],
@@ -57,10 +57,12 @@ workflow {
        params.mem_gb,
        params.java_opts,
        [
-            params.normalize_ga_processing_tag,
-            params.masks_published_names,
-            params.targets_published_names,
-            params.ga_processing_size,
-       ],
+            params.export_type,
+            params.exported_tags,
+            params.excluded_tags,
+            params.jacs_url,
+            params.jacs_authorization,
+            params.jacs_read_batch_size,
+       ]
     )
 }

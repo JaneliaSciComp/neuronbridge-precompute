@@ -7,8 +7,6 @@ process NORMALIZE_GA {
     container { task.ext.container ?: 'janeliascicomp/colormipsearch-tools:3.1.0' }
     cpus { normalize_ga_cpus }
     memory "${normalize_ga_mem_gb} GB"
-    clusterOptions { task.ext.cluster_opts }
-
 
     input:
     tuple val(job_id),
@@ -39,10 +37,9 @@ process NORMALIZE_GA {
     def masks_published_names_arg = masks_published_names ? "--masks-published-names ${masks_published_names}" : ''
     def targets_library_arg = targets_library ? "--targets-libraries ${targets_library}" : ''
     def targets_published_names_arg = targets_published_names ? "--targets-published-names ${targets_published_names}" : ''
-    def mirror_flag_arg = mirror_flag ? '--mirrorMask' : ''
 
     """
-    echo "\$(date) Run job: ${job_id}"
+    echo "\$(date) Run normalize-score job: ${job_id} "
     ${app_runner} java -showversion \
         ${java_opts} ${java_mem_opts} \
         ${log_config_arg} \

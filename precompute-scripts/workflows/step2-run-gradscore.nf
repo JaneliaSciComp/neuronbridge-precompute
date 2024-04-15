@@ -13,6 +13,7 @@ workflow {
             params.masks_library,
             params.masks_published_names,
             params.masks_tags,
+            params.masks_excluded_tags,
             true,
         ]),
         db_config_file,
@@ -56,7 +57,7 @@ workflow {
        params.cpus,
        params.mem_gb,
        params.java_opts,
-        [
+       [
             params.gradscore_processing_tag,
             params.gradscore_cache_size,
             params.masks_published_names,
@@ -67,7 +68,7 @@ workflow {
             params.top_best_matches_per_sample,
             params.ga_processing_size,
             params.process_partitions_concurrently,
-        ],
-        file(params.mips_base_dir),
+       ],
+       file(params.mips_base_dir),
     )
 }

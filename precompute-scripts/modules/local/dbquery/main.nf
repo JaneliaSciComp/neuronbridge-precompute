@@ -6,26 +6,28 @@ include { area_to_alignment_space } from '../../../nfutils/utils'
 
 process DBQUERY {
     container { task.ext.container ?: 'mongo:7.0.6' }
-    label 'always_use_local'
+    label 'prefer_local'
 
     input:
     tuple val(anatomical_area),
-          val(library_name),
+          val(library_names),
           val(published_names),
-          val(mips_tag),
+          val(mips_tags),
+          val(excluded_tags),
           val(unique_mips)
 
     path(db_config_file)
     
     output:
-    tuple val(anatomical_area), val(library_name), env(mips_count_res)
+    tuple val(anatomical_area), val(library_names), env(mips_count_res)
 
     script:
     def alignment_space = area_to_alignment_space(anatomical_area)
-    def library_filter = "libraryName: \"${library_name}\","
+    def library_filter = library_names ? "libraryName: ${get_in_filter(library_names)}," : ''
     def as_filter = "alignmentSpace: \"${alignment_space}\","
-    def tag_filter = mips_tag ? "tags: \"${mips_tag}\"," : ''
-    def published_name_filter = published_names ? "publishedName: ${get_published_name_filter(published_names)}," : ''
+    def tag_filter = mips_tags ? "tags: ${get_in_filter(mips_tags)}," : ''
+    def excluded_tag_filter = excluded_tags ? "tags: ${get_nin_filter(excluded_tags)}," : ''
+    def published_name_filter = published_names ? "publishedName: ${get_in_filter(published_names)}," : ''
     def unique_pipeline = unique_mips 
         ? "{\\\$group: {_id: \"\\\$mipId\"}},"
         : ''
@@ -63,14 +65,14 @@ process DBQUERY {
 /**
   This methods 
 */
-def get_published_name_filter(published_names_str) {
-    def published_names = "${published_names_str}".split(',')
+def get_in_filter(list_as_str) {
+    def list_values = "${list_as_str}".split(',')
         .collect {
             "\"${it.trim()}\""
         }
         .inject('') {arg, item -> 
             arg ? "${arg},${item}" : "${item}"
         }
-    return "{\\\$in: [${published_names}]}"
+    return "{\\\$in: [${list_values}]}"
 
 }

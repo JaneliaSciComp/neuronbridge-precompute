@@ -7,8 +7,6 @@ process GA {
     container { task.ext.container ?: 'janeliascicomp/colormipsearch-tools:3.1.0' }
     cpus { ga_cpus }
     memory "${ga_mem_gb} GB"
-    clusterOptions { task.ext.cluster_opts }
-
 
     input:
     tuple val(job_id),
@@ -52,7 +50,7 @@ process GA {
     def process_partitions_concurrently_arg = process_partitions_concurrently ? '--process-partitions-concurrently' : ''
 
     """
-    echo "\$(date) Run job: ${job_id} "
+    echo "\$(date) Run gradscore job: ${job_id} "
     mips_base_fullpath=\$(readlink ${mips_base_dir})
     echo "Mips base dir: \${mips_base_fullpath}"
     ${app_runner} java -showversion \

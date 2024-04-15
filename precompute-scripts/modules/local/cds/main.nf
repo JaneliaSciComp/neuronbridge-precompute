@@ -7,7 +7,6 @@ process CDS {
     container { task.ext.container ?: 'janeliascicomp/colormipsearch-tools:3.1.0' }
     cpus { cds_cpus }
     memory "${cds_mem_gb} GB"
-    clusterOptions { task.ext.cluster_opts }
 
     input:
     tuple val(job_id),
@@ -64,7 +63,7 @@ process CDS {
     def parallelize_write_results_arg = parallelize_write_results ? '--parallel-write-results' : ''
 
     """
-    echo "\$(date) Run job: ${job_id}"
+    echo "\$(date) Run cds job: ${job_id} "
     mips_base_fullpath=\$(readlink ${mips_base_dir})
     echo "Mips base dir: \${mips_base_fullpath}"
     ${app_runner} java -showversion \
