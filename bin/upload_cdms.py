@@ -283,7 +283,7 @@ def select_uploads():
     global WILL_LOAD, REQUIRED_PRODUCTS # pylint: disable=W0603
     choices = CLOAD.variants
     defaults = ["searchable_neurons"]
-    if "flyem_" in ARG.LIBRARY:
+    if ARG.LIBRARY.startswith('flyem'):
         choices.append("skeletons")
         defaults.append("skeletons")
     quest = [inquirer.Checkbox('checklist',
@@ -852,7 +852,7 @@ def check_image(smp):
         Returns:
           False if error, True otherwise
     '''
-    if 'flyem_' in ARG.LIBRARY:
+    if ARG.LIBRARY.startswith('flyem') or ARG.LIBRARY.startswith('flywire'):
         if 'imageName' not in smp:
             print(smp)
             terminate_program("Missing imageName in sample")
@@ -877,7 +877,7 @@ def check_image(smp):
         COUNT['Already in Mongo'] += 1
         return False
     COUNT['Not in Mongo'] += 1
-    if 'flyem_' not in ARG.LIBRARY:
+    if ARG.LIBRARY.startswith('flylight'):
         if smp['alpsRelease'] not in RELPUB:
             RELPUB[smp['alpsRelease']] = 1
         else:
@@ -905,7 +905,7 @@ def upload_primary(smp, newname):
         smp['uploaded']['cdm_thumbnail'] = turl
         if not skipped:
             if ARG.WRITE:
-                if ARG.AWS and ('flyem_' in ARG.LIBRARY):
+                if ARG.AWS and (not ARG.LIBRARY.startswith('flylight')):
                     os.remove(smp['filepath'])
             elif ARG.AWS:
                 LOGGER.info("Primary %s", url)
@@ -922,7 +922,7 @@ def handle_primary(smp):
     '''
     skip_primary = False
     newname = None
-    if 'flyem_' in ARG.LIBRARY:
+    if ARG.LIBRARY.startswith('flyem') or ARG.LIBRARY.startswith('flywire'):
         if '_FL' in smp['imageName']:
             COUNT['FlyEM flips'] += 1
         set_name_and_filepath(smp)
@@ -957,7 +957,7 @@ def handle_variants(smp, newname):
         Returns:
           None
     '''
-    if 'flyem_' in ARG.LIBRARY:
+    if ARG.LIBRARY.startswith('flyem') or ARG.LIBRARY.startswith('flywire'):
         if '_FL' in smp['imageName']:
             set_name_and_filepath(smp)
         newname = process_flyem(smp, False)
@@ -1132,7 +1132,7 @@ def upload_cdms():
     print(f"Number of entries in JSON: {entries:,}")
     if not entries:
         terminate_program("No entries to process")
-    if 'flyem_' in ARG.LIBRARY:
+    if ARG.LIBRARY.startswith('flyem') or ARG.LIBRARY.startswith('flywire'):
         get_flyem_dataset()
     else:
         # Get image mapping
@@ -1313,7 +1313,7 @@ if __name__ == '__main__':
         print('Uploaded variants:')
         for key in sorted(VARIANT_UPLOADS):
             print(f"  {key + ':' : <21} {VARIANT_UPLOADS[key]:,}")
-    if 'flyem_' not in ARG.LIBRARY and len(RELPUB):
+    if ARG.LIBRARY.startswith('flylight') and len(RELPUB):
         print("Release counts:")
         maxlen = 0
         for key in RELPUB:
