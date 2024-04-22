@@ -1,16 +1,8 @@
-## Tag brain LMs
+## Tag brain mips
 
-`submit-tag.sh brain flylight_split_gal4_published`
-`submit-tag.sh brain flylight_gen1_mcfo_published`
-`submit-tag.sh brain flylight_annotator_gen1_mcfo_published`
+`submit-tag.sh brain [tag]`
 
-## Tag VNC LMs
-`submit-tag.sh vnc flylight_split_gal4_published`
-`submit-tag.sh vnc flylight_gen1_mcfo_published`
-`submit-tag.sh vnc flylight_annotator_gen1_mcfo_published`
+## Tag VNC mips
+`submit-tag.sh vnc [tag]`
 
-## Tag hemibrain EMs
-`submit-tag.sh brain flyem_hemibrain_1_2_1`
-
-## Tag VNC EMs
-`submit-tag.sh vnc flyem_manc_1_0`
+If tag is not set it will default to DATA_VERSION
