@@ -5,8 +5,8 @@ include {
 
 process CDS {
     container { task.ext.container ?: 'janeliascicomp/colormipsearch-tools:3.1.0' }
-    cpus { cds_cpus }
-    memory "${cds_mem_gb} GB"
+    cpus { cpus }
+    memory "${mem_gb} GB"
 
     input:
     tuple val(job_id),
@@ -21,8 +21,8 @@ process CDS {
           path(log_config),
           val(app_runner)
     path(db_config_file)
-    val(cds_cpus)
-    val(cds_mem_gb)
+    val(cpus)
+    val(mem_gb)
     val(java_opts)
     tuple val(cds_processing_tag),
           val(cache_size),
@@ -44,9 +44,9 @@ process CDS {
     script:
     def java_app = app_jar ?: '/app/colormipsearch-3.1.0-jar-with-dependencies.jar'
     def log_config_arg = log_config ? "-Dlog4j.configurationFile=file:${log_config}" : ''
-    def java_mem_opts = "-Xmx${cds_mem_gb-1}G -Xms${cds_mem_gb-1}G"
+    def java_mem_opts = "-Xmx${mem_gb-1}G -Xms${mem_gb-1}G"
     def cache_size_arg = cache_size ? "--cacheSize ${cache_size}" : ''
-    def concurrency_arg = cds_cpus ? "--task-concurrency ${2 * cds_cpus -1}" : ''
+    def concurrency_arg = cpus ? "--task-concurrency ${2 * cpus -1}" : ''
     def masks_arg = get_lib_arg(masks_library, masks_offset, masks_length)
     def masks_published_names_arg = masks_published_names ? "--masks-published-names ${masks_published_names}" : ''
     def targets_arg = get_lib_arg(targets_library, targets_offset, targets_length)

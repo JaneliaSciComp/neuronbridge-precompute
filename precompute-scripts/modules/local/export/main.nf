@@ -1,7 +1,7 @@
 process EXPORT {
     container { task.ext.container ?: 'janeliascicomp/colormipsearch-tools:3.1.0' }
-    cpus { export_cpus }
-    memory "${export_mem_gb} GB"
+    cpus { cpus }
+    memory "${mem_gb} GB"
 
     input:
     tuple val(job_id),
@@ -13,8 +13,8 @@ process EXPORT {
           path(log_config),
           val(app_runner)
     path(db_config_file)
-    val(export_cpus)
-    val(export_mem_gb)
+    val(cpus)
+    val(mem_gb)
     val(java_opts)
     tuple val(export_type),  // EM_MIPS, LM_MIPS, EM_CD_MATCHES, LM_CD_MATCHES, EM_PPP_MATCHES
           val(exported_tags),
@@ -26,7 +26,7 @@ process EXPORT {
     script:
     def java_app = app_jar ?: '/app/colormipsearch-3.1.0-jar-with-dependencies.jar'
     def log_config_arg = log_config ? "-Dlog4j.configurationFile=file:${log_config}" : ''
-    def java_mem_opts = "-Xmx${normalize_ga_mem_gb-1}G -Xms${normalize_ga_mem_gb-1}G"
+    def java_mem_opts = "-Xmx${mem_gb-1}G -Xms${mem_gb-1}G"
     def alignment_space = area_to_alignment_space(anatomical_area)
     def job_offset_arg = job_offset ? "--offset ${job_offset}" : ''
     def job_size_arg = job_size ? "--size ${job_size}" : ''

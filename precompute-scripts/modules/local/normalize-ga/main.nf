@@ -5,8 +5,8 @@ include {
 
 process NORMALIZE_GA {
     container { task.ext.container ?: 'janeliascicomp/colormipsearch-tools:3.1.0' }
-    cpus { normalize_ga_cpus }
-    memory "${normalize_ga_mem_gb} GB"
+    cpus { cpus }
+    memory "${mem_gb} GB"
 
     input:
     tuple val(job_id),
@@ -19,8 +19,8 @@ process NORMALIZE_GA {
           path(log_config),
           val(app_runner)
     path(db_config_file)
-    val(normalize_ga_cpus)
-    val(normalize_ga_mem_gb)
+    val(cpus)
+    val(mem_gb)
     val(java_opts)
     tuple val(normalize_ga_processing_tag),
           val(masks_published_names),
@@ -30,8 +30,8 @@ process NORMALIZE_GA {
     script:
     def java_app = app_jar ?: '/app/colormipsearch-3.1.0-jar-with-dependencies.jar'
     def log_config_arg = log_config ? "-Dlog4j.configurationFile=file:${log_config}" : ''
-    def java_mem_opts = "-Xmx${normalize_ga_mem_gb-1}G -Xms${normalize_ga_mem_gb-1}G"
-    def concurrency_arg = normalize_ga_cpus ? "--task-concurrency ${2 * normalize_ga_cpus -1}" : ''
+    def java_mem_opts = "-Xmx${mem_gb-1}G -Xms${mem_gb-1}G"
+    def concurrency_arg = cpus ? "--task-concurrency ${2 * cpus -1}" : ''
     def alignment_space = area_to_alignment_space(anatomical_area)
     def masks_arg = get_lib_arg(masks_library, masks_offset, masks_length)
     def masks_published_names_arg = masks_published_names ? "--masks-published-names ${masks_published_names}" : ''
