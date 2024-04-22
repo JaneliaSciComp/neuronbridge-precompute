@@ -47,6 +47,7 @@ process TAG {
         tag \
         --config ${db_config_file} \
         -as ${alignment_space} \
+        --tag ${new_tag} \
         ${libraries_arg} \
         ${data_tags_arg} \
         ${data_labels_arg} \
