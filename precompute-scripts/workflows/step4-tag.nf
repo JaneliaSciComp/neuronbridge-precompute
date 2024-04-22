@@ -17,11 +17,11 @@ workflow {
        params.java_opts,
        [
             params.mip_libraries,           
-            params.data_tags,
-            params.data_labels,
-            params.processing_tags,
-            params.excluded_tags,
-            params.published_names,
+            params.mip_tags,
+            params.mip_release_labels,
+            params.mip_processing_tags,
+            params.mip_excluded_tags,
+            params.mip_published_names,
             params.mip_ids,
        ]
     )
