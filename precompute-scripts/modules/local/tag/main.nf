@@ -18,7 +18,7 @@ process TAG {
     val(mem_gb)
     val(java_opts)
     tuple val(libraries),
-          val(data_tags)
+          val(data_tags),
           val(data_labels),
           val(processing_tags),
           val(excluded_tags),
