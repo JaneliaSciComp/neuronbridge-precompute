@@ -9,8 +9,7 @@ process TAG {
 
     input:
     tuple val(new_tag),
-          val(anatomical_area),
-          val(libraries)
+          val(anatomical_area)
     tuple path(app_jar),
           path(log_config),
           val(app_runner)
@@ -18,7 +17,8 @@ process TAG {
     val(cpus)
     val(mem_gb)
     val(java_opts)
-    tuple val(data_tags)
+    tuple val(libraries),
+          val(data_tags)
           val(data_labels),
           val(processing_tags),
           val(excluded_tags),
