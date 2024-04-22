@@ -24,7 +24,6 @@ process TAG {
           val(excluded_tags),
           val(published_names),
           val(mip_ids)
-    path(mips_base_dir)
 
     script:
     def java_app = app_jar ?: '/app/colormipsearch-3.1.0-jar-with-dependencies.jar'
@@ -40,9 +39,7 @@ process TAG {
     def mip_ids_arg = mip_ids ? "--mip-ids ${mip_ids}" : ''
 
     """
-    echo "\$(date) Run tag mips with: ${new_tag} "
-    mips_base_fullpath=\$(readlink ${mips_base_dir})
-    echo "Mips base dir: \${mips_base_fullpath}"
+    echo "\$(date) Tag mips with: ${new_tag} "
     ${app_runner} java -showversion \
         ${java_opts} ${java_mem_opts} \
         ${log_config_arg} \
