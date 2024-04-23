@@ -31,7 +31,8 @@ process EXPORT {
           val(excluded_target_tags),
           val(jacs_url),
           val(jacs_authorization),
-          val(jacs_read_batch_size)
+          val(jacs_read_batch_size),
+          val(processing_size)
 
     output:
     env(full_base_export_dir)
@@ -52,6 +53,7 @@ process EXPORT {
     def excluded_target_tags_list = get_list_arg(excluded_target_tags)
     def excluded_mask_tags_arg = excluded_mask_tags_list ? "--excluded-neuron-tags ${excluded_mask_tags_list}" : ''
     def excluded_target_tags_arg = excluded_target_tags_list ? "--excluded-target-tags ${excluded_target_tags_list}" : ''
+    def processing_size_arg = processing_size ? "-ps ${processing_size}" : ''
 
     """
     echo "\$(date) Run ${export_type} export job: ${job_id} "
@@ -59,23 +61,24 @@ process EXPORT {
     release_export_dir="\${full_base_export_dir}/v${data_version}"
     mkdir -p \${release_export_dir}
     result_export_dir="\${release_export_dir}/${anatomical_area}/${relative_output_dir}"
-    ${app_runner} java -showversion \
+    ${app_runner} java \
         ${java_opts} ${java_mem_opts} \
         ${log_config_arg} \
         -jar ${app_jar} \
         exportData \
         --config ${db_config_file} \
         --exported-result-type ${export_type} \
-        --jacs-url ${jacs_url} \
+        --jacs-url "${jacs_url}" \
         --authorization "${jacs_authorization}" \
         --read-batch-size ${jacs_read_batch_size} \
-        ${job_offset_arg} ${job_size_arg} \
+        ${processing_size_arg} \
         ${alignment_space_arg} \
         ${mask_libraries_arg} \
         ${target_libraries_arg} \
         ${excluded_mask_tags_arg} \
         ${excluded_target_tags_arg} \
-        -od "\${result_export_dir}"
+        -od "\${result_export_dir}" \
+        ${job_offset_arg} ${job_size_arg}
 
     """
 }

@@ -40,7 +40,7 @@ process NORMALIZE_GA {
 
     """
     echo "\$(date) Run normalize-score job: ${job_id} "
-    ${app_runner} java -showversion \
+    ${app_runner} java \
         ${java_opts} ${java_mem_opts} \
         ${log_config_arg} \
         -jar ${app_jar} \

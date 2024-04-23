@@ -40,7 +40,7 @@ process TAG {
 
     """
     echo "\$(date) Tag mips with: ${new_tag} "
-    ${app_runner} java -showversion \
+    ${app_runner} java \
         ${java_opts} ${java_mem_opts} \
         ${log_config_arg} \
         -jar ${java_app} \

@@ -73,6 +73,7 @@ workflow {
             params.jacs_url,
             params.jacs_authorization,
             params.jacs_read_batch_size,
+            params.export_processing_size,
        ]
     )
 }
