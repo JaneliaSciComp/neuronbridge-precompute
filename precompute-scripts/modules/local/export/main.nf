@@ -1,4 +1,4 @@
-include { get_list_arg } from '../../nfutils/utils'
+include { get_list_arg } from '../../../nfutils/utils'
 
 process EXPORT {
     container { task.ext.container ?: 'janeliascicomp/colormipsearch-tools:3.1.0' }
