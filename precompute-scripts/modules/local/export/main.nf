@@ -55,9 +55,9 @@ process EXPORT {
 
     """
     echo "\$(date) Run ${export_type} export job: ${job_id} "
-    full_base_export_dir=\$(readlink ${base_export_dir})
+    full_base_export_dir=\$(readlink -m ${base_export_dir})
     release_export_dir="\${full_base_export_dir}/v${data_version}"
-    mkdir -f \${release_export_dir}
+    mkdir -p \${release_export_dir}
     result_export_dir="\${release_export_dir}/${anatomical_area}/${relative_output_dir}"
     ${app_runner} java -showversion \
         ${java_opts} ${java_mem_opts} \
