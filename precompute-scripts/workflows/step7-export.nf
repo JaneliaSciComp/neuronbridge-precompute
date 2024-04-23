@@ -93,7 +93,7 @@ def get_exported_mask_libs(export_type, exported_mask_libs) {
             return params.all_brain_and_vnc_EM_libraries.join(',')
         case 'LM_MIPS':
             return params.all_brain_and_vnc_LM_libraries.join(',')
-        default: throw new IllegalArgumentException("Invalid export type: ${params.exportType}")
+        default: throw new IllegalArgumentException("Invalid export type: ${export_type}")
     }
 }
 
@@ -112,7 +112,7 @@ def get_exported_target_libs(export_type, exported_target_libs) {
             return ''
         case 'LM_MIPS':
             return ''
-        default: throw new IllegalArgumentException("Invalid export type: ${params.exportType}")
+        default: throw new IllegalArgumentException("Invalid export type: ${export_Type}")
     }
 }
 
@@ -128,6 +128,6 @@ def get_relative_output_dir(export_type) {
             return 'mips/embodies'
         case 'LM_MIPS':
             return 'mips/lmlines'
-        default: throw new IllegalArgumentException("Invalid export type: ${params.exportType}")
+        default: throw new IllegalArgumentException("Invalid export type: ${export_type}")
     }
 }
