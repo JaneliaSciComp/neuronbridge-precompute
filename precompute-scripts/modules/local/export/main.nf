@@ -43,8 +43,8 @@ process EXPORT {
     def job_size_arg = job_size ? "--size ${job_size}" : ''
     def mask_libraries_list = get_list_arg(mask_libraries)
     def target_libraries_list = get_list_arg(target_libraries)
-    def mask_libraries_arg = mask_libraries ? : "-l ${mask_libraries}" : ''
-    def target_libraries_arg = target_libraries ? "--target-library ${target_libraries}" : ''
+    def mask_libraries_arg = mask_libraries_list ? "-l ${mask_libraries_list}" : ''
+    def target_libraries_arg = target_libraries_list ? "--target-library ${target_libraries_list}" : ''
     def excluded_mask_tags_list = get_list_arg(excluded_mask_tags)
     def excluded_target_tags_list = get_list_arg(excluded_target_tags)
     def excluded_mask_tags_arg = excluded_mask_tags_list ? "--excluded-neuron-tags ${excluded_mask_tags_list}" : ''
