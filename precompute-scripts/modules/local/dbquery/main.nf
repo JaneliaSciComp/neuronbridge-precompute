@@ -24,7 +24,7 @@ process DBQUERY {
     script:
     def alignment_space = area_to_alignment_space(anatomical_area)
     def library_filter = library_names ? "libraryName: ${get_in_filter(library_names)}," : ''
-    def as_filter = "alignmentSpace: \"${alignment_space}\","
+    def as_filter = alignment_space ? "alignmentSpace: \"${alignment_space}\"," : ''
     def tag_filter = mips_tags ? "tags: ${get_in_filter(mips_tags)}," : ''
     def excluded_tag_filter = excluded_tags ? "tags: ${get_nin_filter(excluded_tags)}," : ''
     def published_name_filter = published_names ? "publishedName: ${get_in_filter(published_names)}," : ''
