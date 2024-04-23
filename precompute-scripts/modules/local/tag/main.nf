@@ -3,9 +3,10 @@ include {
 } from '../../../nfutils/utils'
 
 process TAG {
-    container { task.ext.container ?: 'janeliascicomp/colormipsearch-tools:3.1.0' }
+    container { task.ext.container ?: 'ghcr.io/janeliascicomp/colormipsearch-tools:3.1.0' }
     cpus { cpus }
     memory "${mem_gb} GB"
+    label 'neuronbridgeTools'
 
     input:
     tuple val(new_tag),
