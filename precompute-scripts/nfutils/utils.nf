@@ -17,7 +17,7 @@ def area_to_alignment_space(area) {
 def partition_work(total_work_size_param, job_size_param) {
     def total_work_size = total_work_size_param as int
     def job_size = job_size_param as int
-    def njobs = job_size > 0 
+    def njobs = job_size > 0 && total_work_size > 0
         ? ((total_work_size % job_size) > 0 
             ? (total_work_size / job_size + 1)
             : (total_work_size / job_size)) as int
