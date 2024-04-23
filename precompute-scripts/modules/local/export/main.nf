@@ -67,7 +67,7 @@ process EXPORT {
         --config ${db_config_file} \
         --exported-result-type ${export_type} \
         --jacs-url ${jacs_url} \
-        --authorization ${jacs_authorization} \
+        --authorization "${jacs_authorization}" \
         --read-batch-size ${jacs_read_batch_size} \
         ${job_offset_arg} ${job_size_arg} \
         ${alignment_space_arg} \
