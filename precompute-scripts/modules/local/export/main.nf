@@ -31,6 +31,8 @@ process EXPORT {
           val(excluded_target_tags),
           val(jacs_url),
           val(jacs_authorization),
+          val(default_image_store),
+          val(image_stores_map),
           val(jacs_read_batch_size),
           val(processing_size)
 
@@ -53,6 +55,9 @@ process EXPORT {
     def excluded_target_tags_list = get_list_arg(excluded_target_tags)
     def excluded_mask_tags_arg = excluded_mask_tags_list ? "--excluded-neuron-tags ${excluded_mask_tags_list}" : ''
     def excluded_target_tags_arg = excluded_target_tags_list ? "--excluded-target-tags ${excluded_target_tags_list}" : ''
+    def default_image_store_arg = default_image_store ? "--default-image-store ${default_image_store}" : ''
+    def image_stores_map_as_str = get_image_store_map_as_string(image_stores_map)
+    def image_stores_map_arg = image_stores_map_as_str ? "--image-stores-per-neuron-meta ${image_stores_map_as_str}" : ''
     def processing_size_arg = processing_size ? "-ps ${processing_size}" : ''
 
     """
@@ -77,8 +82,20 @@ process EXPORT {
         ${target_libraries_arg} \
         ${excluded_mask_tags_arg} \
         ${excluded_target_tags_arg} \
+        ${default_image_store_arg} \
+        ${image_stores_map_arg} \
         -od "\${result_export_dir}" \
         ${job_offset_arg} ${job_size_arg}
 
     """
+}
+
+def get_image_store_map_as_string(m) {
+      if (m) {
+            m.inject('') { s, k, v ->
+                  "$s $k:$v"
+            }
+      } else {
+            ''
+      }
 }

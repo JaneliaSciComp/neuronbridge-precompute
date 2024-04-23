@@ -72,6 +72,8 @@ workflow {
             params.target_mip_excluded_tags,
             params.jacs_url,
             params.jacs_authorization,
+            params.default_image_store,
+            params.image_stores_map,
             params.jacs_read_batch_size,
             params.export_processing_size,
        ]
