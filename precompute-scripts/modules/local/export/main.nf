@@ -37,7 +37,7 @@ process EXPORT {
           val(processing_size)
 
     output:
-    env(full_base_export_dir)
+    env(full_result_dir)
 
     script:
     def java_app = app_jar ?: '/app/colormipsearch-3.1.0-jar-with-dependencies.jar'
@@ -62,10 +62,10 @@ process EXPORT {
 
     """
     echo "\$(date) Run ${export_type} export job: ${job_id} "
-    full_base_export_dir=\$(readlink -m ${base_export_dir})
-    release_export_dir="\${full_base_export_dir}/v${data_version}"
+    release_export_dir="${base_export_dir}/v${data_version}"
     mkdir -p \${release_export_dir}
     result_export_dir="\${release_export_dir}/${anatomical_area}/${relative_output_dir}"
+    full_result_dir=\$(readlink -m \${result_export_dir})
     ${app_runner} java \
         ${java_opts} ${java_mem_opts} \
         ${log_config_arg} \
