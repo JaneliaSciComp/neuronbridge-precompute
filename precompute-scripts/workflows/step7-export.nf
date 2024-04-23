@@ -13,7 +13,7 @@ workflow {
             params.anatomical_area,
             exported_mask_libs,
             params.mip_published_names,
-            params.mip_tags,
+            params.data_version,
             params.mip_excluded_tags,
             true,
         ]),
