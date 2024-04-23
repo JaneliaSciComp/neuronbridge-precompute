@@ -1,4 +1,7 @@
-include { get_list_arg } from '../../../nfutils/utils'
+include { 
+      area_to_alignment_space;
+      get_list_arg;
+} from '../../../nfutils/utils'
 
 process EXPORT {
     container { task.ext.container ?: 'janeliascicomp/colormipsearch-tools:3.1.0' }
