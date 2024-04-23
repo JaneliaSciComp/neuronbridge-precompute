@@ -20,6 +20,10 @@ workflow {
         db_config_file,
     )
 
+    unique_mips_count.subscribe {
+        log.info "MIPs count: $it"
+    }
+
     // split the work
     def export_inputs = unique_mips_count
     | flatMap { anatomical_area, mips_libraries, nmips ->
@@ -33,7 +37,7 @@ workflow {
                     idx+1, // jobs are 1-indexed
                     params.data_version,
                     anatomical_area,
-                    params.base_export_dir,
+                    file(params.base_export_dir),
                     get_relative_output_dir(params.export_type),
                     mips_libraries,
                     get_exported_target_libs(params.export_type, params.exported_target_libs),
@@ -49,7 +53,7 @@ workflow {
             }
     }
     export_inputs.subscribe {
-        log.debug "Run export: $it"
+        log.info "Run export: $it"
     }
     EXPORT(export_inputs,
        [
