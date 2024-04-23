@@ -71,7 +71,7 @@ process EXPORT {
     ${app_runner} java \
         ${java_opts} ${java_mem_opts} \
         ${log_config_arg} \
-        -jar ${app_jar} \
+        -jar ${java_app} \
         exportData \
         --config ${db_config_file} \
         ${concurrency_arg} \
