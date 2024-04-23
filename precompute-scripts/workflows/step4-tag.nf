@@ -3,7 +3,7 @@ include { TAG } from '../modules/local/tag/main.nf'
 workflow {
     TAG(
        [
-            params.tag,
+            params.data_version,
             params.anatomical_area,
        ],
        [

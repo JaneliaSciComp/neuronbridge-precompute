@@ -1,5 +1,9 @@
 def area_to_alignment_space(area) {
     switch (area) {
+        case ~/^(?i)brain+vnc$/:
+            return ''
+        case ~/^(?i)vnc+brain$/:
+            return ''
         case ~/^(?i)vnc$/:
             return 'JRC2018_VNC_Unisex_40x_DS'
         case ~/^(?i)brain$/ : 
@@ -32,4 +36,13 @@ def get_lib_arg(lib, offset, length) {
     def offset_arg = offset > 0 ? "${offset}" : "0"
     def length_arg = length > 0 ? "${length}" : ""
     "${lib}:${offset_arg}:${length_arg}"
+}
+
+def get_list_arg(values) {
+    if (values) {
+        def vs = values.tokenize(',')
+        return vs.join(' ')
+    } else {
+        return ''
+    }
 }

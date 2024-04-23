@@ -6,11 +6,12 @@ include { partition_work } from '../nfutils/utils'
 workflow {
 
     def db_config_file = file(params.db_config)
+    def exported_mask_libs = get_exported_mask_libs(params.export_type, params.exported_mask_libs)
 
     def unique_mips_count = COUNT_MIPS(
         Channel.of([
             params.anatomical_area,
-            params.mip_libraries,
+            exported_mask_libs,
             params.mip_published_names,
             params.mip_tags,
             params.mip_excluded_tags,
@@ -30,8 +31,12 @@ workflow {
                 def (job_offset, job_size) = job
                 [
                     idx+1, // jobs are 1-indexed
+                    params.data_version,
                     anatomical_area,
+                    params.base_export_dir,
+                    get_relative_output_dir(params.export_type),
                     mips_libraries,
+                    get_exported_target_libs(params.export_type, params.exported_target_libs),
                     job_offset,
                     job_size
                 ]
@@ -59,10 +64,65 @@ workflow {
        [
             params.export_type,
             params.exported_tags,
-            params.excluded_tags,
+            params.mip_excluded_tags,
+            params.target_mip_excluded_tags,
             params.jacs_url,
             params.jacs_authorization,
             params.jacs_read_batch_size,
        ]
     )
+}
+
+def get_exported_mask_libs(export_type, exported_mask_libs) {
+    if (exported_mask_libs) {
+        return exported_mask_libs
+    }
+    switch(export_type) {
+        case 'EM_CD_MATCHES':
+            return params.all_brain_and_vnc_EM_libraries.join(',')
+        case 'LM_CD_MATCHES':
+            return params.all_brain_and_vnc_LM_libraries.join(',')
+        case 'EM_PPP_MATCHES':
+            return params.all_brain_and_vnc_EM_libraries.join(',')
+        case 'EM_MIPS':
+            return params.all_brain_and_vnc_EM_libraries.join(',')
+        case 'LM_MIPS':
+            return params.all_brain_and_vnc_LM_libraries.join(',')
+        default: throw new IllegalArgumentException("Invalid export type: ${params.exportType}")
+    }
+}
+
+def get_exported_target_libs(export_type, exported_target_libs) {
+    if (exported_target_libs) {
+        return exported_target_libs
+    }
+    switch(export_type) {
+        case 'EM_CD_MATCHES':
+            return params.all_brain_and_vnc_LM_libraries.join(',')
+        case 'LM_CD_MATCHES':
+            return params.all_brain_and_vnc_EM_libraries.join(',')
+        case 'EM_PPP_MATCHES':
+            return params.all_brain_and_vnc_LM_libraries.join(',')
+        case 'EM_MIPS':
+            return ''
+        case 'LM_MIPS':
+            return ''
+        default: throw new IllegalArgumentException("Invalid export type: ${params.exportType}")
+    }
+}
+
+def get_relative_output_dir(export_type) {
+    switch(export_type) {
+        case 'EM_CD_MATCHES':
+            return 'cdmatches/em-vs-lm'
+        case 'LM_CD_MATCHES':
+            return 'cdmatches/lm-vs-em'
+        case 'EM_PPP_MATCHES':
+            return 'pppmatches/em-vs-lm'
+        case 'EM_MIPS':
+            return 'mips/embodies'
+        case 'LM_MIPS':
+            return 'mips/lmlines'
+        default: throw new IllegalArgumentException("Invalid export type: ${params.exportType}")
+    }
 }
