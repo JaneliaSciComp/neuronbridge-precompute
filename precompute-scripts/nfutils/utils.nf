@@ -1,5 +1,6 @@
 def area_to_alignment_space(area) {
-    switch (area) {
+    log.info "!!!!! AREA $area"
+    switch (area as string) {
         case ~/^(?i)brain\+vnc$/:
             return ''
         case ~/^(?i)vnc\+brain$/:
