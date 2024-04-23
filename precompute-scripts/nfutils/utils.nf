@@ -1,8 +1,8 @@
 def area_to_alignment_space(area) {
     switch (area) {
-        case ~/^(?i)brain+vnc$/:
+        case ~/^(?i)brain\+vnc$/:
             return ''
-        case ~/^(?i)vnc+brain$/:
+        case ~/^(?i)vnc\+brain$/:
             return ''
         case ~/^(?i)vnc$/:
             return 'JRC2018_VNC_Unisex_40x_DS'

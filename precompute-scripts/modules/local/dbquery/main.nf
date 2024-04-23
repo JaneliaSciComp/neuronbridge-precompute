@@ -74,5 +74,15 @@ def get_in_filter(list_as_str) {
             arg ? "${arg},${item}" : "${item}"
         }
     return "{\\\$in: [${list_values}]}"
+}
 
+def get_nin_filter(list_as_str) {
+    def list_values = "${list_as_str}".split(',')
+        .collect {
+            "\"${it.trim()}\""
+        }
+        .inject('') {arg, item -> 
+            arg ? "${arg},${item}" : "${item}"
+        }
+    return "{\\\$nin: [${list_values}]}"
 }
