@@ -40,7 +40,7 @@ process TAG {
     def mip_ids_arg = mip_ids ? "--mip-ids ${mip_ids}" : ''
 
     """
-    echo "\$(date) Tag mips with: ${new_tag} on \$(hostname)"
+    echo "\$(date) Tag mips with: ${new_tag} on \$(hostname -s)"
     ${app_runner} java \
         ${java_opts} ${java_mem_opts} \
         ${log_config_arg} \

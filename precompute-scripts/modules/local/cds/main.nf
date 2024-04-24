@@ -64,7 +64,7 @@ process CDS {
     def parallelize_write_results_arg = parallelize_write_results ? '--parallel-write-results' : ''
 
     """
-    echo "\$(date) Run cds job: ${job_id} on \$(hostname)"
+    echo "\$(date) Run cds job: ${job_id} on \$(hostname -s)"
     mips_base_fullpath=\$(readlink ${mips_base_dir})
     echo "Mips base dir: \${mips_base_fullpath}"
     ${app_runner} java \
