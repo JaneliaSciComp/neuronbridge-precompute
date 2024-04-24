@@ -51,7 +51,7 @@ process GA {
     def process_partitions_concurrently_arg = process_partitions_concurrently ? '--process-partitions-concurrently' : ''
 
     """
-    echo "\$(date) Run gradscore job: ${job_id} "
+    echo "\$(date) Run gradscore job: ${job_id} on \$(hostname)"
     mips_base_fullpath=\$(readlink ${mips_base_dir})
     echo "Mips base dir: \${mips_base_fullpath}"
     ${app_runner} java \

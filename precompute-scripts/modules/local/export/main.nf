@@ -63,7 +63,7 @@ process EXPORT {
     def processing_size_arg = processing_size ? "-ps ${processing_size}" : ''
 
     """
-    echo "\$(date) Run ${export_type} export job: ${job_id} "
+    echo "\$(date) Run ${export_type} export job: ${job_id} on \$(hostname)"
     release_export_dir="${base_export_dir}/v${data_version}"
     mkdir -p \${release_export_dir}
     result_export_dir="\${release_export_dir}/${anatomical_area}/${relative_output_dir}"

@@ -40,7 +40,7 @@ process NORMALIZE_GA {
     def targets_published_names_arg = targets_published_names ? "--targets-published-names ${targets_published_names}" : ''
 
     """
-    echo "\$(date) Run normalize-score job: ${job_id} "
+    echo "\$(date) Run normalize-score job: ${job_id} on \$(hostname)"
     ${app_runner} java \
         ${java_opts} ${java_mem_opts} \
         ${log_config_arg} \
