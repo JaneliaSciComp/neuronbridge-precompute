@@ -21,7 +21,7 @@ workflow {
     )
 
     unique_mips_count.subscribe {
-        log.debug "MIPs count: $it"
+        log.debug "MIPs to export count: $it"
     }
 
     // split the work
