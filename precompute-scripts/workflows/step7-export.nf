@@ -21,14 +21,14 @@ workflow {
     )
 
     unique_mips_count.subscribe {
-        log.info "MIPs count: $it"
+        log.debug "MIPs count: $it"
     }
 
     // split the work
     def export_inputs = unique_mips_count
     | flatMap { anatomical_area, mips_libraries, nmips ->
         def export_jobs = partition_work(nmips, params.export_batch_size)
-        log.info "Partition export for ${nmips} ${mips_libraries} mips into ${export_jobs.size} jobs"
+        log.debug "Partition export for ${nmips} ${mips_libraries} mips into ${export_jobs.size} jobs"
         export_jobs
             .withIndex()
             .collect { job, idx ->
@@ -53,7 +53,7 @@ workflow {
             }
     }
     export_inputs.subscribe {
-        log.info "Run export: $it"
+        log.debug "Run export: $it"
     }
     EXPORT(export_inputs,
        [
