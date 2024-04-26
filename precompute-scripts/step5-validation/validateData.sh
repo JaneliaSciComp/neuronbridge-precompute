@@ -6,20 +6,20 @@ ALIGNMENT_SPACE=JRC2018_VNC_Unisex_40x_DS
 LIBNAME=flylight_split_gal4_published
 
 AS_ARG=
-LIB_ARG=
+LIB_ARG="-l flywire_fafb_783"
 VALIDATED_SAMPLES_ARG=
 APPLY_ERROR_TO_LMCDS="--apply-error-tag-to-lm-cdmatches"
 APPLY_ERROR_TO_EMCDS="--apply-error-tag-to-em-cdmatches"
 ERROR_TAG_ARG="--error-tag validationError ${APPLY_ERROR_TO_LMCDS} ${APPLY_ERROR_TO_EMCDS}"
 
-PROD_CONFIG="--config local/proddb-config.properties"
-DEV_CONFIG="--config local/devdb-config.properties"
+PROD_CONFIG="--config mylocal/proddb-config.properties"
+DEV_CONFIG="--config mylocal/devdb-config.properties"
 RUNNER=
 
 DEBUG_OPTS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5006"
 
 $RUNNER java \
-    -Xmx270G -Xms270G \
+    -Xmx120G -Xms120G \
     ${DEBUG_OPTS} \
     -jar ../neuron-search-tools/target/colormipsearch-${JAR_VERSION}-jar-with-dependencies.jar \
     validateDBData \
