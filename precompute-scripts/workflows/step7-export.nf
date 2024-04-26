@@ -47,9 +47,15 @@ workflow {
             }
             .findAll {
                 def (job_idx) = it
-                // first_job and last_job parameters are 1-index and they are inclusive
-                (params.first_job <= 0 || job_idx >= params.first_job) &&
-                (params.last_job <= 0 || job_idx <= params.last_job)
+                if (params.job_list) {
+                    // if job_list is defined only run specified jobs
+                    def job_list = params.job_list.tokenize(',').collect { it.trim() as int }
+                    job_idx in job_list
+                } else {
+                    // first_job and last_job parameters are 1-index and they are inclusive
+                    (params.first_job <= 0 || job_idx >= params.first_job) &&
+                    (params.last_job <= 0 || job_idx <= params.last_job)
+                }
             }
     }
     export_inputs.subscribe {
