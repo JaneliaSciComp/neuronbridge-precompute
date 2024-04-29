@@ -1,6 +1,9 @@
 ''' load_codex_to_mongo.py
-    This program update emBody and emDataSet in MongoDB as well as the versioned published 
-    table in DynamoDB from the classification.csv data from Codex
+    This program will update emBody and emDataSet in MongoDB as well as the versioned published
+    table in DynamoDB from Codex data
+    Codex files used:
+      classification.csv
+      neurons.csv
     (https://codex.flywire.ai/api/download)
 '''
 __version__ = '0.0.1'
@@ -98,6 +101,7 @@ def initialize_program():
     DB['dynamo'] = boto3.resource("dynamodb")
     if ACTION['DynamoDB'] and not ARG.TABLE:
         get_table()
+
 
 def generate_uid(deployment_context=2):
     """ Generate a JACS-style UID
@@ -338,15 +342,18 @@ def process_files(dsid):
     entriesl = []
     labels = {}
     file = f"classification_{ARG.VERSION}.csv"
-    # Add cell_type and hemibrain_type from classification
+    # Add super_class, class, sub_class, cell_type, and hemibrain_type from classification
     with open(file, 'r', encoding='ascii') as instream:
         for row in csv.reader(instream, quotechar='"', delimiter=','):
             if not row[0] or row[0] == 'root_id':
                 continue
             labels[row[0]] = []
             entriesl.append([row[0], row[6]])
-            if row[5]:
-                labels[row[0]].append(row[5])
+            # super_class, class, sub_class, and cell_type
+            for col in range(2, 6):
+                if row[col]:
+                    labels[row[0]].append(row[col])
+            # hemibrain_type
             if row[6]:
                 for lab in row[6].split(','):
                     if lab not in labels[row[0]]:
