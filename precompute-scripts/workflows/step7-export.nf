@@ -2,8 +2,8 @@ include { EXPORT } from '../modules/local/export/main.nf'
 include { DBQUERY as COUNT_MIPS } from '../modules/local/dbquery/main.nf'
 
 include {
-    partition_work;
     is_job_id_in_process_list;
+    partition_work;
 } from '../nfutils/utils'
 
 workflow {
