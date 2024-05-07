@@ -1,7 +1,10 @@
 include { EXPORT } from '../modules/local/export/main.nf'
 include { DBQUERY as COUNT_MIPS } from '../modules/local/dbquery/main.nf'
 
-include { partition_work } from '../nfutils/utils'
+include {
+    partition_work;
+    is_job_id_in_process_list;
+} from '../nfutils/utils'
 
 workflow {
 
@@ -47,15 +50,7 @@ workflow {
             }
             .findAll {
                 def (job_idx) = it
-                if (params.job_list) {
-                    // if job_list is defined only run specified jobs
-                    def job_list = params.job_list.tokenize(',').collect { it.trim() as int }
-                    job_idx in job_list
-                } else {
-                    // first_job and last_job parameters are 1-index and they are inclusive
-                    (params.first_job <= 0 || job_idx >= params.first_job) &&
-                    (params.last_job <= 0 || job_idx <= params.last_job)
-                }
+                is_job_id_in_process_list(job_idx, params.job_list, params.first_job, params.last_job)
             }
     }
     export_inputs.subscribe {

@@ -46,3 +46,24 @@ def get_list_arg(values) {
         return ''
     }
 }
+
+def is_job_id_in_process_list(job_idx, job_list_arg, first_job, last_job) {
+    if (job_list_arg) {
+        if (job_list_arg instanceof Integer) {
+            job_idx == job_list_arg
+        } else {
+            // if job_list is defined only run specified jobs
+            if (job_list_arg instanceof Collection) {
+                def job_list = job_list_arg.collect { it as int }
+                job_idx in job_list
+            } else {
+                def job_list = job_list_arg.tokenize(',').collect { it.trim() as int }
+                job_idx in job_list
+            }
+        }
+    } else {
+        // first_job and last_job parameters are 1-index and they are inclusive
+        (first_job <= 0 || job_idx >= first_job) &&
+        (last_job <= 0 || job_idx <= last_job)
+    }
+}
