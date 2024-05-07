@@ -87,6 +87,7 @@ process EXPORT {
         ${excluded_target_tags_arg} \
         ${default_image_store_arg} \
         ${image_stores_map_arg} \
+        --default-relative-url-index 1 \
         -od "\${result_export_dir}" \
         ${job_offset_arg} ${job_size_arg}
 
