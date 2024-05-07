@@ -1,6 +1,9 @@
 ''' load_codex_to_mongo.py
-    This program update emBody and emDataSet in MongoDB as well as the versioned published 
-    table in DynamoDB from the classification.csv data from Codex
+    This program will update emBody and emDataSet in MongoDB as well as the versioned published
+    table in DynamoDB from Codex data
+    Codex files used:
+      classification.csv
+      neurons.csv
     (https://codex.flywire.ai/api/download)
 '''
 __version__ = '0.0.1'
@@ -8,6 +11,7 @@ __version__ = '0.0.1'
 import argparse
 import csv
 from datetime import datetime
+import json
 from operator import attrgetter
 import socket
 import sys
@@ -98,6 +102,7 @@ def initialize_program():
     DB['dynamo'] = boto3.resource("dynamodb")
     if ACTION['DynamoDB'] and not ARG.TABLE:
         get_table()
+
 
 def generate_uid(deployment_context=2):
     """ Generate a JACS-style UID
@@ -263,13 +268,18 @@ def write_dynamodb(codex_id):
     if not ARG.WRITE:
         return
     tbl = DB['dynamo'].Table(ARG.TABLE)
-    # Hemibrain types
-    LOGGER.info(f"Batch writing {len(hbatch):,} hemibrain types to {ARG.TABLE}")
+    # Codex types
+    LOGGER.info(f"Batch writing {len(hbatch):,} Codex types to {ARG.TABLE}")
     with tbl.batch_writer() as writer:
         for item in tqdm(hbatch, desc="Writing Codex types"):
             if ARG.THROTTLE and (not COUNT["hinsertions"] % ARG.THROTTLE):
                 time.sleep(2)
-            writer.put_item(Item=item)
+            try:
+                writer.put_item(Item=item)
+            except Exception as err:
+                print(f"Item {item['name']} contains {len(item['bodyIDs']):,} " \
+                      + f"IDs ({sys.getsizeof(item['bodyIDs']):,}B)")
+                terminate_program(err)
             COUNT["hinsertions"] += 1
     # Codex IDs
     LOGGER.info(f"Batch writing {len(codex_id):,} Codex IDs to {ARG.TABLE}")
@@ -304,10 +314,11 @@ def create_dynamo_id_payload(name, types):
     return payload
 
 
-def process_entries(labels, dsid):
+def process_entries(labels, dlabels, dsid):
     """ Build an array of records to insert into jacs.emBody
         Keyword arguments:
-          labels: dict of Codex root IDs and labels
+          labels: dict of Codex root IDs and labels for MongoDB
+          dlabels: dict of Codex root IDs and labels for DynamoDB
           dsid: dataset ID in jacs.emDataSet
         Returns:
           payload
@@ -316,15 +327,18 @@ def process_entries(labels, dsid):
     coll = DB['jacs'].emBody
     docs = []
     codex_id = []
-    for key, val in tqdm(labels.items(), desc='Building insert list'):
-        docs.append(create_body_payload(key, val, dtm, dsid))
-        codex_id.append(create_dynamo_id_payload(key, val))
+    for key, val in tqdm(labels.items(), desc='Building MongoDB insert lists'):
+        if ACTION['MongoDB']:
+            docs.append(create_body_payload(key, val, dtm, dsid))
+    for key, val in tqdm(dlabels.items(), desc='Building DynamoDB insert lists'):
+        if ACTION['DynamoDB']:
+            codex_id.append(create_dynamo_id_payload(key, val))
     if ACTION['MongoDB'] and ARG.WRITE:
         print(f"Writing {len(docs):,} records to emBody")
         coll.insert_many(docs)
     if ACTION['DynamoDB']:
         print(f"Found {len(codex_id):,} Codex IDs")
-        print(f"Found {len(CODEX_LABEL):,} Codex labels")
+        print(f"Found {len(CODEX_LABEL):,} Codex types")
         write_dynamodb(codex_id)
 
 
@@ -337,20 +351,30 @@ def process_files(dsid):
     """
     entriesl = []
     labels = {}
+    dlabels = {}
     file = f"classification_{ARG.VERSION}.csv"
-    # Add cell_type and hemibrain_type from classification
+    # Add super_class, class, sub_class, cell_type, and hemibrain_type from classification
     with open(file, 'r', encoding='ascii') as instream:
         for row in csv.reader(instream, quotechar='"', delimiter=','):
             if not row[0] or row[0] == 'root_id':
                 continue
             labels[row[0]] = []
+            dlabels[row[0]] = []
             entriesl.append([row[0], row[6]])
+            # super_class, class, sub_class
+            for col in range(2, 5):
+                if row[col]:
+                    labels[row[0]].append(row[col])
+            # cell_type
             if row[5]:
                 labels[row[0]].append(row[5])
+                dlabels[row[0]].append(row[5])
+            # hemibrain_type
             if row[6]:
                 for lab in row[6].split(','):
                     if lab not in labels[row[0]]:
                         labels[row[0]].append(lab)
+                        dlabels[row[0]].append(lab)
         LOGGER.info(f"Found {len(labels):,} entries in classification")
     # Add group from neurons
     file = f"neurons_{ARG.VERSION}.csv"
@@ -359,7 +383,7 @@ def process_files(dsid):
             if not row[0] or row[0] == 'root_id' or not row[1]:
                 continue
             labels[row[0]].append(row[1])
-    process_entries(labels, dsid)
+    process_entries(labels, dlabels, dsid)
 
 
 def process_codex():
