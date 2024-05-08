@@ -67,6 +67,7 @@ process CDS {
     echo "\$(date) Run cds job: ${job_id} on \$(hostname -s)"
     mips_base_fullpath=\$(readlink ${mips_base_dir})
     echo "Mips base dir: \${mips_base_fullpath}"
+
     ${app_runner} java \
         ${java_opts} ${java_mem_opts} \
         ${log_config_arg} \
@@ -92,5 +93,6 @@ process CDS {
         ${parallelize_write_results_arg} \
         ${update_matches_arg}
 
+    echo "\$(date) Completed cds job: ${job_id} on \$(hostname -s)"
     """
 }

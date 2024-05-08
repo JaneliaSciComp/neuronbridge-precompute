@@ -68,6 +68,7 @@ process EXPORT {
     mkdir -p \${release_export_dir}
     result_export_dir="\${release_export_dir}/${anatomical_area}/${relative_output_dir}"
     full_result_dir=\$(readlink -m \${result_export_dir})
+
     ${app_runner} java \
         ${java_opts} ${java_mem_opts} \
         ${log_config_arg} \
@@ -91,6 +92,7 @@ process EXPORT {
         -od "\${result_export_dir}" \
         ${job_offset_arg} ${job_size_arg}
 
+    echo "\$(date) Completed export job: ${job_id} on \$(hostname -s)"
     """
 }
 

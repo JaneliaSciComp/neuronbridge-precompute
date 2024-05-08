@@ -52,6 +52,7 @@ process VALIDATE {
 
     """
     echo "\$(date) Run validation job: ${job_id} on \$(hostname -s)"
+
     ${app_runner} java \
         ${java_opts} ${java_mem_opts} \
         ${log_config_arg} \
@@ -68,6 +69,7 @@ process VALIDATE {
         ${excluded_mip_libraries_arg} \
         ${job_offset_arg} ${job_size_arg}
 
+    echo "\$(date) Completed validation job: ${job_id} on \$(hostname -s)"
     """
 }
 

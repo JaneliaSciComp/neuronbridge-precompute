@@ -41,6 +41,7 @@ process NORMALIZE_GA {
 
     """
     echo "\$(date) Run normalize-score job: ${job_id} on \$(hostname -s)"
+
     ${app_runner} java \
         ${java_opts} ${java_mem_opts} \
         ${log_config_arg} \
@@ -54,5 +55,7 @@ process NORMALIZE_GA {
         ${targets_library_arg} \
         ${targets_published_names_arg} \
         --processing-tag ${normalize_ga_processing_tag} \
+
+    echo "\$(date) Completed normalize-score job: ${job_id} on \$(hostname -s)"
     """
 }
