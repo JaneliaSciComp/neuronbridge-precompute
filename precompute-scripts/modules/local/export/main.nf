@@ -128,5 +128,5 @@ def get_image_store_map_as_string(m) {
 
 def get_arg_from_input_list(flag, lvalue) {
     def l = get_list_arg(lvalue)
-    mask_tags_list ? "${flag} ${l}" : ''
+    l ? "${flag} ${l}" : ''
 }
