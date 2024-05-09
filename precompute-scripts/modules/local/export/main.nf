@@ -27,9 +27,14 @@ process EXPORT {
     val(mem_gb)
     val(java_opts)
     tuple val(export_type),  // EM_MIPS, LM_MIPS, EM_CD_MATCHES, LM_CD_MATCHES, EM_PPP_MATCHES
-          val(exported_tags),
+          val(mask_tags),
           val(excluded_mask_tags),
+          val(target_tags),
           val(excluded_target_tags),
+          val(mask_terms),
+          val(excluded_mask_terms),
+          val(target_terms),
+          val(excluded_target_terms),
           val(jacs_url),
           val(jacs_authorization),
           val(default_image_store),
@@ -53,10 +58,19 @@ process EXPORT {
     def target_libraries_list = get_list_arg(target_libraries)
     def mask_libraries_arg = mask_libraries_list ? "-l ${mask_libraries_list}" : ''
     def target_libraries_arg = target_libraries_list ? "--target-library ${target_libraries_list}" : ''
-    def excluded_mask_tags_list = get_list_arg(excluded_mask_tags)
-    def excluded_target_tags_list = get_list_arg(excluded_target_tags)
-    def excluded_mask_tags_arg = excluded_mask_tags_list ? "--excluded-neuron-tags ${excluded_mask_tags_list}" : ''
-    def excluded_target_tags_arg = excluded_target_tags_list ? "--excluded-target-tags ${excluded_target_tags_list}" : ''
+
+    def mask_tags_arg = get_arg_from_input_list('--neuron-tags', mask_tags)
+    def excluded_mask_tags_arg = get_arg_from_input_list('--excluded-neuron-tags', excluded_mask_tags)
+
+    def target_tags_arg = get_arg_from_input_list('--target-tags', target_tags)
+    def excluded_target_tags_arg = get_arg_from_input_list('--excluded-target-tags', excluded_target_tags)
+
+    def mask_terms_arg = get_arg_from_input_list('--neuron-terms', mask_terms)
+    def excluded_mask_terms_arg = get_arg_from_input_list('--excluded-neuron-terms', excluded_mask_terms)
+
+    def target_terms_arg = get_arg_from_input_list('--target-terms', target_terms)
+    def excluded_target_terms_arg = get_arg_from_input_list('--excluded-target-terms', excluded_target_terms)
+
     def default_image_store_arg = default_image_store ? "--default-image-store ${default_image_store}" : ''
     def image_stores_map_as_str = get_image_store_map_as_string(image_stores_map)
     def image_stores_map_arg = image_stores_map_as_str ? "--image-stores-per-neuron-meta ${image_stores_map_as_str}" : ''
@@ -84,8 +98,14 @@ process EXPORT {
         ${alignment_space_arg} \
         ${mask_libraries_arg} \
         ${target_libraries_arg} \
+        ${mask_tags_arg} \
         ${excluded_mask_tags_arg} \
+        ${target_tags_arg} \
         ${excluded_target_tags_arg} \
+        ${mask_terms_arg} \
+        ${excluded_mask_terms_arg} \
+        ${target_terms_arg} \
+        ${excluded_target_terms_arg} \
         ${default_image_store_arg} \
         ${image_stores_map_arg} \
         --default-relative-url-index 1 \
@@ -104,4 +124,9 @@ def get_image_store_map_as_string(m) {
       } else {
             ''
       }
+}
+
+def get_arg_from_input_list(flag, lvalue) {
+    def l = get_list_arg(lvalue)
+    mask_tags_list ? "${flag} ${l}" : ''
 }

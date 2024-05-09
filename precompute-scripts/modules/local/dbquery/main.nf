@@ -12,8 +12,10 @@ process DBQUERY {
     tuple val(anatomical_area),
           val(library_names),
           val(published_names),
-          val(mips_tags),
+          val(mip_tags),
           val(excluded_tags),
+          val(mips_terms),
+          val(excluded_terms),
           val(unique_mips)
 
     path(db_config_file)
@@ -25,8 +27,10 @@ process DBQUERY {
     def alignment_space = area_to_alignment_space(anatomical_area)
     def library_filter = library_names ? "libraryName: ${get_in_filter(library_names)}," : ''
     def as_filter = alignment_space ? "alignmentSpace: \"${alignment_space}\"," : ''
-    def tag_filter = mips_tags ? "tags: ${get_in_filter(mips_tags)}," : ''
+    def tag_filter = mip_tags ? "tags: ${get_in_filter(mip_tags)}," : ''
     def excluded_tag_filter = excluded_tags ? "tags: ${get_nin_filter(excluded_tags)}," : ''
+    def terms_filter = mips_terms ? "neuronTerms: ${get_in_filter(mips_terms)}," : ''
+    def excluded_terms_filter = excluded_terms ? "neuronTerms: ${get_nin_filter(excluded_terms)}," : ''
     def published_name_filter = published_names ? "publishedName: ${get_in_filter(published_names)}," : ''
     def unique_pipeline = unique_mips 
         ? "{\\\$group: {_id: \"\\\$mipId\"}},"
@@ -48,6 +52,9 @@ process DBQUERY {
                 ${as_filter}
                 ${library_filter}
                 ${tag_filter}
+                ${excluded_tag_filter}
+                ${terms_filter}
+                ${excluded_terms_filter}
                 ${published_name_filter}
             }
         },
