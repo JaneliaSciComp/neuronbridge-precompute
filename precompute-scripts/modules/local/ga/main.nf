@@ -51,7 +51,7 @@ process GA {
     def process_partitions_concurrently_arg = process_partitions_concurrently ? '--process-partitions-concurrently' : ''
 
     """
-    echo "\$(date) Run gradscore job: ${job_id} on \$(hostname -s)"
+    echo "\$(date) Run ${anatomical_area} gradscore job: ${job_id} on \$(hostname -s)"
     mips_base_fullpath=\$(readlink ${mips_base_dir})
     echo "Mips base dir: \${mips_base_fullpath}"
 
@@ -76,6 +76,6 @@ process GA {
         --nBestMatchesPerSample ${top_best_matches_per_sample} \
         --processing-tag ${ga_processing_tag} \
 
-    echo "\$(date) Completed gradscore job: ${job_id} on \$(hostname -s)"
+    echo "\$(date) Completed ${anatomical_area} gradscore job: ${job_id} on \$(hostname -s)"
     """
 }
