@@ -92,7 +92,7 @@ process EXPORT {
         -od "\${result_export_dir}" \
         ${job_offset_arg} ${job_size_arg}
 
-    echo "\$(date) Completed export job: ${job_id} on \$(hostname -s)"
+    echo "\$(date) Completed ${export_type} export job: ${job_id} on \$(hostname -s)"
     """
 }
 
