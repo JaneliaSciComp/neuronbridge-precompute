@@ -23,6 +23,9 @@ process DBQUERY {
     output:
     tuple val(anatomical_area), val(library_names), env(mips_count_res)
 
+    when:
+    task.ext.when == null || task.ext.when
+
     script:
     def alignment_space = area_to_alignment_space(anatomical_area)
     def library_filter = library_names ? "libraryName: ${get_in_filter(library_names)}," : ''

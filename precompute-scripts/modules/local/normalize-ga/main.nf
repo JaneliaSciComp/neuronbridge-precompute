@@ -28,6 +28,9 @@ process NORMALIZE_GA {
           val(targets_published_names),
           val(processing_size)
 
+    when:
+    task.ext.when == null || task.ext.when
+
     script:
     def java_app = app_jar ?: '/app/colormipsearch-3.1.0-jar-with-dependencies.jar'
     def log_config_arg = log_config ? "-Dlog4j.configuration=file://\$(readlink -e ${log_config})" : ''

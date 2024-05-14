@@ -41,6 +41,8 @@ process CDS {
     path(mips_base_dir)
     val(update_matches)
 
+    when:
+    task.ext.when == null || task.ext.when
 
     script:
     def java_app = app_jar ?: '/app/colormipsearch-3.1.0-jar-with-dependencies.jar'
