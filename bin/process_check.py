@@ -154,8 +154,9 @@ def process_aws():
                 continue
             libs =  get_prefixes(bucket, prefix)
             for lib in libs:
-                newlib = lib.lower().replace("flyem_", "").replace("_v", ":v")
-                newlib = lib.lower().replace("flywire_", "").replace("_v", ":v")
+                newlib = lib.lower()
+                newlib = newlib.replace("flyem_", "").replace("_v", ":v")
+                newlib = newlib.lower().replace("flywire_", "").replace("_v", ":v")
                 if newlib.startswith("flylight"):
                     newlib = newlib.replace("_drivers", "").replace("-", "_")
                     newlib += "_published"
