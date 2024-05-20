@@ -47,13 +47,18 @@ process COPY_VARIANTS_TO_LIBSTORE {
         LOG_CONFIG_ARG=
     fi
 
+    full_libstore_dir=\$(readlink -m ${libstore_base_dir})
+    if [[ ! -e \${full_libstore_dir} ]]; then
+        mkdir -p \${full_libstore_dir}
+    fi
+
     ${app_runner} java \
         ${java_opts} ${java_mem_opts} \
         \${LOG_CONFIG_ARG} \
         -jar ${java_app} \
         copyToMipsStore \
         -i ${variants_json_file} \
-        -od ${libstore_base_dir} \
+        -od \${full_libstore_dir} \
         --surjective-variants-mappingcdm=${display_cdm_location} \
         --surjective-variants-mappinggrad=${grad_location} \
         --surjective-variants-mappingsegmentation=${searchable_cdm_location} \
