@@ -54,6 +54,7 @@ workflow {
         params.cpus,
         params.mem_gb,
         params.java_opts,
+        file(params.variants_input_dir),
     )
 
 

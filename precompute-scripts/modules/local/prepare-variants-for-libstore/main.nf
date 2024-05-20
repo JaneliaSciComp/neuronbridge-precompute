@@ -105,9 +105,7 @@ def create_library_variants_arg(library,
         } else {
             display_cdm = "${variants_location}/${display_cdm_location}"
         }
-        log.info "!!!!!! DISPLAY CDM: $display_cdm"
         variants_arg = "${variants_arg} ${library}:source_cdm:${display_cdm}"
-        log.info "!!!!!! VARIANTS DISPLAY CDM: $variants_arg"
     }
     if (searchable_cdm_location) {
         def searchable_cdm
