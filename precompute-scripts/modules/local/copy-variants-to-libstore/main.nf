@@ -53,7 +53,7 @@ process COPY_VARIANTS_TO_LIBSTORE {
         -jar ${java_app} \
         copyToMipsStore \
         -i ${variants_json_file} \
-        -od ${libstore_dir} \
+        -od ${libstore_base_dir} \
         --surjective-variants-mappingcdm=${display_cdm_location} \
         --surjective-variants-mappinggrad=${grad_location} \
         --surjective-variants-mappingsegmentation=${searchable_cdm_location} \
