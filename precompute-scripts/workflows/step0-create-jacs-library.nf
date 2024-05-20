@@ -17,9 +17,10 @@ workflow {
                 params.import_library,
                 variants_output_dir,
                 file(params.variants_input_dir),
-                params.cdm_relative_location,
-                params.grad_relative_location,
-                params.zgap_relative_location,
+                params.display_cdm_location,
+                params.searchable_cdm_location,
+                params.grad_location,
+                params.zgap_location,
                 params.variants_json_file,
             ]
         ),
@@ -39,6 +40,10 @@ workflow {
             library,
             variants_json,
             file(params.libstore_dir),
+            params.display_cdm_dest,
+            params.searchable_cdm_dest,
+            params.grad_dest,
+            params.zgap_dest,
             params.dry_run,
         ]
     }

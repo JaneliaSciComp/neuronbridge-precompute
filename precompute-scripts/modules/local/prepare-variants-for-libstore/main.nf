@@ -13,9 +13,10 @@ process PREPARE_VARIANTS_FOR_MIPSTORE {
           val(library_name),
           path(output_dir),
           path(variants_location),
-          val(cdm_relative_location),
-          val(grad_relative_location),
-          val(zgap_relative_location),
+          val(display_cdm_location),
+          val(searchable_cdm_location),
+          val(grad_location),
+          val(zgap_location),
           val(output_name)
     tuple path(app_jar),
           path(log_config),
@@ -43,9 +44,10 @@ process PREPARE_VARIANTS_FOR_MIPSTORE {
     def library_variants_arg = create_library_variants_arg(
         library_name,
         variants_location, 
-        cdm_relative_location,
-        grad_relative_location,
-        zgap_relative_location,
+        display_cdm_location,
+        searchable_cdm_location,
+        grad_location,
+        zgap_location,
     )
     def jacs_url_arg = jacs_url ? "--jacs-url ${jacs_url}" : ''
     def jacs_auth_arg = jacs_authorization ? "--authorization \"${jacs_authorization}\"" : ''
@@ -59,13 +61,19 @@ process PREPARE_VARIANTS_FOR_MIPSTORE {
         mkdir -p \${full_output_dir}
     fi
 
+    if [[ ${log_config} != "" && -f ${log_config} ]];  then
+        LOG_CONFIG_ARG=${log_config_arg}
+    else
+        LOG_CONFIG_ARG=
+    fi
+
     if [[ -e "\${full_output_dir}/${output_file_name}.json" ]]; then
         echo "Remove file \${full_output_dir}/${output_file_name}.json because it already exists"
         rm -f "\${full_output_dir}/${output_file_name}.json"
     fi
     ${app_runner} java \
         ${java_opts} ${java_mem_opts} \
-        ${log_config_arg} \
+        \${LOG_CONFIG_ARG} \
         -jar ${java_app} \
         createColorDepthSearchDataInput \
         ${jacs_url_arg} \
@@ -85,20 +93,47 @@ process PREPARE_VARIANTS_FOR_MIPSTORE {
 
 def create_library_variants_arg(library,
                                 variants_location,
-                                cdm_relative_location,
-                                grad_relative_location,
-                                zgap_relative_location) {
+                                display_cdm_location,
+                                searchable_cdm_location,
+                                grad_location,
+                                zgap_location) {
     def variants_arg = ""
-    if (cdm_relative_location) {
-        def cdm = "${variants_location}/${cdm_relative_location}"
-        variants_arg = "${variants_arg} ${library}:searchable_neurons:${cdm}"
+    if (display_cdm_location) {
+        def display_cdm
+        if (display_cdm_location.startsWith('/')) {
+            display_cdm = display_cdm_location
+        } else {
+            display_cdm = "${variants_location}/${display_cdm_location}"
+        }
+        log.info "!!!!!! DISPLAY CDM: $display_cdm"
+        variants_arg = "${variants_arg} ${library}:source_cdm:${display_cdm}"
+        log.info "!!!!!! VARIANTS DISPLAY CDM: $variants_arg"
     }
-    if (grad_relative_location) {
-        def grad = "${variants_location}/${grad_relative_location}"
+    if (searchable_cdm_location) {
+        def searchable_cdm
+        if (searchable_cdm_location.startsWith('/')) {
+            searchable_cdm = searchable_cdm_location
+        } else {
+            searchable_cdm = "${variants_location}/${searchable_cdm_location}"
+        }
+        variants_arg = "${variants_arg} ${library}:searchable_neurons:${searchable_cdm}"
+    }
+    if (grad_location) {
+        def grad
+        if (grad_location.startsWith('/')) {
+            grad = grad_location
+        } else {
+            grad = "${variants_location}/${grad_location}"
+        }
         variants_arg = "${variants_arg} ${library}:gradient:${grad}"
     }
-    if (zgap_relative_location) {
-        def zgap = "${variants_location}/${zgap_relative_location}"
+    if (zgap_location) {
+        def zgap
+        if (zgap_location.startsWith('/')) {
+            zgap = zgap_location
+        } else {
+            zgap = "${variants_location}/${zgap_location}"
+        }
         variants_arg = "${variants_arg} ${library}:zgap:${zgap}"
     }
     variants_arg ? "--librariesVariants ${variants_arg}" : ''
