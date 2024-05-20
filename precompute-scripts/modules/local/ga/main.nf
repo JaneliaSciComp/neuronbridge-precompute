@@ -40,7 +40,7 @@ process GA {
 
     script:
     def java_app = app_jar ?: '/app/colormipsearch-3.1.0-jar-with-dependencies.jar'
-    def log_config_arg = log_config ? "-Dlog4j.configuration=file://\$(readlink -e ${log_config})" : ''
+    def log_config_arg = log_config ? "-Dlog4j2.configuration=file://\$(readlink -e ${log_config})" : ''
     def java_mem_opts = "-Xmx${mem_gb-1}G -Xms${mem_gb-1}G"
     def cache_size_arg = cache_size ? "--cacheSize ${cache_size}" : ''
     def concurrency_arg = cpus ? "--task-concurrency ${2 * cpus -1}" : ''
@@ -58,9 +58,15 @@ process GA {
     mips_base_fullpath=\$(readlink ${mips_base_dir})
     echo "Mips base dir: \${mips_base_fullpath}"
 
+    if [[ ${log_config} != "" && -f ${log_config} ]];  then
+        LOG_CONFIG_ARG=${log_config_arg}
+    else
+        LOG_CONFIG_ARG=
+    fi
+
     ${app_runner} java \
         ${java_opts} ${java_mem_opts} \
-        ${log_config_arg} \
+        \${LOG_CONFIG_ARG} \
         -jar ${java_app} \
         ${cache_size_arg} \
         gradientScores \

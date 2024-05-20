@@ -50,7 +50,7 @@ process EXPORT {
 
     script:
     def java_app = app_jar ?: '/app/colormipsearch-3.1.0-jar-with-dependencies.jar'
-    def log_config_arg = log_config ? "-Dlog4j.configuration=file://\$(readlink -e ${log_config})" : ''
+    def log_config_arg = log_config ? "-Dlog4j2.configuration=file://\$(readlink -e ${log_config})" : ''
     def java_mem_opts = "-Xmx${mem_gb-1}G -Xms${mem_gb-1}G"
     def concurrency_arg = cpus ? "--task-concurrency ${2 * cpus -1}" : ''
     def alignment_space = area_to_alignment_space(anatomical_area)
@@ -86,9 +86,15 @@ process EXPORT {
     result_export_dir="\${release_export_dir}/${anatomical_area}/${relative_output_dir}"
     full_result_dir=\$(readlink -m \${result_export_dir})
 
+    if [[ ${log_config} != "" && -f ${log_config} ]];  then
+        LOG_CONFIG_ARG=${log_config_arg}
+    else
+        LOG_CONFIG_ARG=
+    fi
+
     ${app_runner} java \
         ${java_opts} ${java_mem_opts} \
-        ${log_config_arg} \
+        \${LOG_CONFIG_ARG} \
         -jar ${java_app} \
         exportData \
         --config ${db_config_file} \
