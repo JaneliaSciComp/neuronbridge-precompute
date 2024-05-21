@@ -2,6 +2,9 @@ include {
     area_to_alignment_space;
 } from '../../../nfutils/utils'
 
+// This module will create the CDM JSON file
+// which later can be used to copy the mips to the JACS libstore
+// It never writes anything to the NB database
 process PREPARE_VARIANTS_FOR_MIPSTORE {
     container { task.ext.container ?: 'ghcr.io/janeliascicomp/colormipsearch-tools:3.1.0' }
     cpus { cpus }
@@ -89,7 +92,6 @@ process PREPARE_VARIANTS_FOR_MIPSTORE {
     echo "\$(date) Completed ${library_name} variants import on \$(hostname -s)"
     """
 }
-
 
 def create_library_variants_arg(library,
                                 variants_location,
