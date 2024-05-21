@@ -1,4 +1,4 @@
-include { IMPORT_CDMS } from '../modules/local/import-cds/main'
+include { IMPORT_CDMS } from '../modules/local/import-cdms/main'
 
 workflow {
     def app_args = [
