@@ -43,6 +43,6 @@ workflow {
 
 def get_data_paths(paths) {
     paths
-        .filter { it && it[0] == '/'}
+        .findAll { it && it[0] == '/'}
         .collect { file(it) }
 }
