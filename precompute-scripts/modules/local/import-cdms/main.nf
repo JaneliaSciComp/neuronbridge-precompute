@@ -11,7 +11,7 @@ process IMPORT_CDMS {
     input:
     tuple val(anatomical_area),
           val(library_name),
-          path(variants_location),
+          path(library_base_dir),
           val(source_cdm_location),
           val(searchable_cdm_location),
           val(grad_location),
@@ -41,9 +41,10 @@ process IMPORT_CDMS {
     def log_config_arg = log_config ? "-Dlog4j2.configuration=file://\$(readlink -e ${log_config})" : ''
     def java_mem_opts = "-Xmx${mem_gb-1}G -Xms${mem_gb-1}G"
     def alignment_space = area_to_alignment_space(anatomical_area)
+    def library_dir = "${library_base_dir}/${alignment_space}/${library_name}"
     def library_variants_arg = create_library_variants_arg(
         library_name,
-        variants_location,
+        library_dir,
         source_cdm_location,
         searchable_cdm_location,
         grad_location,

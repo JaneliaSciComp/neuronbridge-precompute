@@ -18,7 +18,7 @@ workflow {
             [
                 params.anatomical_area,
                 params.import_library,
-                file(params.variants_input_dir),
+                file(params.library_base_dir),
                 params.source_cdm_location,
                 params.searchable_cdm_location,
                 params.grad_location,
@@ -37,6 +37,7 @@ workflow {
         ],
         get_data_paths(cdmips_paths),
     ) // [area, library, import_tag]
+
 }
 
 
