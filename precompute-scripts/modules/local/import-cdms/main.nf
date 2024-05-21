@@ -11,12 +11,11 @@ process IMPORT_CDMS {
     input:
     tuple val(anatomical_area),
           val(library_name),
-          path(output_dir),
           path(variants_location),
-          val(cdm_relative_location),
-          val(grad_relative_location),
-          val(zgap_relative_location),
-          val(output_name)
+          val(source_cdm_location),
+          val(searchable_cdm_location),
+          val(grad_location),
+          val(zgap_location)
     tuple path(app_jar),
           path(log_config),
           val(app_runner)
@@ -25,12 +24,14 @@ process IMPORT_CDMS {
     val(mem_gb)
     val(java_opts)
     tuple val(jacs_url),
-          val(jacs_authorization)
+          val(jacs_authorization),
+          val(import_tag)
+    path(data_paths) // this argument is only sent to ensure all needed volumes are available
     
     output:
     tuple val(anatomical_area),
           val(library_name),
-          env(full_output_name)
+          val(import_tag)
 
     when:
     task.ext.when == null || task.ext.when
@@ -42,29 +43,28 @@ process IMPORT_CDMS {
     def alignment_space = area_to_alignment_space(anatomical_area)
     def library_variants_arg = create_library_variants_arg(
         library_name,
-        variants_location, 
-        cdm_relative_location,
-        grad_relative_location,
-        zgap_relative_location,
+        variants_location,
+        source_cdm_location,
+        searchable_cdm_location,
+        grad_location,
+        zgap_location,
     )
     def jacs_url_arg = jacs_url ? "--jacs-url ${jacs_url}" : ''
     def jacs_auth_arg = jacs_authorization ? "--authorization \"${jacs_authorization}\"" : ''
+    def import_tag_arg = import_tag ? "--tag ${import_tag}" : ''
 
     """
     echo "\$(date) Run ${library_name} CDMs import on \$(hostname -s)"
 
-    full_output_dir=\$(readlink -m \${output_dir})
-    if [[ ! -e \${full_output_dir} ]]; then
-        mkdir -p \${full_output_dir}
+    if [[ ${log_config} != "" && -f ${log_config} ]];  then
+        LOG_CONFIG_ARG=${log_config_arg}
+    else
+        LOG_CONFIG_ARG=
     fi
 
-    if [[ -e "\${full_output_dir}/${output_file_name}.json" ]]; then
-        echo "Remove file \${full_output_dir}/${output_file_name}.json because it already exists"
-        rm -f "\${full_output_dir}/${output_file_name}.json"
-    fi
     ${app_runner} java \
         ${java_opts} ${java_mem_opts} \
-        ${log_config_arg} \
+        \${LOG_CONFIG_ARG} \
         -jar ${java_app} \
         createColorDepthSearchDataInput \
         --config ${db_config_file} \
@@ -73,30 +73,55 @@ process IMPORT_CDMS {
         -as ${alignment_space} \
         -l ${library_name} \
         ${library_variants_arg} \
-        --results-storage DB
+        ${import_tag_arg} \
+        --results-storage DB \
+        --for-update
 
-    full_output_name="\${full_output_dir}/${output_file_name}.json"
     echo "\$(date) Completed ${library_name} CDMs import on \$(hostname -s)"
     """
 }
 
-
 def create_library_variants_arg(library,
                                 variants_location,
-                                cdm_relative_location,
-                                grad_relative_location,
-                                zgap_relative_location) {
+                                source_cdm_location,
+                                searchable_cdm_location,
+                                grad_location,
+                                zgap_location) {
     def variants_arg = ""
-    if (cdm_relative_location) {
-        def cdm = "${variants_location}/${cdm_relative_location}"
-        variants_arg = "${variants_arg} ${library}:searchable_neurons:${cdm}"
+    if (source_cdm_location) {
+        def source_cdm
+        if (source_cdm_location.startsWith('/')) {
+            source_cdm = source_cdm_location
+        } else {
+            source_cdm = "${variants_location}/${source_cdm_location}"
+        }
+        variants_arg = "${variants_arg} ${library}:source_cdm:${source_cdm}"
     }
-    if (grad_relative_location) {
-        def grad = "${variants_location}/${grad_relative_location}"
+    if (searchable_cdm_location) {
+        def searchable_cdm
+        if (searchable_cdm_location.startsWith('/')) {
+            searchable_cdm = searchable_cdm_location
+        } else {
+            searchable_cdm = "${variants_location}/${searchable_cdm_location}"
+        }
+        variants_arg = "${variants_arg} ${library}:searchable_neurons:${searchable_cdm}"
+    }
+    if (grad_location) {
+        def grad
+        if (grad_location.startsWith('/')) {
+            grad = grad_location
+        } else {
+            grad = "${variants_location}/${grad_location}"
+        }
         variants_arg = "${variants_arg} ${library}:gradient:${grad}"
     }
-    if (zgap_relative_location) {
-        def zgap = "${variants_location}/${zgap_relative_location}"
+    if (zgap_location) {
+        def zgap
+        if (zgap_location.startsWith('/')) {
+            zgap = zgap_location
+        } else {
+            zgap = "${variants_location}/${zgap_location}"
+        }
         variants_arg = "${variants_arg} ${library}:zgap:${zgap}"
     }
     variants_arg ? "--librariesVariants ${variants_arg}" : ''

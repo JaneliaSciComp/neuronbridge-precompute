@@ -29,6 +29,7 @@ process PREPARE_VARIANTS_FOR_MIPSTORE {
     val(java_opts)
     tuple val(jacs_url),
           val(jacs_authorization)
+    path(data_paths) // this argument is only sent to ensure all needed volumes are available
     
     output:
     tuple val(anatomical_area),

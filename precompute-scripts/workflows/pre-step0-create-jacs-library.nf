@@ -10,12 +10,17 @@ workflow {
     def variants_output_dir = params.variants_output_dir
         ? file(params.variants_output_dir)
         : []
+    def cdmips_paths = [
+        params.display_cdm_location,
+        params.searchable_cdm_location,
+        params.grad_location,
+        params.zgap_location,
+    ]
     def lib_variants = PREPARE_VARIANTS_FOR_MIPSTORE(
         Channel.of(
             [
                 params.anatomical_area,
                 params.import_library,
-                variants_output_dir,
                 file(params.variants_input_dir),
                 params.display_cdm_location,
                 params.searchable_cdm_location,
@@ -31,7 +36,8 @@ workflow {
         [
             params.jacs_url,
             params.jacs_authorization,
-        ]
+        ],
+        get_data_paths(cdmips_paths),
     ) // [area, library, output]
     | map {
         def (anatomical_area, library, variants_json) =it
@@ -56,6 +62,10 @@ workflow {
         params.java_opts,
         file(params.variants_input_dir),
     )
+}
 
-
+def get_data_paths(paths) {
+    paths
+        .filter { it && it[0] == '/'}
+        .collect { file(it) }
 }

@@ -24,7 +24,7 @@ process COPY_VARIANTS_TO_LIBSTORE {
     val(cpus)
     val(mem_gb)
     val(java_opts)
-    path(variants_location)
+    path(data_paths) // this argument is only sent to ensure all needed volumes are available
     
     output:
 
