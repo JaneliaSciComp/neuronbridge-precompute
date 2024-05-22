@@ -21,6 +21,7 @@ workflow {
             [
                 params.anatomical_area,
                 params.import_library,
+                variants_output_dir,
                 file(params.variants_input_dir),
                 params.display_cdm_location,
                 params.searchable_cdm_location,
