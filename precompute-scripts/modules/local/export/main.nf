@@ -27,6 +27,8 @@ process EXPORT {
     val(mem_gb)
     val(java_opts)
     tuple val(export_type),  // EM_MIPS, LM_MIPS, EM_CD_MATCHES, LM_CD_MATCHES, EM_PPP_MATCHES
+          val(mask_names),
+          val(mask_mip_ids),
           val(mask_tags),
           val(excluded_mask_tags),
           val(target_tags),
@@ -61,6 +63,9 @@ process EXPORT {
     def target_libraries_list = get_list_arg(target_libraries)
     def mask_libraries_arg = mask_libraries_list ? "-l ${mask_libraries_list}" : ''
     def target_libraries_arg = target_libraries_list ? "--target-library ${target_libraries_list}" : ''
+
+    def mask_names_arg = get_arg_from_input_list('--exported-names', mask_names)
+    def mask_mip_ids_arg = get_arg_from_input_list('--exported-mips', mask_mip_ids)
 
     def mask_tags_arg = get_arg_from_input_list('--neuron-tags', mask_tags)
     def excluded_mask_tags_arg = get_arg_from_input_list('--excluded-neuron-tags', excluded_mask_tags)
@@ -105,6 +110,8 @@ process EXPORT {
         --read-batch-size ${jacs_read_batch_size} \
         ${processing_size_arg} \
         ${alignment_space_arg} \
+        ${mask_names_arg} \
+        ${mask_mip_ids_arg} \
         ${mask_libraries_arg} \
         ${target_libraries_arg} \
         ${mask_tags_arg} \

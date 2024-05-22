@@ -15,7 +15,7 @@ workflow {
         Channel.of([
             params.anatomical_area,
             exported_mask_libs,
-            params.mip_published_names,
+            params.exported_mask_names,
             params.exported_mask_tags,
             params.excluded_mask_tags,
             params.exported_mask_terms,
@@ -70,6 +70,8 @@ workflow {
        params.java_opts,
        [
             params.export_type,
+            params.exported_mask_names,
+            params.exported_mask_mips,
             params.exported_mask_tags,
             params.excluded_from_exported_mask_tags,
             params.exported_target_tags,
