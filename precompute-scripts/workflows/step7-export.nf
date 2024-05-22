@@ -19,7 +19,7 @@ workflow {
             params.exported_mask_tags,
             params.excluded_mask_tags,
             params.exported_mask_terms,
-            params.excluded_mask_terms,
+            params.excluded_from_exported_mask_terms,
             true,
         ]),
         db_config_file,
