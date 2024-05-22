@@ -28,7 +28,11 @@ process CDS {
     tuple val(cds_processing_tag),
           val(cache_size),
           val(masks_published_names),
+          val(mask_terms),
+          val(mask_excluded_terms),
           val(targets_published_names),
+          val(target_terms),
+          val(target_excluded_terms),
           val(mirror_flag),
           val(mask_th),
           val(target_th),
@@ -52,8 +56,12 @@ process CDS {
     def concurrency_arg = cpus ? "--task-concurrency ${2 * cpus -1}" : ''
     def masks_arg = get_lib_arg(masks_library, masks_offset, masks_length)
     def masks_published_names_arg = masks_published_names ? "--masks-published-names ${masks_published_names}" : ''
+    def mask_terms_arg = mask_terms ? "--masks-terms ${mask_terms}" : ''
+    def mask_excluded_terms_arg = mask_excluded_terms ? "--excluded-masks-terms ${mask_excluded_terms}" : ''
     def targets_arg = get_lib_arg(targets_library, targets_offset, targets_length)
     def targets_published_names_arg = targets_published_names ? "--targets-published-names ${targets_published_names}" : ''
+    def target_terms_arg = target_terms ? "--targets-terms ${target_terms}" : ''
+    def target_excluded_terms_arg = target_excluded_terms ? "--excluded-targets-terms ${target_excluded_terms}" : ''
     def alignment_space = area_to_alignment_space(anatomical_area)
     def mirror_flag_arg = mirror_flag ? '--mirrorMask' : ''
     def mask_th_arg = mask_th ? "--maskThreshold ${mask_th}" : ''
@@ -87,8 +95,12 @@ process CDS {
         -as ${alignment_space} \
         -m ${masks_arg} \
         ${masks_published_names_arg} \
+        ${mask_terms_arg} \
+        ${mask_excluded_terms_arg} \
         -i ${targets_arg} \
         ${targets_published_names_arg} \
+        ${target_terms_arg} \
+        ${target_excluded_terms_arg} \
         --processing-tag ${cds_processing_tag} \
         ${mirror_flag_arg} \
         ${mask_th_arg} \
