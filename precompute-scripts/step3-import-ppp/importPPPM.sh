@@ -1,5 +1,5 @@
 
-LOG_OPTS="-Dlog4j2.configurationFile=file://$PWD/local/log4j.properties"
+LOG_OPTS="-Dlog4j.configuration=file://$PWD/local/log4j.properties"
 JAR_VERSION=3.0.0
 
 SOURCE_PPP_RESULTS=/nrs/saalfeld/maisl/flymatch/all_vnc_1.0/setup22_nblast_20/results

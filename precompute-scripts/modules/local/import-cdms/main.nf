@@ -38,7 +38,7 @@ process IMPORT_CDMS {
 
     script:
     def java_app = app_jar ?: '/app/colormipsearch-3.1.0-jar-with-dependencies.jar'
-    def log_config_arg = log_config ? "-Dlog4j2.configurationFile=file://\$(readlink -e ${log_config})" : ''
+    def log_config_arg = log_config ? "-Dlog4j.configuration=file://\$(readlink -e ${log_config})" : ''
     def java_mem_opts = "-Xmx${mem_gb-1}G -Xms${mem_gb-1}G"
     def alignment_space = area_to_alignment_space(anatomical_area)
     def library_dir = "${library_base_dir}/${alignment_space}/${library_name}"
@@ -58,7 +58,7 @@ process IMPORT_CDMS {
     echo "\$(date) Run ${library_name} CDMs import on \$(hostname -s)"
 
     if [[ ${log_config} != "" && -f ${log_config} ]];  then
-        LOG_CONFIG_ARG=${log_config_arg}
+        LOG_CONFIG_ARG="${log_config_arg}"
     else
         LOG_CONFIG_ARG=
     fi
