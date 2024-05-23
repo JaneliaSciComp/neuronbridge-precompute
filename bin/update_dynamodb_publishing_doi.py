@@ -195,6 +195,8 @@ def initialize_program():
     # Releases
     reldict = simplenamespace_to_dict(JRC.get_config("releases"))
     for _, rel in reldict.items():
+        if 'doi' not in rel:
+            continue
         if 'publication' in rel['doi']:
             CITATION[rel['doi']['publication']] = rel['citation']
         if 'preprint' in rel['doi']:
@@ -382,7 +384,10 @@ def process_em_library(coll, library, count):
     doi = EMDOI[lib]
     for row in tqdm(results, desc=prefix, total=count):
         COUNT['read'] += 1
-        bid = ":".join([prefix, str(row["publishedName"])])
+        if prefix in str(row["publishedName"]):
+            bid = str(row["publishedName"])
+        else:
+            bid = ":".join([prefix, str(row["publishedName"])])
         if bid not in MAPPING:
             MAPPING[bid] = doi
             payload = {"name": bid,
