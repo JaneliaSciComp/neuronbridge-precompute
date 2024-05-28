@@ -15,7 +15,8 @@ process IMPORT_CDMS {
           val(source_cdm_location),
           val(searchable_cdm_location),
           val(grad_location),
-          val(zgap_location)
+          val(zgap_location),
+          val(vol_segmentation_location)
     tuple path(app_jar),
           path(log_config),
           val(app_runner)
@@ -49,6 +50,7 @@ process IMPORT_CDMS {
         searchable_cdm_location,
         grad_location,
         zgap_location,
+        vol_segmentation_location,
     )
     def jacs_url_arg = jacs_url ? "--jacs-url ${jacs_url}" : ''
     def jacs_auth_arg = jacs_authorization ? "--authorization \"${jacs_authorization}\"" : ''
@@ -87,7 +89,8 @@ def create_library_variants_arg(library,
                                 source_cdm_location,
                                 searchable_cdm_location,
                                 grad_location,
-                                zgap_location) {
+                                zgap_location,
+                                vol_segmentation_location) {
     def variants_arg = ""
     if (source_cdm_location) {
         def source_cdm
@@ -124,6 +127,16 @@ def create_library_variants_arg(library,
             zgap = "${variants_location}/${zgap_location}"
         }
         variants_arg = "${variants_arg} ${library}:zgap:${zgap}"
+    }
+    if (vol_segmentation_location) {
+        def vol_segmentation
+        if (vol_segmentation_location.startsWith('/')) {
+            vol_segmentation = vol_segmentation_location
+        } else {
+            vol_segmentation = "${variants_location}/${vol_segmentation_location}"
+        }
+        variants_arg = "${variants_arg} ${library}:3d-segmentation:${vol_segmentation}"
+
     }
     variants_arg ? "--librariesVariants ${variants_arg}" : ''
 }

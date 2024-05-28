@@ -23,6 +23,7 @@ workflow {
                 params.searchable_cdm_location,
                 params.grad_location,
                 params.zgap_location,
+                params.vol_segmentation_location,
             ]
         ),
         app_args,
