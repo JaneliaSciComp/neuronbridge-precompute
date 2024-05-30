@@ -2,6 +2,7 @@
     Show status for every NeuronBridge library on AWS S3
 '''
 import json
+import re
 import boto3
 from aws_s3_lib import bucket_stats, get_objects, get_prefixes
 
@@ -55,9 +56,11 @@ def process_template_cdm(bucket, template):
             objs = get_objects(bucket, prefix)
             version = objs[-1].split(".")[-1].replace("_", ".") if objs[-1] and ".v" in objs[-1] \
                 else ""
+            neurons = f"{int(neurons):,}"
+            last = f"{int(last):,}"
         else:
             last = neurons = version = ""
-        print(f"{template:<25}  {library:<34}  {images:>6}  {neurons:>7}  {last:>4}  {version:>7}")
+        print(f"{template:<25}  {library:<34}  {int(images):>7,}  {neurons:>7}  {last:>5}  {version:>7}")
 
 
 def process_template_ppp(bucket, template):
@@ -155,8 +158,8 @@ def process_buckets():
         # CDM
         name = "janelia-flylight-color-depth" + suffix
         if process_bucket(name):
-            print(f"{'Template':<25}  {'Library':<34}  {'Images':>6}  {'Neurons':>7}  " \
-                  + f"{'Part':>4}  {'Version':>7}")
+            print(f"{'Template':<25}  {'Library':<34}  {'Images':<7}  {'Neurons':>7}  " \
+                  + f"{'Part':<5}  {'Version':>7}")
             process_manifold(name, "cdm")
         # PPP
         name = "janelia-ppp-match" + (suffix if suffix else "-prod")
