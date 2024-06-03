@@ -15,7 +15,7 @@ import MySQLdb
 from simple_term_menu import TerminalMenu
 from tqdm import tqdm
 import jrc_common.jrc_common as JRC
-import neuronbridge_lib as NB
+import neuronbridge_common.neuronbridge_common as NB
 
 # pylint: disable=broad-exception-caught,eval-used,logging-fstring-interpolation
 
