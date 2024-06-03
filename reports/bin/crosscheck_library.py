@@ -6,7 +6,7 @@ import argparse
 from operator import attrgetter
 import sys
 import jrc_common.jrc_common as JRC
-import neuronbridge_lib as NB
+import neuronbridge_common.neuronbridge_common as NB
 
 #pylint: disable=logging-fstring-interpolation
 
