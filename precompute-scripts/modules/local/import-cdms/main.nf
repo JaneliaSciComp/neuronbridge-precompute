@@ -92,7 +92,6 @@ def create_library_variants_arg(library,
                                 grad_locations,
                                 zgap_locations,
                                 vol_segmentation_locations) {
-    def variants_arg = ""
     def source_cdm_variants = create_variant_arg(library, variants_location, 'source_cdm', source_cdm_locations)
     def searchable_cdm_variants = create_variant_arg(library, variants_location, 'searchable_neurons', searchable_cdm_locations)
     def grad_variants = create_variant_arg(library, variants_location, 'gradient', grad_locations)
