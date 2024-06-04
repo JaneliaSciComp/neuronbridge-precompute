@@ -115,7 +115,7 @@ def create_variant_arg(library, variants_location, variant_type, locations) {
                 }
                 location
             }
-            .joint('^')
+            .join('^')
 
         "${library}:${variant_type}:${locations_list}"
     } else {
