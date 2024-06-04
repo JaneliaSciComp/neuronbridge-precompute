@@ -12,7 +12,7 @@ import boto3
 import MySQLdb
 from tqdm import tqdm
 import jrc_common.jrc_common as JRC
-import neuronbridge_lib as NB
+import neuronbridge_common.neuronbridge_common as NB
 
 #pylint: disable=broad-exception-caught,logging-fstring-interpolation
 

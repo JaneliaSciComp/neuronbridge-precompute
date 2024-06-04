@@ -24,7 +24,7 @@ from tqdm import tqdm
 import MySQLdb
 from PIL import Image
 import jrc_common.jrc_common as JRC
-import neuronbridge_lib as NB
+import neuronbridge_common.neuronbridge_common as NB
 
 
 # Configuration

@@ -12,7 +12,7 @@ import colorlog
 from pymongo import MongoClient
 import requests
 from tqdm import tqdm
-import neuronbridge_lib as NB
+import neuronbridge_common.neuronbridge_common as NB
 
 # pylint: disable=W0703, E1101
 # Database

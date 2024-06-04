@@ -15,7 +15,7 @@ import requests
 import MySQLdb
 from pymongo import MongoClient
 from tqdm import tqdm
-import neuronbridge_lib as NB
+import neuronbridge_common.neuronbridge_common as NB
 
 
 # Configuration

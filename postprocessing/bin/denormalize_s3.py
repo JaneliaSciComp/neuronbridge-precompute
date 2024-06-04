@@ -24,7 +24,7 @@ from botocore.exceptions import ClientError
 from simple_term_menu import TerminalMenu
 from tqdm import tqdm
 import jrc_common.jrc_common as JRC
-import neuronbridge_lib as NB
+import neuronbridge_common.neuronbridge_common as NB
 
 __version__ = '2.0.0'
 # Configuration
