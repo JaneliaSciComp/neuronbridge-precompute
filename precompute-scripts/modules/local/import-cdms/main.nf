@@ -1,5 +1,6 @@
 include { 
     area_to_alignment_space;
+    get_values_as_collection;
 } from '../../../nfutils/utils'
 
 process IMPORT_CDMS {
@@ -12,11 +13,11 @@ process IMPORT_CDMS {
     tuple val(anatomical_area),
           val(library_name),
           path(library_base_dir),
-          val(source_cdm_location),
-          val(searchable_cdm_location),
-          val(grad_location),
-          val(zgap_location),
-          val(vol_segmentation_location)
+          val(source_cdm_locations),
+          val(searchable_cdm_locations),
+          val(grad_locations),
+          val(zgap_locations),
+          val(vol_segmentation_locations)
     tuple path(app_jar),
           path(log_config),
           val(app_runner)
@@ -46,11 +47,11 @@ process IMPORT_CDMS {
     def library_variants_arg = create_library_variants_arg(
         library_name,
         library_dir,
-        source_cdm_location,
-        searchable_cdm_location,
-        grad_location,
-        zgap_location,
-        vol_segmentation_location,
+        source_cdm_locations,
+        searchable_cdm_locations,
+        grad_locations,
+        zgap_locations,
+        vol_segmentation_locations,
     )
     def jacs_url_arg = jacs_url ? "--jacs-url ${jacs_url}" : ''
     def jacs_auth_arg = jacs_authorization ? "--authorization \"${jacs_authorization}\"" : ''
@@ -86,57 +87,39 @@ process IMPORT_CDMS {
 
 def create_library_variants_arg(library,
                                 variants_location,
-                                source_cdm_location,
-                                searchable_cdm_location,
-                                grad_location,
-                                zgap_location,
-                                vol_segmentation_location) {
+                                source_cdm_locations,
+                                searchable_cdm_locations,
+                                grad_locations,
+                                zgap_locations,
+                                vol_segmentation_locations) {
     def variants_arg = ""
-    if (source_cdm_location) {
-        def source_cdm
-        if (source_cdm_location.startsWith('/')) {
-            source_cdm = source_cdm_location
-        } else {
-            source_cdm = "${variants_location}/${source_cdm_location}"
-        }
-        variants_arg = "${variants_arg} ${library}:source_cdm:${source_cdm}"
-    }
-    if (searchable_cdm_location) {
-        def searchable_cdm
-        if (searchable_cdm_location.startsWith('/')) {
-            searchable_cdm = searchable_cdm_location
-        } else {
-            searchable_cdm = "${variants_location}/${searchable_cdm_location}"
-        }
-        variants_arg = "${variants_arg} ${library}:searchable_neurons:${searchable_cdm}"
-    }
-    if (grad_location) {
-        def grad
-        if (grad_location.startsWith('/')) {
-            grad = grad_location
-        } else {
-            grad = "${variants_location}/${grad_location}"
-        }
-        variants_arg = "${variants_arg} ${library}:gradient:${grad}"
-    }
-    if (zgap_location) {
-        def zgap
-        if (zgap_location.startsWith('/')) {
-            zgap = zgap_location
-        } else {
-            zgap = "${variants_location}/${zgap_location}"
-        }
-        variants_arg = "${variants_arg} ${library}:zgap:${zgap}"
-    }
-    if (vol_segmentation_location) {
-        def vol_segmentation
-        if (vol_segmentation_location.startsWith('/')) {
-            vol_segmentation = vol_segmentation_location
-        } else {
-            vol_segmentation = "${variants_location}/${vol_segmentation_location}"
-        }
-        variants_arg = "${variants_arg} ${library}:3d-segmentation:${vol_segmentation}"
+    def source_cdm_variants = create_variant_arg(library, variants_location, 'source_cdm', source_cdm_locations)
+    def searchable_cdm_variants = create_variant_arg(library, variants_location, 'searchable_neurons', searchable_cdm_locations)
+    def grad_variants = create_variant_arg(library, variants_location, 'gradient', grad_locations)
+    def zgap_variants = create_variant_arg(library, variants_location, 'zgap', zgap_locations)
+    def _3d_seg_variants = create_variant_arg(library, variants_location, '3d-segmentation', vol_segmentation_locations)
 
-    }
+    def variants_arg = "${source_cdm_variants} ${searchable_cdm_variants} ${grad_variants} ${zgap_variants} ${_3d_seg_variants}".trim()
     variants_arg ? "--librariesVariants ${variants_arg}" : ''
+}
+
+
+def create_variant_arg(library, variants_location, variant_type, locations) {
+    if (locations) {
+        def locations_list = get_values_as_collection(locations)
+            .collect { location_arg ->
+                def location
+                if (location_arg.startsWith('/')) {
+                    location = location_arg
+                } else {
+                    location = "${variants_location}/${location_arg}"
+                }
+                location
+            }
+            .joint('^')
+
+        "${library}:${variant_type}:${locations_list}"
+    } else {
+        ""
+    }
 }

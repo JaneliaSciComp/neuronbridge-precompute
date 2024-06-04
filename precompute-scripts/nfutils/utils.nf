@@ -47,6 +47,18 @@ def get_list_arg(values) {
     }
 }
 
+def get_values_as_collection(values) {
+    if (values) {
+        if (values instanceof Collection) {
+            values
+        } else {
+            values.tokenize(',')
+        }
+    } else {
+        return []
+    }
+}
+
 def is_job_id_in_process_list(job_idx, job_list_arg, first_job, last_job) {
     if (job_list_arg) {
         if (job_list_arg instanceof Integer) {
