@@ -12,7 +12,7 @@ process IMPORT_CDMS {
     input:
     tuple val(anatomical_area),
           val(library_name),
-          path(library_base_dir),
+          val(library_base_dir),
           val(source_cdm_locations),
           val(searchable_cdm_locations),
           val(grad_locations),

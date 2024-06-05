@@ -8,6 +8,7 @@ workflow {
     ]
     def db_config_file = file(params.db_config)
     def cdmips_paths = [
+        params.library_base_dir,
         params.display_cdm_location,
         params.searchable_cdm_location,
         params.grad_location,
