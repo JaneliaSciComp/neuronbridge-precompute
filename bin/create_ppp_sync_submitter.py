@@ -8,7 +8,7 @@ import re
 import os
 import colorlog
 import inquirer
-from aws_s3_lib import list_prefixes
+import aws_s3_common.aws_s3_common as AW
 
 # Configuration
 MANIFOLDS = ['dev', 'prod', 'devpre', 'prodpre']
@@ -53,7 +53,7 @@ def create_commands():
     subsets = get_dirlist("/".join([BASE, source]), "^\d+$")
     # Get source prefix
     bucket = "janelia-ppp-match-" + ARG.MANIFOLD
-    prefixes = list_prefixes(bucket)
+    prefixes = AW.get_objects(bucket)
     prefixes = [prefix for prefix in prefixes if "JRC" in prefix]
     if len(prefixes) == 1:
         template = prefixes[0]
