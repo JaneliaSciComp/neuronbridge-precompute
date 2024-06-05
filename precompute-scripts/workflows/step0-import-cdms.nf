@@ -18,7 +18,7 @@ workflow {
             [
                 params.anatomical_area,
                 params.import_library,
-                file(params.library_base_dir),
+                params.library_base_dir,
                 params.source_cdm_location,
                 params.searchable_cdm_location,
                 params.grad_location,
