@@ -10,3 +10,4 @@ python-rapidjson
 simple_term_menu
 tqdm
 git+https://github.com/JaneliaSciComp/jrc_common.git
+git+https://github.com/JaneliaSciComp/neuronbridge_common.git
