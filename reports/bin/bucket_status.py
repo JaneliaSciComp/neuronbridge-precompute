@@ -4,7 +4,7 @@
 import json
 import re
 import boto3
-from aws_s3_lib import bucket_stats, get_objects, get_prefixes
+import aws_s3_common.aws_s3_common as AW
 
 
 def read_object(bucket, key):
@@ -34,13 +34,13 @@ def process_template_cdm(bucket, template):
         Returns:
           None
     """
-    libraries = get_prefixes(bucket, template)
+    libraries = AW.get_prefixes(bucket, template)
     for library in libraries:
         if "Test" in library:
             continue
         images = read_object(bucket, "/".join([template, library,
                                                "counts_denormalized.json"]))
-        parts = get_prefixes(bucket, "/".join([template, library,
+        parts = AW.get_prefixes(bucket, "/".join([template, library,
                                                "searchable_neurons"]))
         if parts:
             neurons = read_object(bucket, "/".join([template, library,
@@ -53,7 +53,7 @@ def process_template_cdm(bucket, template):
             arr = sorted(arr)
             last = arr[-1] if arr else ""
             prefix = "/".join([template, library,"searchable_neurons", "KEYS", "0"])
-            objs = get_objects(bucket, prefix)
+            objs = AW.get_objects(bucket, prefix)
             version = objs[-1].split(".")[-1].replace("_", ".") if objs[-1] and ".v" in objs[-1] \
                 else ""
             neurons = f"{int(neurons):,}"
@@ -71,9 +71,9 @@ def process_template_ppp(bucket, template):
         Returns:
           None
     """
-    libraries = get_prefixes(bucket, template)
+    libraries = AW.get_prefixes(bucket, template)
     for library in libraries:
-        divs = get_prefixes(bucket, "/".join([template, library]))
+        divs = AW.get_prefixes(bucket, "/".join([template, library]))
         print(f"{template:<25}  {library:<25}  {len(divs):^9}")
 
 
@@ -84,7 +84,7 @@ def process_data(bucket):
         Returns:
           None
     """
-    versions = get_prefixes(bucket)
+    versions = AW.get_prefixes(bucket)
     for ver in versions:
         print(ver)
 
@@ -100,7 +100,7 @@ def process_manifold(bucket, typ):
     if typ == "data":
         process_data(bucket)
         return
-    templates = get_prefixes(bucket)
+    templates = AW.get_prefixes(bucket)
     for template in templates:
         if not template.startswith("JRC"):
             continue
@@ -133,9 +133,9 @@ def process_bucket(name):
           None
     """
     if name == "janelia-flylight-color-depth":
-        bstat = bucket_stats(bucket=name, profile="FlyLightPDSAdmin")
+        bstat = AW.bucket_stats(bucket=name, profile="FlyLightPDSAdmin")
     else:
-        bstat = bucket_stats(bucket=name)
+        bstat = AW.bucket_stats(bucket=name)
     if not bstat['objects']:
         return False
     print(f"\n{name}: {bstat['objects']:,} objects, {humansize(bstat['size'])}")

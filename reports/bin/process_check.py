@@ -9,8 +9,8 @@ import re
 import sys
 from colorama import Fore, Style
 import requests
+import aws_s3_common.aws_s3_common as AW
 import jrc_common.jrc_common as JRC
-from aws_s3_lib import get_prefixes
 
 
 # pylint: disable=R1710, W0703
@@ -149,10 +149,10 @@ def process_aws():
             bucket += f"-{awsman}"
         else:
             manifold = "prod"
-        for prefix in get_prefixes(bucket):
+        for prefix in AW.get_prefixes(bucket):
             if not prefix.startswith("JRC"):
                 continue
-            libs =  get_prefixes(bucket, prefix)
+            libs =  AW.get_prefixes(bucket, prefix)
             for lib in libs:
                 newlib = lib.lower()
                 newlib = newlib.replace("flyem_", "").replace("_v", ":v")
