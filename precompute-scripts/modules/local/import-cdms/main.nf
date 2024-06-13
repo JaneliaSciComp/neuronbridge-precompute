@@ -28,7 +28,8 @@ process IMPORT_CDMS {
     tuple val(jacs_url),
           val(jacs_authorization),
           val(import_tag),
-          val(import_mips)
+          val(import_mips),
+          val(import_published_names)
     path(data_paths) // this argument is only sent to ensure all needed volumes are available
     
     output:
@@ -58,6 +59,7 @@ process IMPORT_CDMS {
     def jacs_auth_arg = jacs_authorization ? "--authorization \"${jacs_authorization}\"" : ''
     def import_tag_arg = import_tag ? "--tag ${import_tag}" : ''
     def import_mips_arg = import_mips ? "--mips ${import_mips}" : ''
+    def import_published_names_arg = import_published_names ? "--included-published-names ${import_published_names}" : ''
 
     """
     echo "\$(date) Run ${library_name} CDMs import on \$(hostname -s)"
@@ -81,6 +83,7 @@ process IMPORT_CDMS {
         ${library_variants_arg} \
         ${import_tag_arg} \
         ${import_mips_arg} \
+        ${import_published_names_arg} \
         --results-storage DB \
         --for-update
 
