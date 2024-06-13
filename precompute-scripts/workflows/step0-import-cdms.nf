@@ -36,6 +36,7 @@ workflow {
             params.jacs_url,
             params.jacs_authorization,
             params.import_tag,
+            params.import_mips,
         ],
         get_data_paths(cdmips_paths),
     ) // [area, library, import_tag]
