@@ -38,6 +38,7 @@ workflow {
             params.import_tag,
             params.import_mips,
             params.import_published_names,
+            params.excluded_libraries,
         ],
         get_data_paths(cdmips_paths),
     ) // [area, library, import_tag]
