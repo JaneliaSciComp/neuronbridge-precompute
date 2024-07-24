@@ -42,7 +42,7 @@ def initialize_program():
         DB[dbname] = JRC.connect_database(dbo)
 
 
-def color(txt):
+def color(txt, warn=False):
     """ Color Yes/No text
         Keyword arguments:
           txt: text to color
@@ -51,6 +51,8 @@ def color(txt):
     """
     if 'Yes' in txt:
         return Fore.GREEN + txt + Style.RESET_ALL
+    if warn:
+        return Fore.YELLOW + txt + Style.RESET_ALL
     return Fore.RED + txt + Style.RESET_ALL
 
 
@@ -106,14 +108,15 @@ def get_datasets():
             on_nb = 'No'
         rep[row['_id']['ds']] = {'ds': dset, 'ver': ver,
                                  'nb': on_nb,
-                                 'cnt': row['count'], 'act': dataset[dsid]['active'],
-                                 'pub': dataset[dsid]['published']}
+                                 'cnt': row['count'],
+                                 'act': color(f"{dataset[dsid]['active']:^6}", True),
+                                 'pub': color(f"{dataset[dsid]['published']:^6}", True)}
     # Display
     print(f"{'Data set':<{maxds}}  Version  {'Active':6}  {'Public':6}  {'Bodies':7}  NeuronBridge")
     print(f"{'-'*maxds}  {'-'*7}  {'-'*6}  {'-'*6}  {'-'*7}  {'-'*12}")
     for dset, data in sorted(rep.items()):
-        print(f"{data['ds']:<{maxds}}  {data['ver']:<7}  {data['act']:^6}  " \
-              + f"{data['pub']:^6}  {data['cnt']:>7,}  {data['nb']:^12}")
+        print(f"{data['ds']:<{maxds}}  {data['ver']:<7}  {data['act']}  " \
+              + f"{data['pub']}  {data['cnt']:>7,}  {data['nb']:^12}")
 
 
 # -----------------------------------------------------------------------------
