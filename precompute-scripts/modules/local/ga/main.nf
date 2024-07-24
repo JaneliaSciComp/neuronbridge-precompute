@@ -32,7 +32,8 @@ process GA {
           val(top_best_sample_matches_per_line),
           val(top_best_matches_per_sample),
           val(processing_size),
-          val(process_partitions_concurrently)
+          val(process_partitions_concurrently),
+          val(with_bidirectional_matching)
     path(mips_base_dir)
 
     when:
@@ -52,6 +53,7 @@ process GA {
     def mirror_flag_arg = mirror_flag ? '--mirrorMask' : ''
     def processing_size_arg = processing_size ? "-ps ${processing_size}" : ''
     def process_partitions_concurrently_arg = process_partitions_concurrently ? '--process-partitions-concurrently' : ''
+    def with_bidirectional_matching_arg = with_bidirectional_matching ? '--use-bidirectional-matching' : ''
 
     """
     echo "\$(date) Run ${anatomical_area} gradscore job: ${job_id} on \$(hostname -s)"

@@ -69,6 +69,7 @@ workflow {
             params.top_best_matches_per_sample,
             params.ga_processing_size,
             params.process_partitions_concurrently,
+            params.with_bidirectional_matching,
        ],
        file(params.mips_base_dir),
     )
