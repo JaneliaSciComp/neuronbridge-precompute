@@ -91,6 +91,8 @@ process GA {
         ${mirror_flag_arg} \
         --processing-tag ${ga_processing_tag} \
         ${matches_tags_arg} \
+        ${masks_processing_tags_arg} \
+        ${targets_processing_tags_arg} \
         ${with_bidirectional_matching_arg} \
         --nBestLines ${top_best_line_matches} \
         --nBestSamplesPerLine ${top_best_sample_matches_per_line} \
