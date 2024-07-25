@@ -1,6 +1,7 @@
 include {
     area_to_alignment_space;
     get_lib_arg;
+    get_values_as_map;
 } from '../../../nfutils/utils'
 
 process GA {
@@ -33,6 +34,9 @@ process GA {
           val(top_best_matches_per_sample),
           val(processing_size),
           val(process_partitions_concurrently),
+          val(matches_tags),
+          val(masks_processing_tags),
+          val(targets_processing_tags),
           val(with_bidirectional_matching)
     path(mips_base_dir)
 
@@ -53,6 +57,9 @@ process GA {
     def mirror_flag_arg = mirror_flag ? '--mirrorMask' : ''
     def processing_size_arg = processing_size ? "-ps ${processing_size}" : ''
     def process_partitions_concurrently_arg = process_partitions_concurrently ? '--process-partitions-concurrently' : ''
+    def matches_tags_arg = matches_tags ? "--match-tags ${matches_tags}" : ''
+    def masks_processing_tags_arg = masks_processing_tags ? "--masks-processing-tags ${get_processing_tags_arg(masks_processing_tags)}" : ''
+    def targets_processing_tags_arg = targets_processing_tags ? "--targets-processing-tags ${get_processing_tags_arg(targets_processing_tags)}" : ''
     def with_bidirectional_matching_arg = with_bidirectional_matching ? '--use-bidirectional-matching' : ''
 
     """
@@ -82,11 +89,25 @@ process GA {
         ${processing_size_arg} \
         ${process_partitions_concurrently_arg} \
         ${mirror_flag_arg} \
+        --processing-tag ${ga_processing_tag} \
+        ${matches_tags_arg} \
+        ${with_bidirectional_matching_arg} \
         --nBestLines ${top_best_line_matches} \
         --nBestSamplesPerLine ${top_best_sample_matches_per_line} \
-        --nBestMatchesPerSample ${top_best_matches_per_sample} \
-        --processing-tag ${ga_processing_tag} \
+        --nBestMatchesPerSample ${top_best_matches_per_sample}
 
     echo "\$(date) Completed ${anatomical_area} gradscore job: ${job_id} on \$(hostname -s)"
     """
+}
+
+def get_processing_tags_arg(ptags_as_str) {
+    def ptags_map = get_values_as_map(ptags_as_str)
+    ptags_map
+        .collect { k, vs ->
+            def vs_str = vs.join(';')
+            "${k}:${vs_str}"
+        }
+        .inject('') { arg, item ->
+            arg ? "${arg},${item}" : item
+        }
 }

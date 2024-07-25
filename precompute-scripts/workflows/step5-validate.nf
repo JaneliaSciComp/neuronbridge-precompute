@@ -17,6 +17,7 @@ workflow {
             params.validate_published_names,
             params.validate_tags,
             params.mip_excluded_tags,
+            '',
             true,
         ]),
         db_config_file,

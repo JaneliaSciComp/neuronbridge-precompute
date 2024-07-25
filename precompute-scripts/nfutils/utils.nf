@@ -47,15 +47,45 @@ def get_list_arg(values) {
     }
 }
 
-def get_values_as_collection(values) {
+def get_values_as_collection(values, value_separator=',') {
     if (values) {
         if (values instanceof Collection) {
             values
         } else {
-            values.tokenize(',')
+            values.tokenize(value_separator)
         }
     } else {
         return []
+    }
+}
+
+def get_values_as_map(values, 
+                      entries_separator=',', 
+                      key_value_separator=':',
+                      values_separator=';') {
+    if (values) {
+        if (values instanceof Map) {
+            values.collectEntries { k, vs ->
+                [k, get_values_as_collection(vs, values_separator)]
+            }
+        } else {
+            def entries = values.tokenize(entries_separator)
+            entries
+                .collect { entry ->
+                    def (k, vs) = entry.split(key_value_separator)
+                    def trimmed_k = k.trim()
+                    def trimmed_vs = get_values_as_collection(vs.trim(), values_separator)
+                    if (trimmed_k && trimmed_vs) {
+                        [trimmed_k, trimmed_vs]
+                    } else {
+                        []
+                    }
+                }
+                .findAll { it }
+                .collectEntries()
+        }
+    } else {
+        return [:]
     }
 }
 

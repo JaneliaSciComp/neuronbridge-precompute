@@ -20,6 +20,7 @@ workflow {
             params.masks_excluded_tags,
             params.mask_terms,
             params.mask_excluded_terms,
+            '', // we don't care about processing tags for cds
             false,
         ]),
         db_config_file,
@@ -34,6 +35,7 @@ workflow {
             params.targets_excluded_tags,
             params.target_terms,
             params.target_excluded_terms,
+            '',
             false,
         ]),
         db_config_file,

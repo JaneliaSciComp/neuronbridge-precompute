@@ -17,6 +17,7 @@ workflow {
             params.masks_published_names,
             params.masks_tags,
             params.masks_excluded_tags,
+            '',
             true,
         ]),
         db_config_file,
