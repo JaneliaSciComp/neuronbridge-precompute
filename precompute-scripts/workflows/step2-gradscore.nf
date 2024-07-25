@@ -21,7 +21,6 @@ workflow {
             params.masks_processing_tags,
             true,
         ])
-    masks_count_input | view
 
     def unique_masks_count = COUNT_MASKS(masks_count_input, db_config_file)
 
