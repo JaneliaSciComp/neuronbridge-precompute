@@ -10,8 +10,7 @@ workflow {
 
     def db_config_file = file(params.db_config)
 
-    def unique_masks_count = COUNT_MASKS(
-        Channel.of([
+    def masks_count_input = Channel.of([
             params.anatomical_area,
             params.masks_library,
             params.masks_published_names,
@@ -19,9 +18,10 @@ workflow {
             params.masks_excluded_tags,
             params.masks_processing_tags,
             true,
-        ]),
-        db_config_file,
-    )
+        ])
+    masks_count_input | view
+
+    def unique_masks_count = COUNT_MASKS(masks_count_input, db_config_file)
 
     // split the work
     def gradscore_inputs = unique_masks_count
