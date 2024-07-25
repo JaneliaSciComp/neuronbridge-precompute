@@ -110,7 +110,7 @@ def get_processing_tag_in_filter(ptags_as_str) {
     def ptags_map = get_values_as_map(ptags_as_str)
     ptags_map
         .collect { k, vs ->
-            "\"processingTags.$k\": ${get_in_filter(vs)}"
+            "\"processedTags.$k\": ${get_in_filter(vs)}"
         }
         .inject('') { arg, item ->
             arg ? "${arg}, ${item}" : item
