@@ -45,7 +45,6 @@ process DBQUERY {
         : ''
     def match_op = '$match'
     def count_op = '$count'
-    log.info "$processing_tags_filter"
     """
     mongodb_server=\$(grep -e "MongoDB.Server=" ${db_config_file} | sed s/MongoDB.Server=//)
     mongodb_database=\$(grep -e "MongoDB.Database=" ${db_config_file} | sed s/MongoDB.Database=//)
