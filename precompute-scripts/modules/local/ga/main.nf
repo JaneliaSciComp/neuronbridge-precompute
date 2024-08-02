@@ -27,7 +27,11 @@ process GA {
     tuple val(ga_processing_tag),
           val(cache_size),
           val(masks_published_names),
+          val(mask_terms),
+          val(mask_excluded_terms),
           val(targets_published_names),
+          val(target_terms),
+          val(target_excluded_terms),
           val(mirror_flag),
           val(top_best_line_matches),
           val(top_best_sample_matches_per_line),
@@ -52,8 +56,12 @@ process GA {
     def alignment_space = area_to_alignment_space(anatomical_area)
     def masks_arg = get_lib_arg(masks_library, masks_offset, masks_length)
     def masks_published_names_arg = masks_published_names ? "--masks-published-names ${masks_published_names}" : ''
+    def mask_terms_arg = mask_terms ? "--masks-terms ${mask_terms}" : ''
+    def mask_excluded_terms_arg = mask_excluded_terms ? "--excluded-masks-terms ${mask_excluded_terms}" : ''
     def targets_library_arg = targets_library ? "--targets-libraries ${targets_library}" : ''
     def targets_published_names_arg = targets_published_names ? "--targets-published-names ${targets_published_names}" : ''
+    def target_terms_arg = target_terms ? "--targets-terms ${target_terms}" : ''
+    def target_excluded_terms_arg = target_excluded_terms ? "--excluded-targets-terms ${target_excluded_terms}" : ''
     def mirror_flag_arg = mirror_flag ? '--mirrorMask' : ''
     def processing_size_arg = processing_size ? "-ps ${processing_size}" : ''
     def process_partitions_concurrently_arg = process_partitions_concurrently ? '--process-partitions-concurrently' : ''
@@ -84,8 +92,12 @@ process GA {
         -as ${alignment_space} \
         --masks-libraries ${masks_arg} \
         ${masks_published_names_arg} \
+        ${mask_terms_arg} \
+        ${mask_excluded_terms_arg} \
         ${targets_library_arg} \
         ${targets_published_names_arg} \
+        ${target_terms_arg} \
+        ${target_excluded_terms_arg} \
         ${processing_size_arg} \
         ${process_partitions_concurrently_arg} \
         ${mirror_flag_arg} \
