@@ -12,6 +12,6 @@
     "gradscore_batch_size": 100,
     "ga_processing_size": 12,
     "gradscore_cache_size": 12768,
-    "cds_processing_tag": "gradscore-flywire-vs-mcfo",
+    "gradscore_processing_tag": "gradscore-flywire-vs-mcfo",
     "java_opts": ""
 }
