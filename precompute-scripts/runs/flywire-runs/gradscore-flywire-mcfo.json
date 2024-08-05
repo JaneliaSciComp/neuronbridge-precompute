@@ -1,0 +1,17 @@
+{
+    "job_list": "",
+    "anatomical_area": "brain",
+    "db_config": "mylocal/proddb-config.properties",
+    "masks_library": "flywire_fafb_783",
+    "masks_published_names": "",
+    "mask_excluded_terms": "optic",
+    "targets_published_names": "",
+    "targets_library": "flylight_gen1_mcfo_published",
+    "mip_excluded_tags": "validationError",
+    "process_partitions_concurrently": false,
+    "gradscore_batch_size": 100,
+    "ga_processing_size": 12,
+    "gradscore_cache_size": 12768,
+    "cds_processing_tag": "gradscore-flywire-vs-mcfo",
+    "java_opts": ""
+}
