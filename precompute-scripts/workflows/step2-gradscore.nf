@@ -78,6 +78,7 @@ workflow {
             params.matches_tags,
             params.masks_processing_tags,
             params.targets_processing_tags,
+            params.pct_pos_pixels,
             params.grad_score_parallelism,
             params.with_bidirectional_matching,
        ],

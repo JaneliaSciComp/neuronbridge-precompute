@@ -8,10 +8,11 @@
     "targets_published_names": "",
     "targets_library": "flylight_gen1_mcfo_published,flylight_annotator_gen1_mcfo_published",
     "mip_excluded_tags": "validationError",
+    "pct_pos_pixels": 5,
     "process_partitions_concurrently": false,
     "gradscore_batch_size": 100,
     "ga_processing_size": 12,
-    "grad_score_parallelism": 40,
+    "grad_score_parallelism": 20,
     "gradscore_cache_size": 12768,
     "gradscore_processing_tag": "gradscore-flywire-vs-mcfo+annmcfo",
     "java_opts": ""
