@@ -18,5 +18,5 @@
     "grad_score_parallelism": 10,
     "gradscore_cache_size": 12768,
     "gradscore_processing_tag": "gradscore-flywire-vs-mcfo+annmcfo",
-    "java_opts": "-XX:+UseZGC -XX:ConcGCThreads=2"
+    "java_opts": ""
 }
