@@ -78,6 +78,7 @@ workflow {
             params.matches_tags,
             params.masks_processing_tags,
             params.targets_processing_tags,
+            params.grad_score_parallelism,
             params.with_bidirectional_matching,
        ],
        file(params.mips_base_dir),
