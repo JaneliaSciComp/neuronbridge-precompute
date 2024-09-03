@@ -16,6 +16,7 @@ workflow {
             params.anatomical_area,
             exported_mask_libs,
             params.exported_mask_names,
+            params.exported_mask_mips,
             params.exported_mask_tags,
             params.excluded_from_exported_mask_tags,
             params.exported_mask_terms,
