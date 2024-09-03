@@ -1,0 +1,11 @@
+{
+    "job_list": "",
+    "anatomical_area": "brain",
+    "export_type": "LM_CD_MATCHES",
+    "db_config": "mylocal/proddb-config.properties",
+    "data_version": "3.4.0",
+    "exported_mask_mips": "2711777843074826251",
+    "jacs_url": "",
+    "jacs_authorization": "",
+    "java_opts": ""
+}
