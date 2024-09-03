@@ -15,6 +15,7 @@ process DBQUERY {
     tuple val(anatomical_area),
           val(library_names),
           val(published_names),
+          val(mip_ids),
           val(mip_tags),
           val(excluded_tags),
           val(mips_terms),
@@ -39,6 +40,7 @@ process DBQUERY {
     def terms_filter = mips_terms ? "neuronTerms: ${get_in_filter(mips_terms)}," : ''
     def excluded_terms_filter = excluded_terms ? "neuronTerms: ${get_nin_filter(excluded_terms)}," : ''
     def published_name_filter = published_names ? "publishedName: ${get_in_filter(published_names)}," : ''
+    def mip_id_filter = mip_ids ? "mipId: ${get_in_filter(mip_ids)}," : ''
     def processing_tags_filter = processing_tags ? "${get_processing_tag_in_filter(processing_tags)}," : ''
     def unique_pipeline = unique_mips 
         ? "{\\\$group: {_id: \"\\\$mipId\"}},"
@@ -64,6 +66,7 @@ process DBQUERY {
                 ${terms_filter}
                 ${excluded_terms_filter}
                 ${published_name_filter}
+                ${mip_id_filter}
                 ${processing_tags_filter}
             }
         },

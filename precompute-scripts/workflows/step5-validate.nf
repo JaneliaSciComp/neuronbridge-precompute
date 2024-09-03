@@ -15,6 +15,7 @@ workflow {
             params.anatomical_area,
             params.validate_libs,
             params.validate_published_names,
+            params.validate_mip_ids,
             params.validate_tags,
             params.mip_excluded_tags,
             params.mip_terms,

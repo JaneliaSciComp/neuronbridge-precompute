@@ -14,6 +14,7 @@ workflow {
             params.anatomical_area,
             params.masks_library,
             params.masks_published_names,
+            params.masks_mip_ids,
             params.masks_tags,
             params.masks_excluded_tags,
             params.mask_terms,
