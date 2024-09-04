@@ -1,7 +1,7 @@
 {
     "job_list": "",
     "anatomical_area": "brain",
-    "export_type": "LM_CD_MATCHES",
+    "export_type": "EM_CD_MATCHES",
     "db_config": "mylocal/proddb-config.properties",
     "data_version": "3.3.1",
     "exported_mask_mips": "",
