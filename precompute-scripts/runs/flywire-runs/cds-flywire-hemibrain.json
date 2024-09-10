@@ -1,0 +1,13 @@
+{
+    "job_list": "",
+    "anatomical_area": "brain",
+    "db_config": "mylocal/devdb-config.properties",
+    "masks_library": "flywire_fafb_783",
+    "masks_published_names": "",
+    "mask_excluded_terms": "optic",
+    "targets_published_names": "",
+    "targets_library": "flyem_hemibrain_1_2_1",
+    "mip_excluded_tags": "validationError",
+    "cds_processing_tag": "cds-flywire-vs-hemibrain",
+    "java_opts": ""
+}
