@@ -1,0 +1,21 @@
+{
+    "job_list": "",
+    "anatomical_area": "brain",
+    "with_bidirectional_matching": true,
+    "db_config": "mylocal/devdb-config.properties",
+    "masks_library": "flywire_fafb_783",
+    "masks_published_names": "",
+    "mask_excluded_terms": "optic",
+    "masks_processing_tags": "ColorDepthSearch:cds-flywire-vs-hemibrain",
+    "targets_published_names": "",
+    "targets_library": "flyem_hemibrain_1_2_1",
+    "targets_processing_tags": "ColorDepthSearch:cds-flywire-vs-hemibrain",
+    "mip_excluded_tags": "validationError",
+    "process_partitions_concurrently": false,
+    "gradscore_batch_size": 200,
+    "ga_processing_size": 12,
+    "grad_score_parallelism": 40,
+    "gradscore_cache_size": 12768,
+    "gradscore_processing_tag": "gradscore-flywire-vs-hemibrain",
+    "java_opts": ""
+}
