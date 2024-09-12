@@ -12,5 +12,6 @@
     "vol_segmentation_location": [
         "/nrs/jacs/jacsData/filestore/system/EMSkeletons/JRC2018_Unisex_20x_HR/flylight_raw_published/IS_segmented_nrrd"
     ],
+    "excluded_libraries": "flylight_split_gal4_published",
     "libstore_dir": "/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs"
 }
