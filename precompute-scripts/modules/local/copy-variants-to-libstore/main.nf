@@ -17,6 +17,7 @@ process COPY_VARIANTS_TO_LIBSTORE {
           val(searchable_cdm_location),
           val(grad_location),
           val(zgap_location),
+          val(ignore_source_cdms),
           val(dry_run)
     tuple path(app_jar),
           path(log_config),
@@ -37,6 +38,11 @@ process COPY_VARIANTS_TO_LIBSTORE {
     def java_mem_opts = "-Xmx${mem_gb-1}G -Xms${mem_gb-1}G"
     def alignment_space = area_to_alignment_space(anatomical_area)
     def libstore_dir = "${libstore_base_dir}/${alignment_space}/${library_name}"
+    def source_cdm_mapping_arg = !ignore_source_cdms ? "--surjective-variants-mappingcdm=${display_cdm_location}" : ''
+    def grad_mapping_arg = "--surjective-variants-mappinggrad=${grad_location}"
+    def searchable_mapping_arg = "--surjective-variants-mappingsegmentation=${searchable_cdm_location}"
+    def zgap_mapping_arg = "--surjective-variants-mappingzgap=${zgap_location}"
+
     def dry_run_arg = dry_run ? '-n' : ''
 
     """
@@ -60,10 +66,10 @@ process COPY_VARIANTS_TO_LIBSTORE {
         copyToMipsStore \
         -i ${variants_json_file} \
         -od \${full_libstore_dir} \
-        --surjective-variants-mappingcdm=${display_cdm_location} \
-        --surjective-variants-mappinggrad=${grad_location} \
-        --surjective-variants-mappingsegmentation=${searchable_cdm_location} \
-        --surjective-variants-mappingzgap=${zgap_location} \
+        ${source_cdm_mapping_arg} \
+        ${searchable_mapping_arg} \
+        ${grad_mapping_arg} \
+        ${zgap_mapping_arg} \
         ${dry_run_arg}
 
     echo "\$(date) Completed copying ${library_name} variants on \$(hostname -s)"

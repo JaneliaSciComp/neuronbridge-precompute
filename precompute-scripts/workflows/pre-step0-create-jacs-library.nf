@@ -51,6 +51,7 @@ workflow {
             params.searchable_cdm_dest,
             params.grad_dest,
             params.zgap_dest,
+            params.ignore_source_cdms,
             params.dry_run,
         ]
     }

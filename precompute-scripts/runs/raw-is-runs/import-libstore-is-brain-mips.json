@@ -8,8 +8,5 @@
     "searchable_cdm_location": "IS_CDM_Neuron",
     "grad_location": "IS_gradient",
     "zgap_location": "IS_20pxRGB",
-    "vol_segmentation_location": [
-        "IS_segmented_nrrd"
-    ],
-    "libstore_dir": "/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs.TEST",
+    "libstore_dir": "/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs.TEST"
 }
