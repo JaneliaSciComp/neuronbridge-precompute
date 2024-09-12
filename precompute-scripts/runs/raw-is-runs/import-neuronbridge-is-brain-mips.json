@@ -1,0 +1,16 @@
+{
+    "dry_run": true,
+    "anatomical_area": "brain",
+    "import_library": "flylight_raw_published",
+    "import_tag": "import-is",
+    "jacs_url": "",
+    "jacs_authorization": "",
+    "db_config": "mylocal/devdb-config.properties",
+    "searchable_cdm_location": "segmentation",
+    "grad_location": "grad",
+    "zgap_location": "zgap",
+    "vol_segmentation_location": [
+        "/nrs/jacs/jacsData/filestore/system/EMSkeletons/JRC2018_Unisex_20x_HR/flylight_raw_published/IS_segmented_nrrd"
+    ],
+    "libstore_dir": "/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs"
+}
