@@ -12,7 +12,7 @@
     "targets_processing_tags": "ColorDepthSearch:cds-flywire-vs-hemibrain",
     "mip_excluded_tags": "validationError",
     "process_partitions_concurrently": false,
-    "gradscore_batch_size": 200,
+    "gradscore_batch_size": 100,
     "ga_processing_size": 12,
     "grad_score_parallelism": 40,
     "gradscore_cache_size": 12768,
