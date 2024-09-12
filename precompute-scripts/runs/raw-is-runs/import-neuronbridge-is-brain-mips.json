@@ -1,11 +1,10 @@
 {
-    "dry_run": true,
     "anatomical_area": "brain",
     "import_library": "flylight_raw_published",
     "import_tag": "import-is",
     "jacs_url": "",
     "jacs_authorization": "",
-    "db_config": "mylocal/devdb-config.properties",
+    "db_config": "mylocal/proddb-config.properties",
     "searchable_cdm_location": "segmentation",
     "grad_location": "grad",
     "zgap_location": "zgap",
