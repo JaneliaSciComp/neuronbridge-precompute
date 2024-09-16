@@ -283,7 +283,7 @@ def select_uploads():
     global WILL_LOAD, REQUIRED_PRODUCTS # pylint: disable=W0603
     choices = CLOAD.variants
     defaults = ["searchable_neurons"]
-    if ARG.LIBRARY.startswith('flyem'):
+    if not ARG.LIBRARY.startswith('flylight'):
         choices.append("skeletons")
         defaults.append("skeletons")
     quest = [inquirer.Checkbox('checklist',
