@@ -3,6 +3,7 @@
 '''
 
 import argparse
+import collections
 from operator import attrgetter
 import sys
 import boto3
@@ -16,7 +17,7 @@ import jrc_common.jrc_common as JRC
 DB = {}
 ITEMS = []
 # Counters
-COUNT = {"bodyids": 0, "insertions": 0}
+COUNT = collections.defaultdict(lambda: 0, {})
 KEYS = {}
 
 
