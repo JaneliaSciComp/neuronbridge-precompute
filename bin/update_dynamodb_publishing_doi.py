@@ -67,7 +67,9 @@ def create_dynamodb_table(dynamodb, table):
                "BillingMode": "PAY_PER_REQUEST",
                "Tags": [{"Key": "PROJECT", "Value": "NeuronBridge"},
                         {"Key": "DEVELOPER", "Value": "svirskasr"},
-                        {"Key": "STAGE", "Value": "prod"}]
+                        {"Key": "STAGE", "Value": "prod"},
+                        {"Key": "DESCRIPTION",
+                         "Value": "Stores citations/DOIs for individual bodies/publishing names"}]
               }
     if ARG.WRITE:
         print(f"Creating DynamoDB table {table}")
