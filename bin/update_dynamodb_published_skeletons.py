@@ -3,20 +3,17 @@
 '''
 
 import argparse
-import json
-import os
+from operator import attrgetter
 import sys
-from types import SimpleNamespace
 import boto3
-import colorlog
 import inquirer
-from pymongo import MongoClient
-import requests
+from inquirer.themes import BlueComposure
 from tqdm import tqdm
+import jrc_common.jrc_common as JRC
 
 # pylint: disable=W0703, E1101
 # Database
-DATABASE = {}
+DB = {}
 ITEMS = []
 # Counters
 COUNT = {"bodyids": 0, "insertions": 0}
@@ -31,39 +28,10 @@ def terminate_program(msg=None):
            None
     """
     if msg:
+        if not isinstance(msg, str):
+            msg = f"An exception of type {type(msg).__name__} occurred. Arguments:\n{msg.args}"
         LOGGER.critical(msg)
     sys.exit(-1 if msg else 0)
-
-
-def call_responder(server, endpoint):
-    ''' Call a responder
-        Keyword arguments:
-          server: server
-          endpoint: REST endpoint
-        Returns:
-          JSON response
-    '''
-    url = ((getattr(getattr(REST, server), "url") if server else "") if "REST" in globals() \
-           else (os.environ.get('CONFIG_SERVER_URL') if server else "")) + endpoint
-    try:
-        req = requests.get(url, timeout=10)
-    except requests.exceptions.RequestException as err:
-        terminate_program(err)
-    if req.status_code == 200:
-        return req.json()
-    terminate_program(f"Could not get response from {url}: {req.text}")
-    return False
-
-
-def create_config_object(config):
-    """ Convert the JSON received from a configuration to an object
-        Keyword arguments:
-          config: configuration name
-        Returns:
-          Configuration object
-    """
-    data = (call_responder("config", f"config/{config}"))["config"]
-    return json.loads(json.dumps(data), object_hook=lambda dat: SimpleNamespace(**dat))
 
 
 def create_dynamodb_table(dynamodb, table):
@@ -97,17 +65,19 @@ def initialize_program():
         Returns:
           None
     """
-    dbconfig = create_config_object("db_config")
-    # MongoDB
-    LOGGER.info("Connecting to neuronbridge MongoDB on %s", ARG.MONGO)
     try:
-        dbc = getattr(getattr(dbconfig, "neuronbridge-mongo"), ARG.MONGO)
-        rset = 'rsProd' if ARG.MONGO == 'prod' else 'rsDev'
-        client = MongoClient(dbc.read.host, replicaSet=rset, username=dbc.read.user,
-                             password=dbc.read.password)
-        DATABASE["NB"] = client.neuronbridge
+        dbconfig = JRC.get_config("databases")
     except Exception as err:
-        terminate_program(f"Could not connect to Mongo: {err}")
+        terminate_program(err)
+    dbs = ['neuronbridge']
+    for source in dbs:
+        rwp = 'write' if (ARG.WRITE and dbs == 'neuronbridge') else 'read'
+        dbo = attrgetter(f"{source}.{ARG.MANIFOLD}.{rwp}")(dbconfig)
+        LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, ARG.MANIFOLD, dbo.host, dbo.user)
+        try:
+            DB[source] = JRC.connect_database(dbo)
+        except Exception as err:
+            terminate_program(err)
     # DynamoDB
     table = "janelia-neuronbridge-published-skeletons"
     if ARG.MANIFOLD != "prod":
@@ -123,7 +93,7 @@ def initialize_program():
         LOGGER.warning("Table %s doesn't exist", table)
         create_dynamodb_table(dynamodb, table)
     LOGGER.info("Will write results to DynamoDB table %s", table)
-    DATABASE["DYN"] = dynamodb.Table(table)
+    DB["DYN"] = dynamodb.Table(table)
 
 
 def batch_row(row):
@@ -156,7 +126,7 @@ def write_dynamodb():
           None
     '''
     LOGGER.info("Batch writing %s items to DynamoDB", len(ITEMS))
-    with DATABASE["DYN"].batch_writer() as writer:
+    with DB["DYN"].batch_writer() as writer:
         for item in tqdm(ITEMS, desc="DynamoDB"):
             try:
                 writer.put_item(Item=item)
@@ -173,9 +143,9 @@ def update_dynamo():
         Returns:
           None
     '''
-    LOGGER.info("Finding skeletons")
-    coll = DATABASE["NB"]["publishedURL"]
-    libs = coll.distinct("libraryName", {"libraryName": {"$regex": "^flyem_"}})
+    LOGGER.info("Finding libraries with skeletons")
+    coll = DB["neuronbridge"]["publishedURL"]
+    libs = coll.distinct("libraryName", {"libraryName": {"$regex": "^(flyem|flywire)_"}})
     if ARG.LIBRARY:
         if ARG.LIBRARY not in libs:
             terminate_program(f"{ARG.LIBRARY} is not a valid library")
@@ -184,7 +154,7 @@ def update_dynamo():
         quest = [inquirer.Checkbox('checklist',
                                    message='Select libraries to upload',
                                    choices=libs, default=libs)]
-        will_load = inquirer.prompt(quest)['checklist']
+        will_load = inquirer.prompt(quest, theme=BlueComposure())['checklist']
     for lib in will_load:
         COUNT[lib] = {"skeletonobj": 0, "skeletonswc": 0}
     payload = {"libraryName": {"$in": will_load},
@@ -196,16 +166,16 @@ def update_dynamo():
         batch_row(row)
     if ARG.WRITE:
         write_dynamodb()
-    print(f"Body IDs found:     {count}")
-    print(f"Body IDs processed: {COUNT['bodyids']}")
-    print(f"Body IDs written:   {COUNT['insertions']}")
+    print(f"Body IDs found:     {count:,}")
+    print(f"Body IDs processed: {COUNT['bodyids']:,}")
+    print(f"Body IDs written:   {COUNT['insertions']:,}")
     print("Skeleton counts:")
     for key, cnt in COUNT.items():
         if key in ["bodyids", "insertions"]:
             continue
         print(f"  {key}")
         for skel in cnt.keys():
-            print(f"    {skel}: {cnt.get(skel)}")
+            print(f"    {skel}: {cnt.get(skel):,}")
 
 
 if __name__ == '__main__':
@@ -225,18 +195,11 @@ if __name__ == '__main__':
     PARSER.add_argument('--debug', dest='DEBUG', action='store_true',
                         default=False, help='Flag, Very chatty')
     ARG = PARSER.parse_args()
-    LOGGER = colorlog.getLogger()
-    ATTR = colorlog.colorlog.logging if "colorlog" in dir(colorlog) else colorlog
-    if ARG.DEBUG:
-        LOGGER.setLevel(ATTR.DEBUG)
-    elif ARG.VERBOSE:
-        LOGGER.setLevel(ATTR.INFO)
-    else:
-        LOGGER.setLevel(ATTR.WARNING)
-    HANDLER = colorlog.StreamHandler()
-    HANDLER.setFormatter(colorlog.ColoredFormatter())
-    LOGGER.addHandler(HANDLER)
-    REST = create_config_object("rest_services")
+    LOGGER = JRC.setup_logging(ARG)
+    try:
+        REST = JRC.simplenamespace_to_dict(JRC.get_config("rest_services"))
+    except Exception as gerr:
+        terminate_program(gerr)
     initialize_program()
     update_dynamo()
     terminate_program()

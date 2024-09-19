@@ -7,11 +7,11 @@
 '''
 
 import argparse
+import collections
 import json
 from operator import attrgetter
 import re
 import sys
-from types import SimpleNamespace
 import boto3
 import MySQLdb
 from tqdm import tqdm
@@ -35,8 +35,7 @@ READ = {"LINES": "SELECT DISTINCT line,value AS doi,GROUP_CONCAT(DISTINCT origin
 READ["LINESREL"] = READ["LINES"].replace("GROUP BY", "AND alps_release=%" + "s GROUP BY")
 MONGODB = 'neuronbridge-mongo'
 # General use
-COUNT = {"dynamodb": 0, "read": 0}
-
+COUNT = collections.defaultdict(lambda: 0, {})
 
 def terminate_program(msg=None):
     """ Log an optional error to output, close files, and exit
@@ -50,22 +49,6 @@ def terminate_program(msg=None):
             msg = f"An exception of type {type(msg).__name__} occurred. Arguments:\n{msg.args}"
         LOGGER.critical(msg)
     sys.exit(-1 if msg else 0)
-
-
-def simplenamespace_to_dict(nspace):
-    """ Convert a simplenamespace to a dict recursively
-        Keyword arguments:
-          nspace: simplenamespace to convert
-        Returns:
-          The converted dict
-    """
-    result = {}
-    for key, value in nspace.__dict__.items():
-        if isinstance(value, SimpleNamespace):
-            result[key] = simplenamespace_to_dict(value)
-        else:
-            result[key] = value
-    return result
 
 
 def create_dynamodb_table(dynamodb, table):
@@ -129,7 +112,7 @@ def initialize_program():
     LOGGER.info("Writing results to DynamoDB table %s", table)
     DB["DOI"] = dynamodb.Table(table)
     # Releases
-    reldict = simplenamespace_to_dict(JRC.get_config("releases"))
+    reldict = JRC.simplenamespace_to_dict(JRC.get_config("releases"))
     for _, rel in reldict.items():
         if 'doi' not in rel:
             continue
@@ -409,7 +392,7 @@ if __name__ == '__main__':
     SERVER = JRC.get_config("servers")
     initialize_program()
     try:
-        EMDOI = simplenamespace_to_dict(JRC.get_config("em_dois"))
+        EMDOI = JRC.simplenamespace_to_dict(JRC.get_config("em_dois"))
     except Exception as gerr:
         terminate_program(gerr)
     perform_mapping()
