@@ -3,6 +3,7 @@
 '''
 
 import argparse
+import collections
 from datetime import datetime
 from operator import attrgetter
 import re
@@ -10,6 +11,7 @@ import sys
 import time
 import boto3
 import inquirer
+from inquirer.themes import BlueComposure
 import MySQLdb
 from tqdm import tqdm
 import jrc_common.jrc_common as JRC
@@ -23,9 +25,7 @@ DATABASE = {}
 DYNAMO = {}
 ITEMS = []
 # Counters
-COUNT = {"bodyID": 0, "publishingName": 0, "neuronInstance": 0, "neuronType": 0,
-        "images": 0, "missing": 0, "consensus": 0, "notreleased": 0,
-         "insertions": 0}
+COUNT = collections.defaultdict(lambda: 0, {})
 FAILURE = {}
 KEYS = {}
 KNOWN_PPP = {}
@@ -197,9 +197,10 @@ def batch_row(name, keytype, matches, bodyids=None):
                "searchKey": name.lower(),
                "filterKey": name.lower(),
                "name": name,
-               "keyType": keytype,
-               "cdm": matches["cdm"],
-               "ppp": matches["ppp"]}
+               "keyType": keytype}
+               # Removed booleans 2024-09
+               #"cdm": matches["cdm"],
+               #"ppp": matches["ppp"]}
     if bodyids:
         payload["bodyIDs"] = build_bodyid_list(bodyids)
     if name not in KEYS:
@@ -234,7 +235,7 @@ def primary_update(rlist, matches):
             terminate_program(f"No {nmdcol} found:\n{row}")
         name = row[nmdcol]
         keytype = "publishingName"
-        if row["libraryName"].startswith("flyem"):
+        if row["libraryName"].startswith("flyem") or row["libraryName"].startswith("flywire"):
             keytype = "bodyID"
         batch_row(name, keytype, matches[name])
         update_ddb_nb(row["libraryName"])
@@ -473,7 +474,7 @@ def update_dynamo():
                                    choices=lchoices,
                                    default=lkeys,
                                   )]
-    answers = inquirer.prompt(questions)
+    answers = inquirer.prompt(questions, theme=BlueComposure())
     if answers and answers["to_include"]:
         payload["libraryName"] = {"$in": answers["to_include"]}
     else:
