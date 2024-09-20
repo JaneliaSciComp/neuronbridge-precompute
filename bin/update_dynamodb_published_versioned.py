@@ -473,14 +473,16 @@ def update_dynamo():
     if not lkeys:
         terminate_program(f"There are no processed tags for version {ARG.VERSION}")
     lchoices.sort()
-    questions = [inquirer.Checkbox("to_include",
-                                   message=f"Choose {ARG.VERSION} libraries to include",
-                                   choices=lchoices,
-                                   default=lkeys,
-                                  )]
+    # This used to be a Checkbox, but it's now a List. Running more that
+    # one library will likely cause DynamoDB to hit write limits.
+    questions = [inquirer.List("to_include",
+                               message=f"Choose {ARG.VERSION} library",
+                               choices=lchoices,
+                               default=lkeys,
+                               carousel=True)]
     answers = inquirer.prompt(questions, theme=BlueComposure())
     if answers and answers["to_include"]:
-        payload["libraryName"] = {"$in": answers["to_include"]}
+        payload["libraryName"] = {"$in": [answers["to_include"]]}
     else:
         terminate_program("No libraries were chosen")
     project = {"libraryName": 1, "publishedName": 1, "slideCode": 1,
