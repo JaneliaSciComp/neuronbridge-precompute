@@ -4,7 +4,7 @@ include {
 } from '../../../nfutils/utils'
 
 process VALIDATE {
-    container { task.ext.container ?: 'ghcr.io/janeliascicomp/colormipsearch-tools:3.1.0' }
+    container { task.ext.container }
     cpus { cpus }
     memory "${mem_gb} GB"
     label 'neuronbridgeTools'
