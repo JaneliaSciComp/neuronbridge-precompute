@@ -3,6 +3,7 @@
 '''
 
 import argparse
+import collections
 from datetime import datetime
 from operator import attrgetter
 import re
@@ -10,6 +11,7 @@ import sys
 import time
 import boto3
 import inquirer
+from inquirer.themes import BlueComposure
 import MySQLdb
 from tqdm import tqdm
 import jrc_common.jrc_common as JRC
@@ -23,9 +25,7 @@ DATABASE = {}
 DYNAMO = {}
 ITEMS = []
 # Counters
-COUNT = {"bodyID": 0, "publishingName": 0, "neuronInstance": 0, "neuronType": 0,
-        "images": 0, "missing": 0, "consensus": 0, "notreleased": 0,
-         "insertions": 0}
+COUNT = collections.defaultdict(lambda: 0, {})
 FAILURE = {}
 KEYS = {}
 KNOWN_PPP = {}
@@ -63,7 +63,11 @@ def create_dynamodb_table(dynamodb, table):
                "BillingMode": "PAY_PER_REQUEST",
                "Tags": [{"Key": "PROJECT", "Value": "NeuronBridge"},
                         {"Key": "DEVELOPER", "Value": "svirskasr"},
-                        {"Key": "STAGE", "Value": ARG.MANIFOLD}]
+                        {"Key": "STAGE", "Value": ARG.MANIFOLD},
+                        {"Key": "DESCRIPTION",
+                         "Value": "Stores bodyIDs, neuronTypes, neuronInstances, and " \
+                                  + "publishingNames for search"}
+                       ]
               }
     if ARG.WRITE:
         print(f"Creating DynamoDB table {table}")
@@ -197,9 +201,10 @@ def batch_row(name, keytype, matches, bodyids=None):
                "searchKey": name.lower(),
                "filterKey": name.lower(),
                "name": name,
-               "keyType": keytype,
-               "cdm": matches["cdm"],
-               "ppp": matches["ppp"]}
+               "keyType": keytype}
+               # Removed booleans 2024-09
+               #"cdm": matches["cdm"],
+               #"ppp": matches["ppp"]}
     if bodyids:
         payload["bodyIDs"] = build_bodyid_list(bodyids)
     if name not in KEYS:
@@ -234,7 +239,7 @@ def primary_update(rlist, matches):
             terminate_program(f"No {nmdcol} found:\n{row}")
         name = row[nmdcol]
         keytype = "publishingName"
-        if row["libraryName"].startswith("flyem"):
+        if row["libraryName"].startswith("flyem") or row["libraryName"].startswith("flywire"):
             keytype = "bodyID"
         batch_row(name, keytype, matches[name])
         update_ddb_nb(row["libraryName"])
@@ -468,14 +473,16 @@ def update_dynamo():
     if not lkeys:
         terminate_program(f"There are no processed tags for version {ARG.VERSION}")
     lchoices.sort()
-    questions = [inquirer.Checkbox("to_include",
-                                   message=f"Choose {ARG.VERSION} libraries to include",
-                                   choices=lchoices,
-                                   default=lkeys,
-                                  )]
-    answers = inquirer.prompt(questions)
+    # This used to be a Checkbox, but it's now a List. Running more that
+    # one library will likely cause DynamoDB to hit write limits.
+    questions = [inquirer.List("to_include",
+                               message=f"Choose {ARG.VERSION} library",
+                               choices=lchoices,
+                               default=lkeys,
+                               carousel=True)]
+    answers = inquirer.prompt(questions, theme=BlueComposure())
     if answers and answers["to_include"]:
-        payload["libraryName"] = {"$in": answers["to_include"]}
+        payload["libraryName"] = {"$in": [answers["to_include"]]}
     else:
         terminate_program("No libraries were chosen")
     project = {"libraryName": 1, "publishedName": 1, "slideCode": 1,

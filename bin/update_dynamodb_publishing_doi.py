@@ -7,16 +7,13 @@
 '''
 
 import argparse
+import collections
 import json
-import os
+from operator import attrgetter
 import re
 import sys
-from types import SimpleNamespace
 import boto3
 import MySQLdb
-from neuprint import Client, fetch_custom, set_default_client
-from pymongo import MongoClient
-import requests
 from tqdm import tqdm
 import jrc_common.jrc_common as JRC
 
@@ -25,14 +22,11 @@ import jrc_common.jrc_common as JRC
 GEN1_MCFO_DOI = "10.7554/eLife.80660"
 CITATION = {}
 DOI = {}
-EMDOI = {}
 MAPPING = {}
 # Database
+DB = {}
 ITEMS = []
 PUBLISHING_DATABASE = ["mbew", "gen1mcfo", "raw"]
-DATABASE = {}
-CONN = {}
-CURSOR = {}
 READ = {"LINES": "SELECT DISTINCT line,value AS doi,GROUP_CONCAT(DISTINCT original_line) AS olines "
                  + "FROM image_data_mv mv JOIN line l ON (l.name=mv.line) "
                  + "JOIN line_property lp ON (lp.line_id=l.id AND "
@@ -41,8 +35,7 @@ READ = {"LINES": "SELECT DISTINCT line,value AS doi,GROUP_CONCAT(DISTINCT origin
 READ["LINESREL"] = READ["LINES"].replace("GROUP BY", "AND alps_release=%" + "s GROUP BY")
 MONGODB = 'neuronbridge-mongo'
 # General use
-COUNT = {"dynamodb": 0, "read": 0}
-
+COUNT = collections.defaultdict(lambda: 0, {})
 
 def terminate_program(msg=None):
     """ Log an optional error to output, close files, and exit
@@ -52,70 +45,10 @@ def terminate_program(msg=None):
            None
     """
     if msg:
+        if not isinstance(msg, str):
+            msg = f"An exception of type {type(msg).__name__} occurred. Arguments:\n{msg.args}"
         LOGGER.critical(msg)
     sys.exit(-1 if msg else 0)
-
-
-def call_responder(server, endpoint, authenticate=False):
-    """ Call a REST API
-        Keyword arguments:
-          server: server name
-          endpoint: endpoint
-          authenticate: authenticate to server
-        Returns:
-          JSON
-    """
-    url = ((getattr(getattr(REST, server), "url") if server else "") if "REST" in globals() \
-           else (os.environ.get('CONFIG_SERVER_URL') if server else "")) + endpoint
-    try:
-        if authenticate:
-            headers = {"Content-Type": "application/json",
-                       "Authorization": "Bearer " + os.environ["NEUPRINT_JWT"]}
-            req = requests.get(url, headers=headers, timeout=15)
-        else:
-            req = requests.get(url, timeout=10)
-    except requests.exceptions.RequestException as err:
-        LOGGER.error(url)
-        terminate_program(err)
-    if req.status_code == 200:
-        return req.json()
-    if req.status_code == 404:
-        return None
-    terminate_program(f"Status: {str(req.status_code)}")
-
-
-def db_connect(dbc):
-    """ Connect to a database
-        Keyword arguments:
-          dbc: database object
-    """
-    LOGGER.info("Connecting to %s on %s", dbc.name, dbc.host)
-    try:
-        conn = MySQLdb.connect(host=dbc.host, user=dbc.user,
-                               passwd=dbc.password, db=dbc.name)
-    except MySQLdb.Error as err:
-        terminate_program(JRC.sql_error(err))
-    try:
-        cursor = conn.cursor(MySQLdb.cursors.DictCursor)
-        return conn, cursor
-    except MySQLdb.Error as err:
-        terminate_program(JRC.sql_error(err))
-
-
-def simplenamespace_to_dict(nspace):
-    """ Convert a simplenamespace to a dict recursively
-        Keyword arguments:
-          nspace: simplenamespace to convert
-        Returns:
-          The converted dict
-    """
-    result = {}
-    for key, value in nspace.__dict__.items():
-        if isinstance(value, SimpleNamespace):
-            result[key] = simplenamespace_to_dict(value)
-        else:
-            result[key] = value
-    return result
 
 
 def create_dynamodb_table(dynamodb, table):
@@ -134,23 +67,14 @@ def create_dynamodb_table(dynamodb, table):
                "BillingMode": "PAY_PER_REQUEST",
                "Tags": [{"Key": "PROJECT", "Value": "NeuronBridge"},
                         {"Key": "DEVELOPER", "Value": "svirskasr"},
-                        {"Key": "STAGE", "Value": "prod"}]
+                        {"Key": "STAGE", "Value": "prod"},
+                        {"Key": "DESCRIPTION",
+                         "Value": "Stores citations/DOIs for individual bodies/publishing names"}]
               }
     if ARG.WRITE:
         print(f"Creating DynamoDB table {table}")
         table = dynamodb.create_table(**payload)
         table.wait_until_exists()
-
-
-def create_config_object(config):
-    """ Convert the JSON received from a configuration to an object
-        Keyword arguments:
-          config: configuration name
-        Returns:
-          Configuration object
-    """
-    data = (call_responder("config", f"config/{config}"))["config"]
-    return json.loads(json.dumps(data), object_hook=lambda dat: SimpleNamespace(**dat))
 
 
 def initialize_program():
@@ -160,24 +84,21 @@ def initialize_program():
         Returns:
           None
     """
-    for key, val in call_responder('config', 'config/em_dois')['config'].items():
-        EMDOI[key] = val
-    dbconfig = create_config_object("db_config")
-    # MySQL
-    if ARG.SOURCE != "em":
-        for pdb in PUBLISHING_DATABASE:
-            dbc = getattr(getattr(dbconfig, pdb), ARG.MANIFOLD)
-            (CONN[pdb], CURSOR[pdb]) = db_connect(dbc)
-    # MongoDB
-    LOGGER.info("Connecting to Mongo on %s", ARG.MONGO)
-    rwp = 'write' if ARG.WRITE else 'read'
     try:
-        dbc = getattr(getattr(getattr(dbconfig, MONGODB), ARG.MONGO), rwp)
-        client = MongoClient(dbc.host, replicaSet=dbc.replicaset, username=dbc.user,
-                             password=dbc.password)
-        DATABASE["NB"] = client.neuronbridge
+        dbconfig = JRC.get_config("databases")
     except Exception as err:
-        terminate_program(f"Could not connect to Mongo: {err}")
+        terminate_program(err)
+    dbs = ['neuronbridge']
+    if ARG.SOURCE != "em":
+        dbs.extend(PUBLISHING_DATABASE)
+    for source in dbs:
+        rwp = 'write' if (ARG.WRITE and dbs == 'neuronbridge') else 'read'
+        dbo = attrgetter(f"{source}.{ARG.MANIFOLD}.{rwp}")(dbconfig)
+        LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, ARG.MANIFOLD, dbo.host, dbo.user)
+        try:
+            DB[source] = JRC.connect_database(dbo)
+        except Exception as err:
+            terminate_program(err)
     # DynamoDB
     table = "janelia-neuronbridge-publishing-doi"
     try:
@@ -191,9 +112,9 @@ def initialize_program():
         LOGGER.warning("Table %s doesn't exist", table)
         create_dynamodb_table(dynamodb, table)
     LOGGER.info("Writing results to DynamoDB table %s", table)
-    DATABASE["DOI"] = dynamodb.Table(table)
+    DB["DOI"] = dynamodb.Table(table)
     # Releases
-    reldict = simplenamespace_to_dict(JRC.get_config("releases"))
+    reldict = JRC.simplenamespace_to_dict(JRC.get_config("releases"))
     for _, rel in reldict.items():
         if 'doi' not in rel:
             continue
@@ -234,7 +155,7 @@ def from_datacite(doi):
         Returns:
           Citation
     '''
-    rec = call_responder('datacite', doi)
+    rec = JRC.call_datacite(doi)
     if not rec:
         terminate_program(f"{doi} is not on Crossref or DataCite")
     message = rec['data']['attributes']
@@ -268,7 +189,7 @@ def get_citation(doi):
             CITATION[doi] = doi
             LOGGER.info(f"Internal DOI: {doi}")
             return doi
-        rec = call_responder('crossref', doi)
+        rec = JRC.call_crossref(doi)
         if rec:
             CITATION[doi] = from_crossref(rec)
             LOGGER.info(f"Crossref DOI: {doi}: {CITATION[doi]}")
@@ -287,81 +208,12 @@ def write_dynamodb():
         Returns:
           None
     '''
-    LOGGER.info("Batch writing %s items to DynamoDB", len(ITEMS))
-    with DATABASE["DOI"].batch_writer() as writer:
+    LOGGER.info(f"Batch writing {len(ITEMS):,} items to DynamoDB")
+    with DB["DOI"].batch_writer() as writer:
         for item in tqdm(ITEMS, desc="DynamoDB"):
             if ARG.WRITE:
                 writer.put_item(Item=item)
             COUNT["dynamodb"] += 1
-
-
-def setup_dataset(dataset):
-    """ Set up a NeuPrint data set for use
-        Keyword arguments:
-          dataset: data set
-          version: version
-        Returns:
-          name: data set name
-    """
-    LOGGER.info("Initializing Client for %s %s", SERVER.neuprint.address, dataset)
-    npc = Client(SERVER.neuprint.address, dataset=dataset)
-    set_default_client(npc)
-    version = ''
-    if ':' in dataset:
-        name, version = dataset.split(':')
-    else:
-        name = dataset
-    return name, version
-
-
-def process_em_dataset(dataset):
-    """ Process a single EM data set
-        Keyword arguments:
-          dataset: data set
-        Returns:
-          None
-    """
-    dsname, version = setup_dataset(dataset)
-    if (dsname not in EMDOI) or (not EMDOI[dsname]):
-        LOGGER.warning("Dataset %s is not associated with a DOI", dsname)
-        return
-    query = """
-    MATCH (n: Neuron)
-    RETURN n.bodyId as bodyId,n.status as status,n.statusLabel as label,n.type as type,n.instance as instance,n.size as size
-    ORDER BY n.type, n.instance
-    """
-    results = fetch_custom(query, format='json')
-    LOGGER.info("%d Body IDs found in NeuPrint %s", len(results['data']), dataset)
-    for row in tqdm(results['data'], desc=dataset):
-        COUNT['read'] += 1
-        bid = ":".join([dsname, "v" + version, str(row[0])])
-        doi = EMDOI[dsname]
-        if bid not in MAPPING:
-            MAPPING[bid] = doi
-            payload = {"name": bid,
-                       "doi": [{"link": "/".join([SERVER.doi.address, doi]),
-                                "citation": get_citation(doi)}]
-                      }
-            ITEMS.append(payload)
-
-
-def process_em_neuprint():
-    """ Process specified EM datasets
-        Keyword arguments:
-          None
-        Returns:
-          None
-    """
-    response = call_responder('neuprint', 'dbmeta/datasets', True)
-    datasets = list(response.keys())
-    if ARG.RELEASE:
-        if ARG.RELEASE not in datasets:
-            terminate_program(f"{ARG.RELEASE} is not a valid dataset for FlyEM")
-        process_em_dataset(ARG.RELEASE)
-        return
-    datasets.reverse()
-    for dataset in datasets:
-        process_em_dataset(dataset)
 
 
 def process_em_library(coll, library, count):
@@ -373,10 +225,16 @@ def process_em_library(coll, library, count):
         Returns:
           None
     """
-    result = re.search(r"flyem_([^_]*)((_\d)+)", library)
-    lib = result[1]
-    version = "v" + result[2][1:].replace("_", ".")
-    prefix = ":".join([lib, version])
+    if 'flywire' in library:
+        result = re.search(r"(flywire_[^_]*)(_\d+)", library)
+        lib = result[1]
+        version = result[2][1:].replace("_", ".")
+        prefix = "_".join([lib, version])
+    else:
+        result = re.search(r"flyem_([^_]*)((_\d)+)", library)
+        lib = result[1]
+        version = "v" + result[2][1:].replace("_", ".")
+        prefix = ":".join([lib, version])
     results = coll.find({"libraryName": library})
     if (lib not in EMDOI) or (not EMDOI[lib]):
         LOGGER.warning("Dataset %s is not associated with a DOI", prefix)
@@ -390,10 +248,14 @@ def process_em_library(coll, library, count):
             bid = ":".join([prefix, str(row["publishedName"])])
         if bid not in MAPPING:
             MAPPING[bid] = doi
-            payload = {"name": bid,
-                       "doi": [{"link": "/".join([SERVER.doi.address, doi]),
-                                "citation": get_citation(doi)}]
-                      }
+            payload = {"name": bid, "doi": []}
+            if isinstance(doi, str):
+                payload["doi"].append({"link": "/".join([SERVER.doi.address, doi]),
+                                       "citation": get_citation(doi)})
+            else:
+                for ref in doi:
+                    payload["doi"].append({"link": "/".join([SERVER.doi.address, ref]),
+                                           "citation": get_citation(ref)})
             ITEMS.append(payload)
 
 
@@ -410,11 +272,13 @@ def process_em():
                            "count":{"$sum": 1}}},
                {"$sort": {"_id.lib": 1, "_id.tag": 1}}
               ]
-    coll = DATABASE["NB"][ARG.EMSOURCE]
+    coll = DB["neuronbridge"][ARG.EMSOURCE]
     results = coll.aggregate(payload)
     for row in results:
         library = row["_id"]["lib"]
-        if not library.startswith("flyem"):
+        if library.startswith("flylight"):
+            continue
+        if ARG.RELEASE and library != ARG.RELEASE:
             continue
         LOGGER.info("Library %s %s", library, row["_id"]["tag"])
         process_em_library(coll, library, row["count"])
@@ -467,10 +331,10 @@ def process_lm():
         LOGGER.info("Fetching lines from %s", database)
         try:
             if ARG.RELEASE:
-                CURSOR[database].execute(READ["LINESREL"], (ARG.RELEASE,))
+                DB[database]['cursor'].execute(READ["LINESREL"], (ARG.RELEASE,))
             else:
-                CURSOR[database].execute(READ["LINES"])
-            rows = CURSOR[database].fetchall()
+                DB[database]['cursor'].execute(READ["LINES"])
+            rows = DB[database]['cursor'].fetchall()
             if ARG.RELEASE and not rows:
                 terminate_program(f"{ARG.RELEASE} is not a valid release for FlyLight")
         except MySQLdb.Error as err:
@@ -529,5 +393,9 @@ if __name__ == '__main__':
     REST = JRC.get_config("rest_services")
     SERVER = JRC.get_config("servers")
     initialize_program()
+    try:
+        EMDOI = JRC.simplenamespace_to_dict(JRC.get_config("em_dois"))
+    except Exception as gerr:
+        terminate_program(gerr)
     perform_mapping()
     terminate_program()

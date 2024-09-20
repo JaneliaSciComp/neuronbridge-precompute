@@ -37,7 +37,8 @@ def initialize_program():
     except Exception as err:
         terminate_program(err)
     for dbname in ('jacs', 'neuronbridge'):
-        dbo = attrgetter(f"{dbname}.{ARG.MANIFOLD}.read")(dbconfig)
+        man = 'prod' if dbname == 'neuronbridge' else ARG.MANIFOLD
+        dbo = attrgetter(f"{dbname}.{man}.read")(dbconfig)
         LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, ARG.MANIFOLD, dbo.host, dbo.user)
         DB[dbname] = JRC.connect_database(dbo)
 
@@ -72,6 +73,20 @@ def get_datasets():
     nblib = {}
     for row in rows:
         nblib[row['_id']['lib'].replace('flyem_', '')] = row['count']
+    print(nblib)
+    # Get data sets from jacs
+    LOGGER.info("Getting libraries from NeuronBridge")
+    coll = DB['jacs'].emDataSet
+    payload = [{"$group": {"_id": {"lib": "$name", "ver": "$version"},
+                           "count": {"$sum": 1}}}]
+    rows = coll.aggregate(payload)
+    nblib = {}
+    for row in rows:
+        libname = row['_id']['lib']
+        if row['_id']['ver']:
+            libname += '_' + row['_id']['ver'].replace('.', '_')
+        nblib[libname] = 0
+    print(nblib)
     # Get data sets from jacs
     LOGGER.info("Getting datasets from JACS")
     coll = DB['jacs'].emDataSet
@@ -91,6 +106,9 @@ def get_datasets():
     for row in rows:
         dsid = row['_id']['dsr'].split('#')[1]
         dset = row['_id']['ds']
+        if dsid not in dataset:
+            LOGGER.warning(f"Dataset ID {dsid} not found")
+            continue
         if ':' in dset:
             dset, ver = dset.split(':')
             dslib = '_'.join([dset, ver.replace('v', '').replace('.', '_')])
