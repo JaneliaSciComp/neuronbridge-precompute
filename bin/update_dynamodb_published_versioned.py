@@ -501,6 +501,7 @@ def update_dynamo():
         KNOWN_PPP[row.split("-")[0]] = True
     LOGGER.info(f"Processing neuronMetaData ({count:,} images)")
     process_results(count, results, publishedurl)
+    # Done with the changes to DynamoDB! Update the manifest in MongoDB.
     if not ARG.WRITE:
         return
     coll = DATABASE["NB"]["ddb_published_versioned"]
