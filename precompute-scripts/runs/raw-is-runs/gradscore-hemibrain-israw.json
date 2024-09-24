@@ -12,7 +12,6 @@
     "process_partitions_concurrently": false,
     "gradscore_batch_size": 100,
     "ga_processing_size": 12,
-    "grad_score_parallelism": 40,
     "gradscore_cache_size": 12768,
     "top_best_line_matches": 300,
     "top_best_sample_matches_per_line": 0,

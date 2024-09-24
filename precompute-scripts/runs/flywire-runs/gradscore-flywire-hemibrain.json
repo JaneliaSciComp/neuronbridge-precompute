@@ -14,7 +14,6 @@
     "process_partitions_concurrently": false,
     "gradscore_batch_size": 100,
     "ga_processing_size": 12,
-    "grad_score_parallelism": 40,
     "gradscore_cache_size": 12768,
     "gradscore_processing_tag": "gradscore-flywire-vs-hemibrain",
     "java_opts": ""

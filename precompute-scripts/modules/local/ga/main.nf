@@ -42,7 +42,6 @@ process GA {
           val(masks_processing_tags),
           val(targets_processing_tags),
           val(pixel_percent_ratio),
-          val(grad_score_parallelism),
           val(with_bidirectional_matching)
     path(mips_base_dir)
 
@@ -71,7 +70,6 @@ process GA {
     def masks_processing_tags_arg = masks_processing_tags ? "--masks-processing-tags ${get_processing_tags_arg(masks_processing_tags)}" : ''
     def targets_processing_tags_arg = targets_processing_tags ? "--targets-processing-tags ${get_processing_tags_arg(targets_processing_tags)}" : ''
     def pixel_percent_ratio_arg = pixel_percent_ratio && pixel_percent_ratio > 0 ? "--pctPositivePixels ${pixel_percent_ratio}" : ''
-    def grad_score_parallelism_arg = grad_score_parallelism ? "--gradscore-parallelism ${grad_score_parallelism}" : ''
     def with_bidirectional_matching_arg = with_bidirectional_matching ? '--use-bidirectional-matching' : ''
 
     """
@@ -110,7 +108,6 @@ process GA {
         ${masks_processing_tags_arg} \
         ${targets_processing_tags_arg} \
         ${pixel_percent_ratio_arg} \
-        ${grad_score_parallelism_arg} \
         ${with_bidirectional_matching_arg} \
         --nBestLines ${top_best_line_matches} \
         --nBestSamplesPerLine ${top_best_sample_matches_per_line} \
