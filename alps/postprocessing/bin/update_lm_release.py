@@ -2,7 +2,7 @@
     This program will update the ALPS release in NeuronBridge tables
 '''
 import argparse
-import json
+import collections
 from operator import attrgetter
 import sys
 import MySQLdb
@@ -20,14 +20,11 @@ READ = {'RELEASE': "SELECT DISTINCT value FROM image_property_vw WHERE "
                 + "FROM image_data_mv WHERE alps_release=%s AND "
                 + "alignment_space_cdm IS NOT NULL ORDER BY 1",
        }
-BATCH = {'neuronMetadata': [], 'publishedLMImage': []}
+AUDIT = {'neuronMetadata': [], 'publishedURL': [], 'publishedLMImage': []}
+BATCH = {'neuronMetadata': [], 'publishedURL': [], 'publishedLMImage': []}
 # Counters
 CHANGED = {}
-COUNT = {'nmd': 0, 'nmd_added': 0, 'nmd_changed': 0, 'nmd_missing': 0,
-         'pli': 0, 'pli_added': 0, 'pli_changed': 0,
-         'neuronMetadata_insert': 0, 'neuronMetadata_update': 0,
-         'publishedLMImage_insert': 0, 'publishedLMImage_update': 0
-        }
+COUNT = collections.defaultdict(lambda: 0, {})
 
 def terminate_program(msg=None):
     """ Log an optional error to output and exit
@@ -90,6 +87,7 @@ def process_nmd(scode, coll):
                    'datasetLabels': [ARG.RELEASE]}
         if not 'datasetLabels' in row:
             COUNT['nmd_added'] += 1
+            AUDIT['neuronMetadata'].append(f"{row['_id']} added {ARG.RELEASE}")
             BATCH['neuronMetadata'].append(payload)
         elif ARG.RELEASE not in row['datasetLabels']:
             if len(row['datasetLabels']) > 1:
@@ -99,7 +97,35 @@ def process_nmd(scode, coll):
             else:
                 CHANGED[row['datasetLabels'][0]] += 1
             COUNT['nmd_changed'] += 1
+            AUDIT['neuronMetadata'].append(f"{row['_id']} {row['datasetLabels']} -> {ARG.RELEASE}")
             BATCH['neuronMetadata'].append(payload)
+
+
+def process_purl(scode, coll):
+    """ Batch updates to publishedURL for a single slide code
+        Keyword arguments:
+          scode: slide code
+          coll: collection
+        Returns:
+          None
+    """
+    result = coll.find({"slideCode": scode})
+    for row in result:
+        COUNT['purl'] += 1
+        payload = {'_id': row['_id'],
+                   'alpsRelease': ARG.RELEASE}
+        if not 'alpsRelease' in row:
+            COUNT['purl_added'] += 1
+            AUDIT['publishedURL'].append(f"{row['_id']} added {ARG.RELEASE}")
+            BATCH['publishedURL'].append(payload)
+        elif ARG.RELEASE != row['alpsRelease']:
+            if row['alpsRelease'] not in CHANGED:
+                CHANGED[row['alpsRelease']] = 1
+            else:
+                CHANGED[row['alpsRelease']] += 1
+            COUNT['purl_changed'] += 1
+            AUDIT['publishedURL'].append(f"{row['_id']} {row['alpsRelease']} -> {ARG.RELEASE}")
+            BATCH['publishedURL'].append(payload)
 
 
 def process_pli(scode, coll):
@@ -117,6 +143,7 @@ def process_pli(scode, coll):
                    'releaseName': ARG.RELEASE}
         if not 'releaseName' in row:
             COUNT['pli_added'] += 1
+            AUDIT['publishedLMImage'].append(f"{row['_id']} added {ARG.RELEASE}")
             BATCH['publishedLMImage'].append(payload)
         elif ARG.RELEASE != row['releaseName']:
             if row['releaseName'] not in CHANGED:
@@ -124,6 +151,7 @@ def process_pli(scode, coll):
             else:
                 CHANGED[row['releaseName']] += 1
             COUNT['pli_changed'] += 1
+            AUDIT['publishedLMImage'].append(f"{row['_id']} {row['releaseName']} -> {ARG.RELEASE}")
             BATCH['publishedLMImage'].append(payload)
 
 
@@ -161,17 +189,20 @@ def show_report():
     if len(CHANGED):
         print("Releases were changed for:")
         for key, val in CHANGED.items():
-            print(f"  {key}: {val}")
+            print(f"  {key}: {val:,}")
+    for key, val in BATCH.items():
+        update_database(key, val)
     with open('lm_release_updates.txt', 'w', encoding='ascii') as batchout:
-        for key, val in BATCH.items():
-            for bat in val:
-                batchout.write(json.dumps(bat))
-                batchout.write("\n")
-            update_database(key, val)
+        for key, val in AUDIT.items():
+            for msg in val:
+                batchout.write(f"{key} {msg}\n")
     print(f"Slides missing from neuronMetadata:  {COUNT['nmd_missing']:,}")
     print(f"Images found in neuronMetadata:      {COUNT['nmd']:,}")
     print(f"Changed release in neuronMetadata:   {COUNT['nmd_changed']:,}")
     print(f"Added release in neuronMetadata:     {COUNT['nmd_added']:,}")
+    print(f"Images found in publishedURL:        {COUNT['purl']:,}")
+    print(f"Changed release in publishedURL:     {COUNT['purl_changed']:,}")
+    print(f"Added release in publishedURL:       {COUNT['purl_added']:,}")
     print(f"Images found in publishedLMImage:    {COUNT['pli']:,}")
     print(f"Changed release in publishedLMImage: {COUNT['pli_changed']:,}")
     print(f"Added release in publishedLMImage:   {COUNT['pli_added']:,}")
@@ -214,6 +245,9 @@ def process_release():
     coll = DB["nb"].neuronMetadata
     for scode in tqdm(item, desc='neuronMetadata'):
         process_nmd(scode, coll)
+    coll = DB["nb"].publishedURL
+    for scode in tqdm(item, desc='publishedURL'):
+        process_purl(scode, coll)
     coll = DB["nb"].publishedLMImage
     for scode in tqdm(item, desc='publishedLMImage'):
         process_pli(scode, coll)
