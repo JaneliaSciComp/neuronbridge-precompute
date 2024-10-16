@@ -1138,6 +1138,8 @@ def upload_cdms():
         # Get image mapping
         dbdata = (call_responder('config', 'config/db_config'))["config"]
         publishing_db = 'gen1mcfo' if 'gen1_mcfo' in ARG.LIBRARY else 'mbew'
+        if 'raw' in ARG.LIBRARY:
+            publishing_db = 'raw'
         (CONN[publishing_db], CURSOR[publishing_db]) = db_connect(dbdata[publishing_db][ARG.MYSQL])
         print("Getting image mapping")
         get_line_mapping(publishing_db)
