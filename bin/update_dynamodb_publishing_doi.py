@@ -229,7 +229,7 @@ def process_em_library(coll, library, count):
         result = re.search(r"(flywire_[^_]*)(_\d+)", library)
         lib = result[1]
         version = result[2][1:].replace("_", ".")
-        prefix = "_".join([lib, version])
+        prefix = ":".join([lib, 'v' + version])
     else:
         result = re.search(r"flyem_([^_]*)((_\d)+)", library)
         lib = result[1]
@@ -245,7 +245,10 @@ def process_em_library(coll, library, count):
         if prefix in str(row["publishedName"]):
             bid = str(row["publishedName"])
         else:
-            bid = ":".join([prefix, str(row["publishedName"])])
+            if 'flywire' in prefix and 'flywire' in str(row["publishedName"]):
+                bid = ":".join([prefix, str(row["publishedName"]).split(':')[-1]])
+            else:
+                bid = ":".join([prefix, str(row["publishedName"])])
         if bid not in MAPPING:
             MAPPING[bid] = doi
             payload = {"name": bid, "doi": []}
