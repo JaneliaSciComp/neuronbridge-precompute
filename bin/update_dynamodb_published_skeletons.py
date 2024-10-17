@@ -108,6 +108,9 @@ def batch_row(row):
         Returns:
           None
     '''
+    if 'flywire_fafb_' in row["publishedName"]:
+        row["publishedName"] = row["publishedName"].replace("flywire_fafb_",
+                                                            "flywire_fafb:v")
     if row["publishedName"] in KEYS:
         return
     payload = {"publishedName": row["publishedName"],
