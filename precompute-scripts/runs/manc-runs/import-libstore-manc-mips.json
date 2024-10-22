@@ -1,0 +1,12 @@
+{
+    "dry_run": true,
+    "anatomical_area": "vnc",
+    "import_library": "flyem_manc_1_2_1",
+    "import_tag": "import-manc",
+    "variants_input_dir": "/nrs/scicompsoft/emlm/public_release_2024/MANC_v121",
+    "display_cdm_location": "MANC_v121_CDM_radius2_for_visualization",
+    "searchable_cdm_location": "MANC_v121_CDM_no_radius_for_search",
+    "libstore_dir": "/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs.TEST",
+    "grad_location": "MANC_v121_gradient",
+    "zgap_location": "MANC_v121_20pxRGB"
+}

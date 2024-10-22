@@ -9,5 +9,7 @@
     "grad_location": "IS_gradient",
     "zgap_location": "IS_20pxRGB",
     "searchable_cdm_dest": "segmentation",
-    "libstore_dir": "/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs"
+    "libstore_dir": "/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs",
+    "jacs_url": "",
+    "jacs_authorization": ""
 }
