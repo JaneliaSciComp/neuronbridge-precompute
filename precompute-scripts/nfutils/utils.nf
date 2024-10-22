@@ -1,4 +1,5 @@
 def area_to_alignment_space(area) {
+    log.debug "Get alignment space for ${area}"
     switch (area) {
         case ~/^(?i)brain\+vnc$/:
             return ''
