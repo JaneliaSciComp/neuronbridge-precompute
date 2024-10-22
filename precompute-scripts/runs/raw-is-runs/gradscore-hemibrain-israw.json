@@ -1,7 +1,7 @@
 {
     "job_list": "",
     "anatomical_area": "brain",
-    "db_config": "mylocal/devdb-config.properties",
+    "db_config": "mylocal/proddb-config.properties",
     "masks_library": "flyem_hemibrain_1_2_1",
     "masks_published_names": "",
     "mask_excluded_terms": "",
@@ -9,13 +9,16 @@
     "targets_published_names": "",
     "targets_tags": "import-is",
     "mip_excluded_tags": "validationError",
+    "with_bidirectional_matching": false,
     "process_partitions_concurrently": false,
     "gradscore_batch_size": 100,
     "ga_processing_size": 12,
-    "gradscore_cache_size": 12768,
+    "gradscore_cache_size": 100000,
     "top_best_line_matches": 300,
     "top_best_sample_matches_per_line": 0,
     "top_best_matches_per_sample": 0,
     "pct_pos_pixels": 2,
-    "gradscore_processing_tag": "gradscore-hemibrain-vs-israw"
+    "gradscore_processing_tag": "gradscore-hemibrain-vs-israw",
+    "cpus": 30,
+    "lsf_opts": "-P scicompsoft"
 }
