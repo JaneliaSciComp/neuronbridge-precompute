@@ -42,7 +42,7 @@ workflow {
     ) // [area, library, output]
     | map {
         def (anatomical_area, library, variants_json) =it
-        [
+        def r = [
             anatomical_area,
             library,
             variants_json,
@@ -54,6 +54,8 @@ workflow {
             params.ignore_source_cdms,
             params.dry_run,
         ]
+        log.debug "Prepare variants input: $r"
+        r
     }
 
     COPY_VARIANTS_TO_LIBSTORE(
