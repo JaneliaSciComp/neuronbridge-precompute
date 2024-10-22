@@ -65,7 +65,7 @@ def create_dynamodb_table(dynamodb, table):
                         {"Key": "DEVELOPER", "Value": "svirskasr"},
                         {"Key": "STAGE", "Value": ARG.MANIFOLD},
                         {"Key": "DESCRIPTION",
-                         "Value": "Stores bodyIDs, neuronTypes, neuronInstances, and " \
+                         "Value": "Stores bodyIDs and neuronTypes and neuronInstances and " \
                                   + "publishingNames for search"}
                        ]
               }
