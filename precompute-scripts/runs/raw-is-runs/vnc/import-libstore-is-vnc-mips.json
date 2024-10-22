@@ -1,0 +1,13 @@
+{
+    "dry_run": true,
+    "anatomical_area": "vnc",
+    "import_library": "flylight_raw_published",
+    "import_tag": "import-is",
+    "variants_input_dir": "/nrs/scicompsoft/emlm/public_release_2024/Omunibus_broad/VNC/IS",
+    "display_cdm_location": "",
+    "searchable_cdm_location": "IS_VNC_CDM",
+    "grad_location": "IS_VNC_gradient",
+    "zgap_location": "IS_VNC_20pxRGB",
+    "searchable_cdm_dest": "segmentation",
+    "libstore_dir": "/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs"
+}
