@@ -54,10 +54,20 @@ nextflow run workflows/step0-import-cdms.nf \
 
 ## Step 3: Run color depth pixel matching algorithm
 
-This process performs a color depths search between the specified masks and targets MIPs. Usually the masks are EM MIPs and the targets are LM MIPs but an EM to EM or LM to LM match is also possible. The masks and targets MIPs are defined by the corresponding `masks_library` and `targets_library` parameters. This process can be partitioned in multiple jobs and you have an option to run a range of jobs using `first_job` and `last_job` parameters or a specific list of jobs using `job_list`. These jobs can run on a local host that has access both the database and the JACS filestore, on SciComp's kubernetes cluster or on Janelia's LSF cluster.
+This process performs a color depths search between the specified masks and targets MIPs. Usually the masks are EM MIPs and the targets are LM MIPs but an EM to EM or LM to LM match is also possible. The masks and targets MIPs are defined by the corresponding `masks_library` and `targets_library` parameters. This process can be partitioned in multiple jobs and you have an option to run a range of jobs using `first_job` and `last_job` parameters or a specific list of jobs using `job_list` (job ids are 1-based and `first_job` and `last_job` parameters are inclusive). These jobs can run on a local host that has access both the database and the JACS filestore, on SciComp's kubernetes cluster or on Janelia's LSF cluster. The job size is determined by `cds_mask_batch_size` and `cds_target_batch_size`
 
 ```
 nextflow run workflows/step1-cds.nf \
     -params-file runs/raw-is-runs/vnc/cds-manc-israw.json \
-    --job-list 1
+    --job_list 1
+```
+
+## Step 4: Run color depth shape scoring algorithm
+
+This process calculates an shape based score for existing pixel matches. Because the scoring algorithm is "expensive" for each mask MIP we pick the top 300 published names that match the MIP and we only compute the scores for the corresponding pixel matches.
+
+```
+nextflow run workflows/step2-gradscore.nf \
+    -params-file runs/raw-is-runs/vnc/gradscore-manc-israw.json \
+    --first_job 1 --last_job 1
 ```
