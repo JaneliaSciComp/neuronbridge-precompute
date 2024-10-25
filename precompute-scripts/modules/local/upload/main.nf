@@ -1,75 +1,63 @@
-// WIP
 process UPLOAD {
     container { task.ext.container ?: 'docker.io/amazon/aws-cli' }
     cpus { cpus }
     memory "${mem_gb} GB"
     label 'neuronbridgeTools'
+    secret 'AWS_ACCESS_KEY'
+    secret 'AWS_SECRET_KEY'
 
     input:
-    tuple val(job_id),
-          val(upload_type),  // EM_MIPS, LM_MIPS, EM_CD_MATCHES, LM_CD_MATCHES, EM_PPP_MATCHES
-          val(anatomical_area),
-          path(base_export_dir),
-          val(relative_output_dir)
-    var val(app_runner)
-    tuple 
-          val(s3_bucket),
-          
+    tuple val(anatomical_area),
+          path(base_data_dir),
+          val(data_version)
+    val(app_runner)
+    each(upload_type)  // EM_MIPS, LM_MIPS, EM_CD_MATCHES, LM_CD_MATCHES, EM_PPP_MATCHES
+    val(s3_bucket)
 
     output:
+    tuple env(full_data_dir), val(s3_uri)
 
     when:
     task.ext.when == null || task.ext.when
 
     script:
+    def data_location = get_data_dir(upload_type, data_version, anatomical_area)
+    def s3_prefix = get_s3_prefix(upload_type, data_version)
+    data_dir = "${base_data_dir}/${data_location}"
+    s3_uri = "s3://${s3_bucket}/${s3_prefix}"
+    def upload_cmd = get_upload_cmd(app_runner, data_dir, s3_uri)
+
     """
-    echo "\$(date) Run ${anatomical_area} ${export_type} export job: ${job_id} on \$(hostname -s)"
-    release_export_dir="${base_export_dir}/v${data_version}"
-    mkdir -p \${release_export_dir}
-    result_export_dir="\${release_export_dir}/${anatomical_area}/${relative_output_dir}"
-    full_result_dir=\$(readlink -m \${result_export_dir})
-
-    echo "\$(date) Completed ${anatomical_area} ${export_type} upload job: ${job_id} on \$(hostname -s)"
-    """
-}
-
-
-def upload_mips(app_runner, local_data_dir, anatomical_area, mips_type, s3_bucket, s3_data_version) {
-    """
-    case ${mips_type} in
-        lm_mips|LM_MIPS)
-            mips_dest=by_line
-            ;;
-        em_mips|EM_MIPS)
-            mips_dest=by_body
-            ;;
-        *)
-            echo "Unsupported mips type: ${mips_type}"
-            exit 1
-    esac
-
-    # upload
-    ${app_runner} aws s3 cp $local_data_dir s3://${s3_bucket}/${s3_data_version}/metadata/\${mips_dest} --recursive
+    echo "\$(date) Run ${anatomical_area} ${upload_type} upload on \$(hostname -s)"
+    full_data_dir=\$(readlink -m \${data_dir})
+    AWS_ACCESS_KEY_ID=\${AWS_ACCESS_KEY} AWS_SECRET_ACCESS_KEY=\${AWS_SECRET_KEY} ${upload_cmd}
+    echo "\$(date) Completed ${anatomical_area} ${upload_type} upload on \$(hostname -s)"
     """
 }
 
-def upload_matches(app_runner, local_data_dir, anatomical_area, matches_type, s3_bucket, s3_data_version) {
-    """
-    case ${mips_type} in
-        em_cd_matches|EM_CD_MATCHES)
-            src_subdir=
-            target_subdir=cdsresults
-            ;;
-        lm_cd_matches|LM_CD_MATCHES)
-            src_subdir=
-            target_subdir=cdsresults
-            ;;
-        *)
-            echo "Unsupported matches type: ${matches_type}"
-            exit 1
-    esac
+def get_data_dir(upload_type, data_version, anatomical_area) {
+    switch(value) {
+        case 'EM_MIPS' -> "v${data_version}/${anatomical_area}/mips/embodies"
+        case 'LM_MIPS' -> "v${data_version}/${anatomical_area}/mips/lmlines"
+        case 'EM_CD_MATCHES' -> "v${data_version}/${anatomical_area}/cdmatches/em-vs-lm"
+        case 'LM_CD_MATCHES' -> "v${data_version}/${anatomical_area}/cdmatches/lm-vs-em"
+        case 'EM_PPP_MATCHES' -> "v${data_version}/${anatomical_area}/pppmatches/em-vs-lm"
+    }
+    throw new IllegalArgumentException("Invalid upload type: ${upload_type}")
+}
 
-    # upload
+def get_s3_prefix(upload_type, data_version) {
+    def s3_data_version = data_version.replaceAll('.', '_')
+    switch(value) {
+        case 'EM_MIPS' -> "${s3_data_version}/metadata/by_line"
+        case 'LM_MIPS' -> "${s3_data_version}/metadata/by_body"
+        case 'EM_CD_MATCHES' -> "${s3_data_version}/metadata/cdsresults"
+        case 'LM_CD_MATCHES' -> "${s3_data_version}/metadata/cdsresults"
+        case 'EM_PPP_MATCHES' -> "${s3_data_version}/metadata/pppmresults"
+    }
+    throw new IllegalArgumentException("Invalid upload type: ${upload_type}")
+}
 
-    """
+def get_upload_cmd(app_runner, local_data_dir, s3_uri) {
+    "${app_runner} aws s3 cp $local_data_dir ${s3_uri} --recursive"
 }
