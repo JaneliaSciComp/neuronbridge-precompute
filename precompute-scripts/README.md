@@ -127,7 +127,7 @@ nextflow run workflows/step6-normalize-gradscore.nf \
 ```
 ## Step 7: Export color depth matches
 
-NeuronBridge requires all its metadata to be exported as JSON. Also as a prerequisite for export is to have all the imagery on AWS because this step will only output files in the metadata that were marked as exported to AWS. Currently there are 8 total export operations - 3 per anatomical area (brain or VNC) to export color depth (CDM) and patch per pixel (PPPM) match
+NeuronBridge requires all its metadata to be exported from the database to the file system and then uploaded to AWS. This step performs the first part - export data from the internal database to the file system. Before starting the export make sure that all the imagery has been already uploaded to AWS because this step will only output entries for which the image files were marked as exported to AWS - it will not check the AWS but it relies on a collection that specifies all files uploaded to AWS. Currently there are 8 total export operations - 3 per anatomical area (brain or VNC) to export color depth (CDM) and patch per pixel (PPPM) match
  * EM_CD_MATCHES
  * LM_CD_MATCHES
  * EM_PPP_MATCHES
