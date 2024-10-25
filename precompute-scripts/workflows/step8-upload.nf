@@ -7,14 +7,14 @@ workflow {
     def upload_inputs = Channel.of(
         [
             params.anatomical_area,
-            params.base_export_dir,
+            params.base_data_dir,
             params.data_version
         ]
     )
 
     def upload_results = UPLOAD(
         upload_inputs,
-        params.tool_runner, 
+        params.aws_runner,
         get_list_arg(params.upload_type),
         params.upload_bucket,
     )
