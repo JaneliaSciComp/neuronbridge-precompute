@@ -42,15 +42,55 @@ nextflow run workflows/pre-step0-create-jacs-library.nf \
 
 ## Step 2: Import the CDM library from JACS into NeuronBridge
 
-This process imports CDMs from JACS libraries into NeuronBridge. This require access to a JACS server.
+This process imports CDMs from JACS libraries into NeuronBridge. This require access to a JACS server. The authorization parameter can be either a bearer token or an API key
 
 ```
 nextflow run workflows/step0-import-cdms.nf \
     -params-file runs/raw-is-runs/vnc/import-neuronbridge-is-vnc-mips.json \
     --jacs_url "https://workstation.int.janelia.org/SCSW/JACS2SyncServices/v2" \
-    --jacs_authorization "<authorization>"
+    --jacs_authorization "<authorization>" \
+    --db_config db-config.properties
 ```
 
+In the example above the database configuration parameter (`db_config`) references a file `db-config.properties`. This file must be manually created or the and it must point to the corresponding neuronbridge database. This applies everywhere where access to the NeuronBridge database is needed.
+
+For development database you can run:
+```
+cat > db-config.properties <<EOF
+MongoDB.Server=dev-mongodb1:27017,dev-mongodb2:27017,dev-mongodb3:27017
+MongoDB.AuthDatabase=admin
+MongoDB.Database=neuronbridge
+MongoDB.Username=<enter username here>
+MongoDB.Password=<enter password here>
+MongoDB.ReplicaSet=rsDev
+MongoDB.UseSSL=
+MongoDB.Connections=500
+MongoDB.ConnectionTimeoutMillis=
+MongoDB.MaxConnecting=20
+MongoDB.MaxConnectTimeSecs=
+MongoDB.MaxConnectionIdleSecs=
+MongoDB.MaxConnectionLifeSecs=
+EOF
+```
+
+For production database you can run:
+```
+cat > db-config.properties <<EOF
+MongoDB.Server=jacs-mongodb1:27017,jacs-mongodb2:27017,jacs-mongodb3:27017
+MongoDB.AuthDatabase=admin
+MongoDB.Database=neuronbridge
+MongoDB.Username=<enter username here>
+MongoDB.Password=<enter password here>
+MongoDB.ReplicaSet=rsProd
+MongoDB.UseSSL=
+MongoDB.Connections=500
+MongoDB.ConnectionTimeoutMillis=
+MongoDB.MaxConnecting=500
+MongoDB.MaxConnectTimeSecs=
+MongoDB.MaxConnectionIdleSecs=30
+MongoDB.MaxConnectionLifeSecs=120
+EOF
+```
 
 ## Step 3: Run color depth pixel matching algorithm
 
@@ -64,10 +104,22 @@ nextflow run workflows/step1-cds.nf \
 
 ## Step 4: Run color depth shape scoring algorithm
 
-This process calculates an shape based score for existing pixel matches. Because the scoring algorithm is "expensive" for each mask MIP we pick the top 300 published names that match the MIP and we only compute the scores for the corresponding pixel matches.
+This process calculates an shape based score for existing pixel matches. Because the shape scoring algorithm is "expensive" for each mask we only score the top 300 published names in terms of pixel match scores that match the mask's MIP.
 
 ```
 nextflow run workflows/step2-gradscore.nf \
     -params-file runs/raw-is-runs/vnc/gradscore-manc-israw.json \
     --first_job 1 --last_job 1
+```
+
+## Step 5. Normalize color depth search scores
+
+Typically the shape scoring algorithm also normalizes the score, so this step is needed when we only compute the shape scores for a subset of a library. If only a subset of a library MIPs is selected (based on command line parameters) than these may skew the normalized score because the scores have to be normalized with respect to the entire library.
+
+```
+nextflow run workflows/step6-normalize-gradscore.nf \
+    --db_config db-config.properties \
+    --anatomical_area brain \
+    --masks_library flyem_hemibrain_1_2_1 \
+    --targets_library "flylight_gen1_mcfo_published,flylight_annotator_gen1_mcfo_published"
 ```
