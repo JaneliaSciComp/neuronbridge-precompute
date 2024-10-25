@@ -1,6 +1,8 @@
 # NeuronBridge Precompute Steps
 
-Running the entire precompute pipeline requires the following steps:
+The precompute pipeline require [nextflow](https://www.nextflow.io) and JDK 17 or newer (the latest version of nextflow will no longer run with JDK 8)
+
+The full precompute pipeline has the following steps:
 * Import the segmented CDMs into JACS.
 * Import the CDM library from JACS into NeuronBridge
 * Run color depth pixel matching algorithm
@@ -10,9 +12,9 @@ Running the entire precompute pipeline requires the following steps:
 * Export color depth matches
 * Upload color depth matches to AWS
 
-The first two steps are needed in order to import color depth MIPs from JACs into NeuronBridge database. If all MIPs and libraries are already available in JACS the first step is not required but sometimes we have to import new segmented MIPs in JACS and only when all data is available in JACS database and filestore (`/nrs/jacs/jacsdata/filestore/system/ColorDepthMIPs`) we can import it into NeuronBridge
+The first two steps are needed only for importing color depth MIPs from JACs into NeuronBridge database. If all MIPs and libraries are already available in JACS the first step is not required but sometimes we have to import new segmented MIPs in JACS and only when all data is available in JACS database and filestore (`/nrs/jacs/jacsdata/filestore/system/ColorDepthMIPs`) we can import it into NeuronBridge
 
-## Step 1: Import the segmented CDMs into JACS
+## Pre Step 1: Import the segmented CDMs into JACS
 
 This process is needed to import new segmented MIPs or brand new MIPs (EM use case) into JACS. Practically in this step we copy segmented MIPs to JACS filestore (`/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs`). In some cases (usually for new EM imports) we need to sync these new MIPs and create a new library in JACS if such library does not exist.
 
@@ -40,7 +42,7 @@ nextflow run workflows/pre-step0-create-jacs-library.nf \
     --dry_run false
 ```
 
-## Step 2: Import the CDM library from JACS into NeuronBridge
+## Pre Step 2: Import the CDM library from JACS into NeuronBridge
 
 This process imports CDMs from JACS libraries into NeuronBridge. This require access to a JACS server. The authorization parameter can be either a bearer token or an API key
 
@@ -92,7 +94,7 @@ MongoDB.MaxConnectionLifeSecs=120
 EOF
 ```
 
-## Step 3: Run color depth pixel matching algorithm
+## Step 1: Run color depth pixel matching algorithm
 
 This process performs a color depths search between the specified masks and targets MIPs. Usually the masks are EM MIPs and the targets are LM MIPs but an EM to EM or LM to LM match is also possible. The masks and targets MIPs are defined by the corresponding `masks_library` and `targets_library` parameters. This process can be partitioned in multiple jobs and you have an option to run a range of jobs using `first_job` and `last_job` parameters or a specific list of jobs using `job_list` (job ids are 1-based and `first_job` and `last_job` parameters are inclusive). These jobs can run on a local host that has access both the database and the JACS filestore, on SciComp's kubernetes cluster or on Janelia's LSF cluster. The job size is determined by `cds_mask_batch_size` and `cds_target_batch_size`
 
@@ -102,7 +104,7 @@ nextflow run workflows/step1-cds.nf \
     --job_list 1
 ```
 
-## Step 4: Run color depth shape scoring algorithm
+## Step 2: Run color depth shape scoring algorithm
 
 This process calculates an shape based score for existing pixel matches. Because the shape scoring algorithm is "expensive" for each mask we only score the top 300 published names in terms of pixel match scores that match the mask's MIP.
 
@@ -112,7 +114,7 @@ nextflow run workflows/step2-gradscore.nf \
     --first_job 1 --last_job 1
 ```
 
-## Step 5. Normalize color depth search scores
+## Step 6. Normalize color depth search scores
 
 Typically the shape scoring algorithm also normalizes the score, so this step is needed when we only compute the shape scores for a subset of a library. If only a subset of a library MIPs is selected (based on command line parameters) than these may skew the normalized score because the scores have to be normalized with respect to the entire library.
 
@@ -122,4 +124,20 @@ nextflow run workflows/step6-normalize-gradscore.nf \
     --anatomical_area brain \
     --masks_library flyem_hemibrain_1_2_1 \
     --targets_library "flylight_gen1_mcfo_published,flylight_annotator_gen1_mcfo_published"
+```
+## Step 7: Export color depth matches
+
+NeuronBridge requires all its metadata to be exported as JSON. Also as a prerequisite for export is to have all the imagery on AWS because this step will only output files in the metadata that were marked as exported to AWS. Currently there are 8 total export operations - 3 per anatomical area (brain or VNC) to export color depth (CDM) and patch per pixel (PPPM) match
+ * EM_CD_MATCHES
+ * LM_CD_MATCHES
+ * EM_PPP_MATCHES
+and 2 that export data for both anatomical areas (brain and VNC) - one for brain+vnc EM MIPs and one for brain+vnc LM MIPs
+ * EM_MIPS
+ * LM_MIPS
+
+## Step 8: Upload color depth matches to AWS
+Before uploading to AWS you need to setup your AWS credentials as nextflow secrets:
+```
+nextflow secrets set AWS_ACCESS_KEY <youraccesskey>
+nextflow secrets set AWS_SECRET_KEY <yoursecret>
 ```
