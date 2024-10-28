@@ -28,7 +28,7 @@ process UPLOAD {
     s3_prefix="${get_s3_prefix(upload_type, data_version)}"
     data_dir="${base_data_dir}/\${data_location}"
     s3_uri="s3://${s3_bucket}/\${s3_prefix}"
-    upload_cmd="${get_upload_cmd(app_runner, \${data_dir}, \${s3_uri}, dry_run)}"
+    upload_cmd="${get_upload_cmd(app_runner, data_dir, s3_uri, dry_run)}"
 
     echo "\$(date) Run ${anatomical_area} ${upload_type} upload on \$(hostname -s)"
     full_data_dir=\$(readlink -m \${data_dir})
