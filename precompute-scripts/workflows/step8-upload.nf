@@ -1,6 +1,6 @@
-include { UPLOAD        } from '../modules/local/upload/main.nf'
+include { UPLOAD                   } from '../modules/local/upload/main.nf'
 
-include { get_list_arg; } from '../nfutils/utils'
+include { get_values_as_collection } from '../nfutils/utils'
 
 workflow {
 
@@ -15,7 +15,7 @@ workflow {
     def upload_results = UPLOAD(
         upload_inputs,
         params.aws_runner,
-        get_list_arg(params.upload_type),
+        get_values_as_collection(params.upload_type),
         params.upload_bucket,
         params.dry_run,
     )
