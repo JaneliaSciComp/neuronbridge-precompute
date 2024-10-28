@@ -9,9 +9,9 @@ process UPLOAD {
     input:
     tuple val(anatomical_area),
           path(base_data_dir),
-          val(data_version)
+          val(data_version),
+          each(upload_type)  // EM_MIPS, LM_MIPS, EM_CD_MATCHES, LM_CD_MATCHES, EM_PPP_MATCHES
     val(app_runner)
-    each(upload_type)  // EM_MIPS, LM_MIPS, EM_CD_MATCHES, LM_CD_MATCHES, EM_PPP_MATCHES
     val(s3_bucket)
     val(dry_run)
 
@@ -47,8 +47,8 @@ def get_data_dir(upload_type, data_version, anatomical_area) {
         case 'EM_CD_MATCHES' -> "v${data_version}/${anatomical_area}/cdmatches/em-vs-lm"
         case 'LM_CD_MATCHES' -> "v${data_version}/${anatomical_area}/cdmatches/lm-vs-em"
         case 'EM_PPP_MATCHES' -> "v${data_version}/${anatomical_area}/pppmatches/em-vs-lm"
+        default -> throw new IllegalArgumentException("Invalid upload type: ${upload_type}")
     }
-    throw new IllegalArgumentException("Invalid upload type: ${upload_type}")
 }
 
 def get_s3_prefix(upload_type, data_version) {
@@ -60,8 +60,8 @@ def get_s3_prefix(upload_type, data_version) {
         case 'EM_CD_MATCHES' -> "${s3_data_version}/metadata/cdsresults"
         case 'LM_CD_MATCHES' -> "${s3_data_version}/metadata/cdsresults"
         case 'EM_PPP_MATCHES' -> "${s3_data_version}/metadata/pppmresults"
+        default -> throw new IllegalArgumentException("Invalid upload type: ${upload_type}")
     }
-    throw new IllegalArgumentException("Invalid upload type: ${upload_type}")
 }
 
 def get_upload_cmd(app_runner, local_data_dir, s3_uri, dry_run) {
