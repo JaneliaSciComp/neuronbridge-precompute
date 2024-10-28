@@ -31,10 +31,10 @@ process UPLOAD {
 
     """
 
-    echo "\$(date) Run ${anatomical_area} ${upload_type} upload on \$(hostname -s)"
-    full_data_dir=\$(readlink -m \${data_dir})
+    echo "\$(date) Run ${anatomical_area} ${upload_type_arg} upload on \$(hostname -s)"
+    full_data_dir=\$(readlink -m ${data_dir})
     AWS_ACCESS_KEY_ID=\${AWS_ACCESS_KEY} AWS_SECRET_ACCESS_KEY=\${AWS_SECRET_KEY} ${upload_cmd}
-    echo "\$(date) Completed ${anatomical_area} ${upload_type} upload on \$(hostname -s)"
+    echo "\$(date) Completed ${anatomical_area} ${upload_type_arg} upload on \$(hostname -s)"
     """
 }
 
