@@ -14,6 +14,7 @@ process UPLOAD {
     val(cpus)
     val(mem_gb)
     val(s3_bucket)
+    each(anatomical_area)
     each(upload_type)  // EM_MIPS, LM_MIPS, EM_CD_MATCHES, LM_CD_MATCHES, EM_PPP_MATCHES
     val(dry_run)
 
