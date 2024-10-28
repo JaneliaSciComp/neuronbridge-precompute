@@ -16,19 +16,20 @@ process UPLOAD {
     val(dry_run)
 
     output:
-    tuple env(full_data_dir), env(s3_uri)
+    tuple env(full_data_dir), val(s3_uri)
 
     when:
     task.ext.when == null || task.ext.when
 
     script:
     log.info "!!!! ${upload_type} ${upload_type.class}"
+    def data_location = get_data_dir(upload_type, data_version, anatomical_area)
+    def s3_prefix = get_s3_prefix(upload_type, data_version)
+    def data_dir = "${base_data_dir}/${data_location}"
+    def s3_uri = "s3://${s3_bucket}/${s3_prefix}"
+    def upload_cmd = get_upload_cmd(app_runner, data_dir, s3_uri, dry_run)
+
     """
-    data_location="${get_data_dir(upload_type, data_version, anatomical_area)}"
-    s3_prefix="${get_s3_prefix(upload_type, data_version)}"
-    data_dir="${base_data_dir}/\${data_location}"
-    s3_uri="s3://${s3_bucket}/\${s3_prefix}"
-    upload_cmd="${get_upload_cmd(app_runner, data_dir, s3_uri, dry_run)}"
 
     echo "\$(date) Run ${anatomical_area} ${upload_type} upload on \$(hostname -s)"
     full_data_dir=\$(readlink -m \${data_dir})
