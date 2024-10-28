@@ -24,8 +24,7 @@ process UPLOAD {
     script:
     def upload_type_arg = upload_type
     log.info "!!!! ${upload_type_arg} ${upload_type_arg.class}"
-    def data_location = get_data_dir(upload_type_arg, data_version, anatomical_area)
-    def s3_prefix = get_s3_prefix(upload_type_arg, data_version)
+    def (data_location, s3_prefix) = get_data_dirs(upload_type_arg, data_version, anatomical_area)
     def data_dir = "${base_data_dir}/${data_location}"
     def s3_uri = "s3://${s3_bucket}/${s3_prefix}"
     def upload_cmd = get_upload_cmd(app_runner, data_dir, s3_uri, dry_run)
@@ -39,27 +38,30 @@ process UPLOAD {
     """
 }
 
-def get_data_dir(upload_type, data_version, anatomical_area) {
+def get_data_dirs(upload_type, data_version, anatomical_area) {
     log.info "!!!!! IN GET DIR $upload_type"
-    switch(upload_type) {
-        case 'EM_MIPS' -> "v${data_version}/${anatomical_area}/mips/embodies"
-        case 'LM_MIPS' -> "v${data_version}/${anatomical_area}/mips/lmlines"
-        case 'EM_CD_MATCHES' -> "v${data_version}/${anatomical_area}/cdmatches/em-vs-lm"
-        case 'LM_CD_MATCHES' -> "v${data_version}/${anatomical_area}/cdmatches/lm-vs-em"
-        case 'EM_PPP_MATCHES' -> "v${data_version}/${anatomical_area}/pppmatches/em-vs-lm"
-        default -> throw new IllegalArgumentException("Invalid upload type: ${upload_type}")
-    }
-}
-
-def get_s3_prefix(upload_type, data_version) {
-    log.info "!!!!! IN GET PREFIX $upload_type"
     def s3_data_version = data_version.replaceAll('.', '_')
     switch(upload_type) {
-        case 'EM_MIPS' -> "${s3_data_version}/metadata/by_line"
-        case 'LM_MIPS' -> "${s3_data_version}/metadata/by_body"
-        case 'EM_CD_MATCHES' -> "${s3_data_version}/metadata/cdsresults"
-        case 'LM_CD_MATCHES' -> "${s3_data_version}/metadata/cdsresults"
-        case 'EM_PPP_MATCHES' -> "${s3_data_version}/metadata/pppmresults"
+        case 'EM_MIPS' -> [ 
+            "v${data_version}/${anatomical_area}/mips/embodies",
+            "${s3_data_version}/metadata/by_line"
+        ]
+        case 'LM_MIPS' -> [
+            "v${data_version}/${anatomical_area}/mips/lmlines",
+            "${s3_data_version}/metadata/by_body"
+        ]
+        case 'EM_CD_MATCHES' -> [
+            "v${data_version}/${anatomical_area}/cdmatches/em-vs-lm",
+            "${s3_data_version}/metadata/cdsresults"
+        ]
+        case 'LM_CD_MATCHES' -> [
+            "v${data_version}/${anatomical_area}/cdmatches/lm-vs-em",
+            "${s3_data_version}/metadata/cdsresults"
+        ]
+        case 'EM_PPP_MATCHES' -> [
+            "v${data_version}/${anatomical_area}/pppmatches/em-vs-lm",
+            "${s3_data_version}/metadata/pppmresults"
+        ]
         default -> throw new IllegalArgumentException("Invalid upload type: ${upload_type}")
     }
 }
