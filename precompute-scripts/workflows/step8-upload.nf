@@ -11,13 +11,13 @@ workflow {
             params.anatomical_area,
             params.base_data_dir,
             params.data_version,
-            upload_types,
         ]
     )
     def upload_results = UPLOAD(
         upload_inputs,
         params.aws_runner,
         params.upload_bucket,
+        upload_types,
         params.dry_run,
     )
 

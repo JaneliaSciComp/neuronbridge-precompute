@@ -9,10 +9,10 @@ process UPLOAD {
     input:
     tuple val(anatomical_area),
           path(base_data_dir),
-          val(data_version),
-          each(upload_type)  // EM_MIPS, LM_MIPS, EM_CD_MATCHES, LM_CD_MATCHES, EM_PPP_MATCHES
+          val(data_version)
     val(app_runner)
     val(s3_bucket)
+    each(upload_type)  // EM_MIPS, LM_MIPS, EM_CD_MATCHES, LM_CD_MATCHES, EM_PPP_MATCHES
     val(dry_run)
 
     output:
