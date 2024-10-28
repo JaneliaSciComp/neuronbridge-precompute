@@ -46,11 +46,11 @@ def get_data_dirs(upload_type, data_version, anatomical_area) {
     switch(upload_type) {
         case 'EM_MIPS' -> [ 
             "v${data_version}/${anatomical_area}/mips/embodies",
-            "v${s3_data_version}/metadata/by_line",
+            "v${s3_data_version}/metadata/by_body",
         ]
         case 'LM_MIPS' -> [
             "v${data_version}/${anatomical_area}/mips/lmlines",
-            "v${s3_data_version}/metadata/by_body",
+            "v${s3_data_version}/metadata/by_line",
         ]
         case 'EM_CD_MATCHES' -> [
             "v${data_version}/${anatomical_area}/cdmatches/em-vs-lm",
