@@ -1,6 +1,6 @@
 # NeuronBridge Precompute Steps
 
-The precompute pipeline require [nextflow](https://www.nextflow.io) and JDK 17 or newer (the latest version of nextflow will no longer run with JDK 8)
+The precompute pipeline require [nextflow](https://www.nextflow.io) and JDK 17 or newer (newer versions of nextflow will no longer run with JDK 8)
 
 The full precompute pipeline has the following steps:
 * Import the segmented CDMs into JACS.
@@ -114,6 +114,21 @@ nextflow run workflows/step2-gradscore.nf \
     --first_job 1 --last_job 1
 ```
 
+## Step 4: Tag data
+
+Tagging will help us track NeuronBridge data versions. To tag simply run:
+```
+nextflow run workflow/step4-tag.nf \
+    --anatomical_area brain \
+    --db_config db-config.properties
+```
+and/or
+```
+nextflow run workflow/step4-tag.nf \
+    --anatomical_area vnc \
+    --db_config db-config.properties
+```
+
 ## Step 6. Normalize color depth search scores
 
 Typically the shape scoring algorithm also normalizes the score, so this step is needed when we only compute the shape scores for a subset of a library. If only a subset of a library MIPs is selected (based on command line parameters) than these may skew the normalized score because the scores have to be normalized with respect to the entire library.
@@ -125,6 +140,7 @@ nextflow run workflows/step6-normalize-gradscore.nf \
     --masks_library flyem_hemibrain_1_2_1 \
     --targets_library "flylight_gen1_mcfo_published,flylight_annotator_gen1_mcfo_published"
 ```
+
 ## Step 7: Export color depth matches
 
 NeuronBridge requires all its metadata to be exported from the database to the file system and then uploaded to AWS. This step performs the first part - export data from the internal database to the file system. Before starting the export make sure that all the imagery has been already uploaded to AWS because this step will only output entries for which the image files were marked as exported to AWS - it will not check the AWS but it relies on a collection that specifies all files uploaded to AWS. Currently there are 8 total export operations - 3 per anatomical area (brain or VNC) to export color depth (CDM) and patch per pixel (PPPM) match
