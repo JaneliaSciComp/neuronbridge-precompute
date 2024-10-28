@@ -48,23 +48,23 @@ def get_data_dirs(upload_type, data_version, anatomical_area) {
     switch(upload_type) {
         case 'EM_MIPS' -> [ 
             "v${data_version}/${anatomical_area}/mips/embodies",
-            "${s3_data_version}/metadata/by_line"
+            "v${s3_data_version}/metadata/by_line",
         ]
         case 'LM_MIPS' -> [
             "v${data_version}/${anatomical_area}/mips/lmlines",
-            "${s3_data_version}/metadata/by_body"
+            "v${s3_data_version}/metadata/by_body",
         ]
         case 'EM_CD_MATCHES' -> [
             "v${data_version}/${anatomical_area}/cdmatches/em-vs-lm",
-            "${s3_data_version}/metadata/cdsresults"
+            "v${s3_data_version}/metadata/cdsresults",
         ]
         case 'LM_CD_MATCHES' -> [
             "v${data_version}/${anatomical_area}/cdmatches/lm-vs-em",
-            "${s3_data_version}/metadata/cdsresults"
+            "v${s3_data_version}/metadata/cdsresults",
         ]
         case 'EM_PPP_MATCHES' -> [
             "v${data_version}/${anatomical_area}/pppmatches/em-vs-lm",
-            "${s3_data_version}/metadata/pppmresults"
+            "v${s3_data_version}/metadata/pppmresults",
         ]
         default -> throw new IllegalArgumentException("Invalid upload type: ${upload_type}")
     }
