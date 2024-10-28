@@ -11,6 +11,8 @@ process UPLOAD {
           path(base_data_dir),
           val(data_version)
     val(app_runner)
+    val(cpus)
+    val(mem_gb)
     val(s3_bucket)
     each(upload_type)  // EM_MIPS, LM_MIPS, EM_CD_MATCHES, LM_CD_MATCHES, EM_PPP_MATCHES
     val(dry_run)
@@ -30,7 +32,6 @@ process UPLOAD {
     def upload_cmd = get_upload_cmd(app_runner, data_dir, s3_uri, dry_run)
 
     """
-
     echo "\$(date) Run ${anatomical_area} ${upload_type_arg} upload on \$(hostname -s)"
     full_data_dir=\$(readlink -m ${data_dir})
     AWS_ACCESS_KEY_ID=\${AWS_ACCESS_KEY} AWS_SECRET_ACCESS_KEY=\${AWS_SECRET_KEY} ${upload_cmd}

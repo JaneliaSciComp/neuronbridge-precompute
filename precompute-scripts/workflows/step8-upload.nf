@@ -16,6 +16,8 @@ workflow {
     def upload_results = UPLOAD(
         upload_inputs,
         params.aws_runner,
+        params.upload_cpus,
+        params.upload_mem_gb,
         params.upload_bucket,
         upload_types,
         params.dry_run,
