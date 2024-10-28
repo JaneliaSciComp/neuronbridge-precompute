@@ -17,6 +17,7 @@ workflow {
         params.aws_runner,
         get_list_arg(params.upload_type),
         params.upload_bucket,
+        params.dry_run,
     )
 
     upload_results | view

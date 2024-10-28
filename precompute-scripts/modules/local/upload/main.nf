@@ -13,6 +13,7 @@ process UPLOAD {
     val(app_runner)
     each(upload_type)  // EM_MIPS, LM_MIPS, EM_CD_MATCHES, LM_CD_MATCHES, EM_PPP_MATCHES
     val(s3_bucket)
+    val(dry_run)
 
     output:
     tuple env(full_data_dir), val(s3_uri)
@@ -25,7 +26,7 @@ process UPLOAD {
     def s3_prefix = get_s3_prefix(upload_type, data_version)
     data_dir = "${base_data_dir}/${data_location}"
     s3_uri = "s3://${s3_bucket}/${s3_prefix}"
-    def upload_cmd = get_upload_cmd(app_runner, data_dir, s3_uri)
+    def upload_cmd = get_upload_cmd(app_runner, data_dir, s3_uri, dry_run)
 
     """
     echo "\$(date) Run ${anatomical_area} ${upload_type} upload on \$(hostname -s)"
@@ -58,6 +59,7 @@ def get_s3_prefix(upload_type, data_version) {
     throw new IllegalArgumentException("Invalid upload type: ${upload_type}")
 }
 
-def get_upload_cmd(app_runner, local_data_dir, s3_uri) {
-    "${app_runner} aws s3 cp $local_data_dir ${s3_uri} --recursive"
+def get_upload_cmd(app_runner, local_data_dir, s3_uri, dry_run) {
+    def dry_run_arg = dry_run ? '--dryrun' : ''
+    "${app_runner} aws s3 cp $local_data_dir ${s3_uri} ${dry_run_arg} --recursive"
 }
