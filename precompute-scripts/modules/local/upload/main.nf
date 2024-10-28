@@ -24,8 +24,8 @@ process UPLOAD {
     script:
     def data_location = get_data_dir(upload_type, data_version, anatomical_area)
     def s3_prefix = get_s3_prefix(upload_type, data_version)
-    data_dir = "${base_data_dir}/${data_location}"
-    s3_uri = "s3://${s3_bucket}/${s3_prefix}"
+    def data_dir = "${base_data_dir}/${data_location}"
+    def s3_uri = "s3://${s3_bucket}/${s3_prefix}"
     def upload_cmd = get_upload_cmd(app_runner, data_dir, s3_uri, dry_run)
 
     """
