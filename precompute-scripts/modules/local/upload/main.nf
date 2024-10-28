@@ -7,8 +7,7 @@ process UPLOAD {
     secret 'AWS_SECRET_KEY'
 
     input:
-    tuple val(anatomical_area),
-          path(base_data_dir),
+    tuple path(base_data_dir),
           val(data_version)
     val(app_runner)
     val(cpus)
