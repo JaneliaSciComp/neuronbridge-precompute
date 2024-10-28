@@ -11,11 +11,12 @@ workflow {
             params.data_version
         ]
     )
-
+    def upload_types = get_values_as_collection(params.upload_type)
+    log.info "!!! MAIN $upload_types"
     def upload_results = UPLOAD(
         upload_inputs,
         params.aws_runner,
-        get_values_as_collection(params.upload_type),
+        upload_types,
         params.upload_bucket,
         params.dry_run,
     )
