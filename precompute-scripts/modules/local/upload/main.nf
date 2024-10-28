@@ -28,8 +28,9 @@ process UPLOAD {
     log.info "!!!! ${upload_type_arg} ${upload_type_arg.class}"
     def (data_location, s3_prefix) = get_data_dirs(upload_type_arg, data_version, anatomical_area)
     def data_dir = "${base_data_dir}/${data_location}"
-    s3_uri = "s3://${s3_bucket}/${s3_prefix}"
-    def upload_cmd = get_upload_cmd(app_runner, data_dir, s3_uri, dry_run)
+    def s3_uri_arg = "s3://${s3_bucket}/${s3_prefix}"
+    def upload_cmd = get_upload_cmd(app_runner, data_dir, s3_uri_arg, dry_run)
+    s3_uri = s3_uri_arg
 
     """
     echo "\$(date) Run ${anatomical_area} ${upload_type_arg} upload on \$(hostname -s)"
