@@ -22,7 +22,7 @@ process UPLOAD {
     task.ext.when == null || task.ext.when
 
     script:
-
+    log.info "!!!! ${upload_type} ${upload_type.class}"
     """
     data_location="${get_data_dir(upload_type, data_version, anatomical_area)}"
     s3_prefix="${get_s3_prefix(upload_type, data_version)}"
