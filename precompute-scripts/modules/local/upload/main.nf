@@ -40,6 +40,7 @@ process UPLOAD {
 }
 
 def get_data_dir(upload_type, data_version, anatomical_area) {
+    log.info "!!!!! IN GET DIR $upload_type"
     switch(upload_type) {
         case 'EM_MIPS' -> "v${data_version}/${anatomical_area}/mips/embodies"
         case 'LM_MIPS' -> "v${data_version}/${anatomical_area}/mips/lmlines"
@@ -51,6 +52,7 @@ def get_data_dir(upload_type, data_version, anatomical_area) {
 }
 
 def get_s3_prefix(upload_type, data_version) {
+    log.info "!!!!! IN GET PREFIX $upload_type"
     def s3_data_version = data_version.replaceAll('.', '_')
     switch(upload_type) {
         case 'EM_MIPS' -> "${s3_data_version}/metadata/by_line"
