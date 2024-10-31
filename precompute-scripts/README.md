@@ -157,3 +157,18 @@ Before uploading to AWS you need to setup your AWS credentials as nextflow secre
 nextflow secrets set AWS_ACCESS_KEY <youraccesskey>
 nextflow secrets set AWS_SECRET_KEY <yoursecret>
 ```
+Upload the MIPs with:
+```
+nextflow run workflows/step8-upload.nf \
+         --dry_run false \
+         --upload_anatomical_areas brain+vnc \
+         --upload_type "EM_MIPS,LM_MIPS"
+```
+
+Upload the matches with:
+```
+nextflow run workflows/step8-upload.nf \
+         --dry_run false \
+         --upload_anatomical_areas "brain,vnc" \
+         --upload_type "EM_CD_MATCHES,LM_CD_MATCHES,EM_PPP_MATCHES"
+```

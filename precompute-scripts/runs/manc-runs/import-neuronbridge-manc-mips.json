@@ -1,0 +1,12 @@
+{
+    "anatomical_area": "VNC",
+    "import_library": "flyem_manc_1_2_1",
+    "import_tag": "import-manc",
+    "jacs_url": "",
+    "jacs_authorization": "",
+    "db_config": "mylocal/devdb-config.properties",
+    "searchable_cdm_location": "searchable",
+    "grad_location": "grad",
+    "zgap_location": "zgap",
+    "libstore_dir": "/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs"
+}
