@@ -1,4 +1,4 @@
-''' This program will scrub an upload order file using a manifest
+''' This program will scrub an upload order file of searchable_neurons using a manifest
 '''
 __version__ = '1.0.0'
 
@@ -26,7 +26,7 @@ def terminate_program(msg=None):
 
 
 def scrub_order_file():
-    ''' Scrub an order fril to produce a new order file
+    ''' Scrub an order file to produce a new order file
         Keyword arguments:
           None
         Returns:
