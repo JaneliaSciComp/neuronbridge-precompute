@@ -10,7 +10,7 @@ from simple_term_menu import TerminalMenu
 from tqdm import tqdm
 import jrc_common.jrc_common as JRC
 
-#pylint:disable=logging-fstring-interpolation
+#pylint:disable=broad-exception-caught,logging-fstring-interpolation
 
 # Database
 DB = {}
@@ -20,8 +20,10 @@ READ = {'RELEASE': "SELECT DISTINCT value FROM image_property_vw WHERE "
                 + "FROM image_data_mv WHERE alps_release=%s AND "
                 + "alignment_space_cdm IS NOT NULL ORDER BY 1",
        }
+ADD = {'neuronMetadata': [], 'publishedURL': [], 'publishedLMImage': []}
 AUDIT = {'neuronMetadata': [], 'publishedURL': [], 'publishedLMImage': []}
 BATCH = {'neuronMetadata': [], 'publishedURL': [], 'publishedLMImage': []}
+BOUND = {'neuronMetadata': [], 'publishedURL': [], 'publishedLMImage': []}
 # Counters
 CHANGED = {}
 COUNT = collections.defaultdict(lambda: 0, {})
@@ -72,87 +74,129 @@ def initialize_program():
         ARG.RELEASE = rlist[chosen]
 
 
-def process_nmd(scode, coll):
+def crosses_boundary(reldict):
+    """ Determine if a release crosses a boundary
+        Keyword arguments:
+          reldict: release dictionary in the form {'old': 'old release', 'new': 'new release'}
+        Returns:
+          True if boundary crossed
+    """
+    dataset = {'old': '', 'new': ''}
+    for reltype in ('old', 'new'):
+        if reldict[reltype].endswith("GEN1 MCFO"):
+            dataset[reltype] = "flylight_gen1_mcfo_published"
+        elif reldict[reltype].endswith("Omnibus Broad"):
+            dataset[reltype] = "flylight_raw_published"
+        else:
+            dataset[reltype] = "flylight_split_gal4_published"
+    return dataset['old'] != dataset['new']
+
+
+def process_nmd(scode, pname, coll):
     """ Batch updates to neuronMetadata for a single slide code
         Keyword arguments:
           scode: slide code
+          pname: publishing name
           coll: collection
         Returns:
           None
     """
-    result = coll.find({"slideCode": scode}, {"datasetLabels": 1})
+    result = coll.find({"slideCode": scode, "publishedName": pname})
     for row in result:
         COUNT['nmd'] += 1
         payload = {'_id': row['_id'],
                    'datasetLabels': [ARG.RELEASE]}
         if not 'datasetLabels' in row:
-            COUNT['nmd_added'] += 1
-            AUDIT['neuronMetadata'].append(f"{row['_id']} added {ARG.RELEASE}")
-            BATCH['neuronMetadata'].append(payload)
-        elif ARG.RELEASE not in row['datasetLabels']:
+            COUNT['added'] += 1
+            ADD['neuronMetadata'].append(f"{scode} {pname} {row['_id']} " \
+                                         + "needs release added to neuronMetadata")
+            continue
+        if ARG.RELEASE not in row['datasetLabels']:
             if len(row['datasetLabels']) > 1:
-                terminate_program(f"More than one release for {rec['_id']}")
+                terminate_program(f"More than one release for {row['_id']}")
             if row['datasetLabels'][0] not in CHANGED:
                 CHANGED[row['datasetLabels'][0]] = 1
             else:
                 CHANGED[row['datasetLabels'][0]] += 1
-            COUNT['nmd_changed'] += 1
-            AUDIT['neuronMetadata'].append(f"{row['_id']} {row['datasetLabels']} -> {ARG.RELEASE}")
-            BATCH['neuronMetadata'].append(payload)
+            crossed = crosses_boundary({'old': row['datasetLabels'][0], 'new': ARG.RELEASE})
+            msg = f"{scode} {pname} {row['_id']} {row['datasetLabels']} -> {ARG.RELEASE}"
+            if crossed:
+                COUNT['nmd_crossed'] += 1
+                BOUND['neuronMetadata'].append(msg)
+            else:
+                COUNT['nmd_changed'] += 1
+                AUDIT['neuronMetadata'].append(msg)
+                BATCH['neuronMetadata'].append(payload)
 
 
-def process_purl(scode, coll):
+def process_purl(scode, pname, coll):
     """ Batch updates to publishedURL for a single slide code
         Keyword arguments:
           scode: slide code
+          pname: publishing name
           coll: collection
         Returns:
           None
     """
-    result = coll.find({"slideCode": scode})
+    result = coll.find({"slideCode": scode, "publishedName": pname})
     for row in result:
         COUNT['purl'] += 1
         payload = {'_id': row['_id'],
                    'alpsRelease': ARG.RELEASE}
         if not 'alpsRelease' in row:
-            COUNT['purl_added'] += 1
-            AUDIT['publishedURL'].append(f"{row['_id']} added {ARG.RELEASE}")
-            BATCH['publishedURL'].append(payload)
-        elif ARG.RELEASE != row['alpsRelease']:
+            COUNT['added'] += 1
+            ADD['publishedURL'].append(f"{scode} {pname} {row['_id']} " \
+                                       + "needs release added to publishedURL")
+            continue
+        if ARG.RELEASE != row['alpsRelease']:
             if row['alpsRelease'] not in CHANGED:
                 CHANGED[row['alpsRelease']] = 1
             else:
                 CHANGED[row['alpsRelease']] += 1
-            COUNT['purl_changed'] += 1
-            AUDIT['publishedURL'].append(f"{row['_id']} {row['alpsRelease']} -> {ARG.RELEASE}")
-            BATCH['publishedURL'].append(payload)
+            crossed = crosses_boundary({'old': row['alpsRelease'], 'new': ARG.RELEASE})
+            msg = f"{scode} {pname} {row['_id']} {row['alpsRelease']} -> {ARG.RELEASE}"
+            if crossed:
+                COUNT['purl_crossed'] += 1
+                BOUND['publishedURL'].append(msg)
+            else:
+                COUNT['purl_changed'] += 1
+                AUDIT['publishedURL'].append(msg)
+                BATCH['publishedURL'].append(payload)
 
 
-def process_pli(scode, coll):
+def process_pli(scode, pname, coll):
     """ Batch updates to publishedLMImage for a single slide code
         Keyword arguments:
           scode: slide code
+          pname: publishing name
           coll: collection
         Returns:
           None
     """
-    result = coll.find({"slideCode": scode})
+    result = coll.find({"slideCode": scode, "name": pname})
     for row in result:
         COUNT['pli'] += 1
         payload = {'_id': row['_id'],
                    'releaseName': ARG.RELEASE}
         if not 'releaseName' in row:
-            COUNT['pli_added'] += 1
-            AUDIT['publishedLMImage'].append(f"{row['_id']} added {ARG.RELEASE}")
-            BATCH['publishedLMImage'].append(payload)
-        elif ARG.RELEASE != row['releaseName']:
+            COUNT['added'] += 1
+            ADD['publishedLMImage'].append(f"{scode} {pname} {row['_id']} " \
+                                           + "needs release added to publishedLMImage")
+            continue
+        if ARG.RELEASE != row['releaseName']:
             if row['releaseName'] not in CHANGED:
                 CHANGED[row['releaseName']] = 1
             else:
                 CHANGED[row['releaseName']] += 1
-            COUNT['pli_changed'] += 1
-            AUDIT['publishedLMImage'].append(f"{row['_id']} {row['releaseName']} -> {ARG.RELEASE}")
-            BATCH['publishedLMImage'].append(payload)
+            crossed = crosses_boundary({'old': row['releaseName'], 'new': ARG.RELEASE})
+            msg = f"{scode} {pname} {row['_id']} {row['releaseName']} -> {ARG.RELEASE}"
+            if crossed:
+                COUNT['pli_crossed'] += 1
+                BOUND['publishedLMImage'].append(msg)
+            else:
+                COUNT['pli_changed'] += 1
+                AUDIT['publishedLMImage'].append(msg)
+                BATCH['publishedLMImage'].append(payload)
 
 
 def update_database(collection, recs):
@@ -187,25 +231,47 @@ def show_report():
           None
     """
     if len(CHANGED):
-        print("Releases were changed for:")
+        print("Releases changed for:")
         for key, val in CHANGED.items():
             print(f"  {key}: {val:,}")
     for key, val in BATCH.items():
         update_database(key, val)
-    with open('lm_release_updates.txt', 'w', encoding='ascii') as batchout:
-        for key, val in AUDIT.items():
-            for msg in val:
-                batchout.write(f"{key} {msg}\n")
+    # Produce output files
+    samples = 0
+    for val in AUDIT.values():
+        samples += len(val)
+    if samples:
+        with open('lm_release_updates.txt', 'w', encoding='ascii') as batchout:
+            for key, val in AUDIT.items():
+                for msg in val:
+                    batchout.write(f"{key} {msg}\n")
+    samples = 0
+    for val in BOUND.values():
+        samples += len(val)
+    if samples:
+        with open('lm_release_crossovers.txt', 'w', encoding='ascii') as batchout:
+            for key, val in BOUND.items():
+                for msg in val:
+                    batchout.write(f"{key} {msg}\n")
+    if COUNT['added']:
+        with open('lm_release_need_releases.txt', 'w', encoding='ascii') as batchout:
+            for key, val in ADD.items():
+                for msg in val:
+                    batchout.write(f"{key} {msg}\n")
+    # Display stats
     print(f"Slides missing from neuronMetadata:  {COUNT['nmd_missing']:,}")
     print(f"Images found in neuronMetadata:      {COUNT['nmd']:,}")
     print(f"Changed release in neuronMetadata:   {COUNT['nmd_changed']:,}")
-    print(f"Added release in neuronMetadata:     {COUNT['nmd_added']:,}")
+    print(f"Crossed boundary in neuronMetadata:  {COUNT['nmd_crossed']:,}")
+    #print(f"Added release in neuronMetadata:     {COUNT['nmd_added']:,}")
     print(f"Images found in publishedURL:        {COUNT['purl']:,}")
     print(f"Changed release in publishedURL:     {COUNT['purl_changed']:,}")
-    print(f"Added release in publishedURL:       {COUNT['purl_added']:,}")
+    print(f"Crossed boundary in publishedURL:    {COUNT['purl_crossed']:,}")
+    #print(f"Added release in publishedURL:       {COUNT['purl_added']:,}")
     print(f"Images found in publishedLMImage:    {COUNT['pli']:,}")
     print(f"Changed release in publishedLMImage: {COUNT['pli_changed']:,}")
-    print(f"Added release in publishedLMImage:   {COUNT['pli_added']:,}")
+    print(f"Crossed boundary in publishedLMImage:{COUNT['pli_crossed']:,}")
+    #print(f"Added release in publishedLMImage:   {COUNT['pli_added']:,}")
     print(f"neuronMetadata inserts:              {COUNT['neuronMetadata_insert']:,}")
     print(f"neuronMetadata updates:              {COUNT['neuronMetadata_update']:,}")
     print(f"publishedLMImage inserts:            {COUNT['publishedLMImage_insert']:,}")
@@ -243,14 +309,14 @@ def process_release():
         item[row['slide_code']]['template'] = row['alignment_space_cdm'].lower()
     LOGGER.info(f"Slide codes: {len(item):,}")
     coll = DB["nb"].neuronMetadata
-    for scode in tqdm(item, desc='neuronMetadata'):
-        process_nmd(scode, coll)
+    for scode, val in tqdm(item.items(), desc='neuronMetadata'):
+        process_nmd(scode, val['line'], coll)
     coll = DB["nb"].publishedURL
-    for scode in tqdm(item, desc='publishedURL'):
-        process_purl(scode, coll)
+    for scode, val in tqdm(item.items(), desc='publishedURL'):
+        process_purl(scode, val['line'], coll)
     coll = DB["nb"].publishedLMImage
-    for scode in tqdm(item, desc='publishedLMImage'):
-        process_pli(scode, coll)
+    for scode, val in tqdm(item.items(), desc='publishedLMImage'):
+        process_pli(scode, val['line'], coll)
     show_report()
 
 
@@ -260,7 +326,7 @@ if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
         description='Modify ALPS release in NeuronBridge MongoDB tables')
     PARSER.add_argument('--release', dest='RELEASE', action='store',
-                        help='ALPS release')
+                        help='New ALPS release')
     PARSER.add_argument('--write', action='store_true', dest='WRITE',
                         default=False, help='Update MongoDB tables')
     PARSER.add_argument('--verbose', action='store_true', dest='VERBOSE',
