@@ -28,8 +28,9 @@ DDBASE = "janelia-neuronbridge"
 READ = {"LINE": "SELECT DISTINCT line FROM image_data_mv WHERE slide_code=%s",
         "PFALLBACK": "SELECT publishing_name FROM publishing_name_vw WHERE line=%s "
                      + "AND display_genotype=0 AND preferred_name=1",
-        "PNAME": "SELECT publishing_name FROM publishing_name_vw WHERE "
+        "PNAME0": "SELECT publishing_name FROM publishing_name_vw WHERE "
                  + "display_genotype=0 AND line=%s",
+        "PNAME": "SELECT DISTINCT publishing_name FROM image_data_mv WHERE line=%s AND slide_code=%s",
         "RELEASES": "SELECT DISTINCT published_to,alps_release FROM image_data_mv WHERE "
                     + "published_to IS NOT NULL AND publishing_name=%s AND slide_code!=%s",
        }
@@ -164,11 +165,15 @@ def get_sage_info():
         terminate_program(JRC.sql_error(err))
     line = row['line']
     try:
-        DB['sage']['cursor'].execute(READ['PNAME'], (line,))
+        DB['sage']['cursor'].execute(READ['PNAME'], (line, ARG.ITEM))
         rows = DB['sage']['cursor'].fetchall()
     except MySQLdb.Error as err:
         terminate_program(JRC.sql_error(err))
-    pname = rows[0]['publishing_name']
+    try:
+        pname = rows[0]['publishing_name']
+    except Exception as err:
+        LOGGER.error(f"Could not find publishing_name for {line}")
+        terminate_program(err)
     if not pname:
         try:
             DB['sage']['cursor'].execute(READ['PFALLBACK'], (line,))

@@ -122,11 +122,11 @@ def mongo_check():
             for miss in missing:
                 output.write(f"{miss}\n")
         LOGGER.info("Wrote %s", filename)
-    print(f"Entries in NeuPrint:                {COUNT['np']:6}")
-    print(f"Body IDs in NeuPrint:               {COUNT['np_bid']:6}")
-    print(f"Entries in NeuronBridge:            {COUNT['nb']:6}")
-    print(f"Body IDs in NeuronBridge:           {COUNT['nb_bid']:6}")
-    print(f"Body IDs missing from NeuronBridge: {COUNT['missing']:6}")
+    print(f"Entries in NeuPrint:                {COUNT['np']:7,}")
+    print(f"Body IDs in NeuPrint:               {COUNT['np_bid']:7,}")
+    print(f"Entries in NeuronBridge:            {COUNT['nb']:7,}")
+    print(f"Body IDs in NeuronBridge:           {COUNT['nb_bid']:7,}")
+    print(f"Body IDs missing from NeuronBridge: {COUNT['missing']:7,}")
 
 
 if __name__ == '__main__':
