@@ -1,7 +1,7 @@
 {
-    "anatomical_area": "vnc",
-    "import_library": "flyem_manc_1_2_1",
-    "import_tag": "import-manc",
+    "anatomical_area": "brain",
+    "import_library": "flywire_fafb_783",
+    "import_tag": "import-flywire",
     "jacs_url": "",
     "jacs_authorization": "",
     "db_config": "mylocal/proddb-config.properties",
