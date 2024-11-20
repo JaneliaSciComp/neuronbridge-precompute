@@ -45,6 +45,7 @@ workflow {
                     params.data_version,
                     anatomical_area,
                     file(params.base_export_dir),
+                    params.release_dirname,
                     get_relative_output_dir(params.export_type),
                     mips_libraries,
                     get_exported_target_libs(params.export_type, params.exported_target_libs),

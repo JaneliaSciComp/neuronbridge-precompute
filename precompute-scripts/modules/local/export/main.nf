@@ -14,6 +14,7 @@ process EXPORT {
           val(data_version),
           val(anatomical_area),
           path(base_export_dir),
+          val(release_dirname),
           val(relative_output_dir),
           val(mask_libraries),
           val(target_libraries),
@@ -64,6 +65,7 @@ process EXPORT {
     def mask_libraries_arg = mask_libraries_list ? "-l ${mask_libraries_list}" : ''
     def target_libraries_arg = target_libraries_list ? "--target-library ${target_libraries_list}" : ''
 
+    def release_dir = release_dirname ?: "v${data_version}"
     def mask_names_arg = get_arg_from_input_list('--exported-names', mask_names)
     def mask_mip_ids_arg = get_arg_from_input_list('--exported-mips', mask_mip_ids)
 
@@ -86,7 +88,7 @@ process EXPORT {
 
     """
     echo "\$(date) Run ${anatomical_area} ${export_type} export job: ${job_id} on \$(hostname -s)"
-    release_export_dir="${base_export_dir}/v${data_version}"
+    release_export_dir="${base_export_dir}/${release_dir}"
     mkdir -p \${release_export_dir}
     result_export_dir="\${release_export_dir}/${anatomical_area}/${relative_output_dir}"
     full_result_dir=\$(readlink -m \${result_export_dir})
