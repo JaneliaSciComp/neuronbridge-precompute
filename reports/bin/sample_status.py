@@ -7,6 +7,7 @@ __version__ = '1.1.0'
 import argparse
 import collections
 from operator import attrgetter
+import re
 import sys
 import jrc_common.jrc_common as JRC
 
@@ -14,6 +15,11 @@ import jrc_common.jrc_common as JRC
 
 # Database
 DB = {}
+READ = {"SC": "SELECT workstation_sample_id,slide_code,publishing_name,area,tile,objective,"
+              + "alps_release,s.parent FROM image_data_mv i LEFT OUTER JOIN secondary_image_vw s "
+              + "ON (i.id=s.image_id AND s.product='aligned_jrc2018_unisex_hr_stack') "
+              + "WHERE slide_code=%s AND alps_release IS NOT NULL"
+    }
 
 def terminate_program(msg=None):
     ''' Terminate the program gracefully
@@ -41,13 +47,65 @@ def initialize_program():
     except Exception as err:
         terminate_program(err)
     # Database
-    for source in ("neuronbridge", "jacs"):
-        dbo = attrgetter(f"{source}.{ARG.MANIFOLD}.read")(dbconfig)
-        LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, ARG.MANIFOLD, dbo.host, dbo.user)
+    for source in ("sage", "neuronbridge"):
+        manifold = 'prod' if source == 'sage' else ARG.MANIFOLD
+        dbo = attrgetter(f"{source}.{manifold}.read")(dbconfig)
+        LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, manifold, dbo.host, dbo.user)
         try:
             DB[source] = JRC.connect_database(dbo)
         except Exception as err:
             terminate_program(err)
+
+
+def show_sage():
+    ''' Get data from SAGE
+        Keyword arguments:
+          None
+        Returns:
+          None
+    '''
+    sql = READ['SC']
+    if ARG.SAMPLE:
+        sql = sql.replace('WHERE slide_code', 'WHERE workstation_sample_id')
+    try:
+        DB['sage']['cursor'].execute(sql, (ARG.SAMPLE if ARG.SAMPLE else ARG.SLIDE,))
+        rows = DB['sage']['cursor'].fetchall()
+    except Exception as err:
+        terminate_program(JRC.sql_error(err))
+    if not rows:
+        LOGGER.warning(f"{'Sample '+ARG.SAMPLE if ARG.SAMPLE else 'Slide code '+ARG.SLIDE} " \
+                       + "was not found in SAGE")
+        return
+    colsize = collections.defaultdict(lambda: 0, {})
+    colsize['publishing_name'] = 14
+    colsize['objective'] = 9
+    out = []
+    for row in rows:
+        osearch = re.search(r' (\d+[Xx])/', row['objective'], re.IGNORECASE)
+        if osearch:
+            row['objective'] = osearch.group(1)
+        for col in ('workstation_sample_id', 'slide_code', 'publishing_name', 'area', 'tile',
+                    'objective', 'alps_release', 'parent'):
+            if row[col] is None:
+                row[col] = ''
+            if len(row[col]) > colsize[col]:
+                colsize[col] = len(row[col])
+        out.append(row)
+    print(f"---------- SAGE ({len(rows)}) ----------")
+    print(f"{'Sample':{colsize['workstation_sample_id']}}  " \
+          + f"{'Slide code':{colsize['slide_code']}}  " \
+          + f"{'Published name':{colsize['publishing_name']}}  " \
+          + f"{'Area':{colsize['area']}}  {'Tile':{colsize['tile']}}  " \
+          + f"{'Objective':{colsize['objective']}}  {'Release':{colsize['alps_release']}}  " \
+          + f"{'Alignment':{colsize['parent']}}")
+    for row in out:
+        print(f"{row['workstation_sample_id']:{colsize['workstation_sample_id']}}  " \
+              + f"{row['slide_code']:{colsize['slide_code']}}  " \
+              + f"{row['publishing_name']:{colsize['publishing_name']}}  " \
+              + f"{row['area']:{colsize['area']}}  {row['tile']:{colsize['tile']}}  " \
+              + f"{row['objective']:{colsize['objective']}}  " \
+              + f"{row['alps_release']:{colsize['alps_release']}}  " \
+              + f"{row['parent']:{colsize['parent']}}")
 
 
 def show_nmd():
@@ -84,9 +142,9 @@ def show_nmd():
             if len(row[col]) > colsize[col]:
                 colsize[col] = len(row[col])
         out.append(row)
-    print(f"---------- neuronMetadata ({cnt}) ----------")
+    print(f"\n---------- neuronMetadata ({cnt}) ----------")
     print(f"{'Sample':{colsize['sourceRefId']}}  {'Slide code':{colsize['slideCode']}}  " \
-          + f"{'Published Name':{colsize['publishedName']}}  " \
+          + f"{'Published name':{colsize['publishedName']}}  " \
           + f"{'Area':{colsize['anatomicalArea']}}  " \
           + f"{'Objective':{colsize['objective']}}  {'Release':{colsize['datasetLabels']}}")
     for row in out:
@@ -133,7 +191,7 @@ def show_purl():
         out.append(row)
     print(f"\n---------- publishedURL ({cnt}) ----------")
     print(f"{'Sample':{colsize['sampleRef']}}  {'Slide code':{colsize['slideCode']}}  " \
-          + f"{'Published Name':{colsize['publishedName']}}  " \
+          + f"{'Published name':{colsize['publishedName']}}  " \
           + f"{'Area':{colsize['anatomicalArea']}}  " \
           + f"{'Objective':{colsize['objective']}}  {'Release':{colsize['alpsRelease']}}")
     for row in out:
@@ -186,7 +244,7 @@ def show_pli():
         out.append(row)
     print(f"\n---------- publishedLMImage ({cnt}) ----------")
     print(f"{'Sample':{colsize['sampleRef']}}  {'Slide code':{colsize['slideCode']}}  " \
-          + f"{'Published Name':{colsize['name']}}  {'Area':{colsize['area']}}  " \
+          + f"{'Published name':{colsize['name']}}  {'Area':{colsize['area']}}  " \
           + f"{'Tile':{colsize['tile']}}  {'Objective':{colsize['objective']}}  " \
           + f"{'Release':{colsize['releaseName']}}  {'Alignment':{colsize['alignment']}}")
     for row in out:
@@ -205,6 +263,7 @@ def sample_status():
         Returns:
           None
     '''
+    show_sage()
     show_nmd()
     show_purl()
     show_pli()
