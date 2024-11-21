@@ -15,6 +15,8 @@ import MySQLdb
 from tqdm import tqdm
 import jrc_common.jrc_common as JRC
 
+# pylint: disable=broad-exception-caught
+
 # Database
 DB = {}
 COLL = {}
@@ -36,11 +38,13 @@ REQUIRED = ["original_line", "slide_code", "objective", "area", "alignment_space
 def terminate_program(msg=None):
     ''' Terminate the program gracefully
         Keyword arguments:
-          msg: error message
+          msg: error message or object
         Returns:
           None
     '''
     if msg:
+        if not isinstance(msg, str):
+            msg = f"An exception of type {type(msg).__name__} occurred. Arguments:\n{msg.args}"
         LOGGER.critical(msg)
     sys.exit(-1 if msg else 0)
 
@@ -90,7 +94,6 @@ def initialize_program():
         Returns:
           None
     '''
-    # pylint: disable=broad-exception-caught
     try:
         dbconfig = JRC.get_config("databases")
     except Exception as err:
@@ -106,7 +109,7 @@ def initialize_program():
             DB[source] = JRC.connect_database(dbo)
         except MySQLdb.Error as err:
             terminate_program(JRC.sql_error(err))
-        except Exception as err: # pylint: disable=broad-exception-caught
+        except Exception as err:
             terminate_program(err)
     COLL['publishedURL'] = DB['neuronbridge'].publishedURL
     # Parms
@@ -360,7 +363,7 @@ def perform_flyem_checks():
 
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
-        description="Chack published samples vs NeuronBridge")
+        description="Check published samples vs NeuronBridge")
     PARSER.add_argument('--release', dest='RELEASE', action='store',
                         default='', help='ALPS release')
     PARSER.add_argument('--library', dest='LIBRARY', action='store',
