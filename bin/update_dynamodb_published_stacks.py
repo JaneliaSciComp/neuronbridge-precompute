@@ -110,10 +110,13 @@ def process_mongo():
           None
     """
     LOGGER.info("Fetching records from publishedLMImage")
+    payload = {}
+    if ARG.SLIDE:
+        payload["slideCode"] = ARG.SLIDE
     try:
         coll = DBASE["neuronbridge"].publishedLMImage
-        rows = coll.find()
-        count = coll.count_documents({})
+        rows = coll.find(payload)
+        count = coll.count_documents(payload)
     except Exception as err:
         terminate_program(TEMPLATE % (type(err).__name__, err.args))
     LOGGER.info(f"Records in Mongo publishedLMImage: {count:,}")
@@ -121,6 +124,7 @@ def process_mongo():
     for row in tqdm(rows, total=count):
         payload = set_payload(row)
         ITEMS.append(payload)
+        LOGGER.debug(payload)
     if ARG.WRITE:
         write_dynamodb()
     else:
@@ -134,6 +138,8 @@ def process_mongo():
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
         description="Update janelia-neuronbridge-published-stacks")
+    PARSER.add_argument('--slide', dest='SLIDE', action='store',
+                        help='Slide code')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         default='prod', choices=['dev', 'prod'], help='Manifold')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',

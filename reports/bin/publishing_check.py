@@ -12,7 +12,10 @@ import sys
 import boto3
 import inquirer
 import MySQLdb
+from tqdm import tqdm
 import jrc_common.jrc_common as JRC
+
+# pylint: disable=broad-exception-caught
 
 # Database
 DB = {}
@@ -22,6 +25,8 @@ READ = {"RELEASE": "SELECT DISTINCT line,slide_code,workstation_sample_id,alps_r
         "SAMPLE": "SELECT DISTINCT line,slide_code,workstation_sample_id,alps_release "
                   + "FROM image_data_mv WHERE workstation_sample_id=%s",
         "ALL_SAMPLES": "SELECT DISTINCT workstation_sample_id,alps_release FROM image_data_mv",
+        "RELEASE_SAMPLES": "SELECT DISTINCT workstation_sample_id,alps_release FROM image_data_mv "
+                           + "WHERE alps_release=%s",
         "RSECDATA": "SELECT image_id,product,url,original_line,slide_code,objective,gender,area,"
                     + "alignment_space_unisex,workstation_sample_id FROM secondary_image_vw s "
                     + "JOIN image_data_mv i ON (s.image_id=i.id) WHERE alps_release=%s"
@@ -33,11 +38,13 @@ REQUIRED = ["original_line", "slide_code", "objective", "area", "alignment_space
 def terminate_program(msg=None):
     ''' Terminate the program gracefully
         Keyword arguments:
-          msg: error message
+          msg: error message or object
         Returns:
           None
     '''
     if msg:
+        if not isinstance(msg, str):
+            msg = f"An exception of type {type(msg).__name__} occurred. Arguments:\n{msg.args}"
         LOGGER.critical(msg)
     sys.exit(-1 if msg else 0)
 
@@ -87,7 +94,6 @@ def initialize_program():
         Returns:
           None
     '''
-    # pylint: disable=broad-exception-caught
     try:
         dbconfig = JRC.get_config("databases")
     except Exception as err:
@@ -103,7 +109,7 @@ def initialize_program():
             DB[source] = JRC.connect_database(dbo)
         except MySQLdb.Error as err:
             terminate_program(JRC.sql_error(err))
-        except Exception as err: # pylint: disable=broad-exception-caught
+        except Exception as err:
             terminate_program(err)
     COLL['publishedURL'] = DB['neuronbridge'].publishedURL
     # Parms
@@ -115,16 +121,16 @@ def initialize_program():
         terminate_program(err)
 
 
-def missing_from_nb(missing_rel, published, nbd):
+def missing_from_nb(missing_rel, published, npu):
     ''' Find samples that are in the publishing database but not publishedURL
         Keyword arguments:
           published: dict of published sample IDs (value=release)
-          nbd: dict of samples in NeuronBridge
+          npu: dict of samples in NeuronBridge:publishedURL
         Returns:
           dict of releases (value=list of sample IDs)
     '''
     for row in published:
-        if "Sample#" + row not in nbd:
+        if "Sample#" + row not in npu:
             if published[row] not in missing_rel:
                 missing_rel[published[row]] = [row]
             else:
@@ -208,19 +214,21 @@ def produce_stack_file(missing_rel):
                 outstream.write(f"{row['url']}\t{prefix}\n")
 
 
-def analyze_results(published, release_size, nbd):
+def analyze_results(published, release_size, npu, nmd):
     ''' Compare published sample IDs to those in NeuronBridge
         Keyword arguments:
           published: dict of published sample IDs (value=release)
           release_size: dict of published releases (value= #samples)
-          nbd: dict of samples in NeuronBridge
+          npu: dict of samples in NeuronBridge:publishedURL
+          nmd: dict of samples in NeuronBridge:neuronMetadata
         Returns:
           None
     '''
     missing_rel = {}
-    missing_from_nb(missing_rel, published, nbd)
+    missing_from_nb(missing_rel, published, npu)
     lines = {}
     with open("missing_samples.txt", "w", encoding="ascii") as outstream:
+        outstream.write("Line\tSlide code\tSample\tneuronMetadata\tRelease\n")
         for rel in sorted(missing_rel):
             if len(missing_rel[rel]) == release_size[rel]:
                 del missing_rel[rel]
@@ -234,13 +242,16 @@ def analyze_results(published, release_size, nbd):
                     terminate_program(JRC.sql_error(err))
                 for row in rows:
                     lines[row['line']] = False
+                    in_nmd = 'Yes' if ('Sample#' + row['workstation_sample_id'] in nmd) else 'No'
                     outstream.write(f"{row['line']}\t{row['slide_code']}\t"
-                                    + f"{row['workstation_sample_id']}\t{row['alps_release']}\n")
+                                    + f"{row['workstation_sample_id']}\t{in_nmd}\t"
+                                    + f"{row['alps_release']}\n")
             else:
                 print(f"{rel} is missing {len(missing_rel[rel])}/{release_size[rel]} samples")
         LOGGER.info("Preparing output file")
-        for rel, smplist in missing_rel.items():
-            for smp in smplist:
+        for rel, smplist in (prel:= tqdm(missing_rel.items(), desc='Release', position=0)):
+            prel.set_postfix_str(rel)
+            for smp in tqdm(smplist, desc='Sample', position=1, leave=False):
                 try:
                     DB[ARG.DATABASE]['cursor'].execute(READ['SAMPLE'], (smp,))
                     rows = DB[ARG.DATABASE]['cursor'].fetchall()
@@ -248,8 +259,10 @@ def analyze_results(published, release_size, nbd):
                     terminate_program(JRC.sql_error(err))
                 for row in rows:
                     lines[row['line']] = False
+                    in_nmd = 'Yes' if ('Sample#' + row['workstation_sample_id'] in nmd) else 'No'
                     outstream.write(f"{row['line']}\t{row['slide_code']}\t"
-                                    + f"{row['workstation_sample_id']}\t{row['alps_release']}\n")
+                                    + f"{row['workstation_sample_id']}\t{in_nmd}\t"
+                                    + f"{row['alps_release']}\n")
     produce_stack_file(missing_rel)
     check_dynamodb(lines)
 
@@ -268,7 +281,10 @@ def perform_flylight_checks():
     if not libs:
         return
     try:
-        DB[ARG.DATABASE]['cursor'].execute(READ['ALL_SAMPLES'])
+        if ARG.RELEASE:
+            DB[ARG.DATABASE]['cursor'].execute(READ['RELEASE_SAMPLES'], (ARG.RELEASE,))
+        else:
+            DB[ARG.DATABASE]['cursor'].execute(READ['ALL_SAMPLES'])
         rows = DB[ARG.DATABASE]['cursor'].fetchall()
     except MySQLdb.Error as err:
         terminate_program(JRC.sql_error(err))
@@ -281,19 +297,25 @@ def perform_flylight_checks():
             release_size[row['alps_release']] = 1
         else:
             release_size[row['alps_release']] += 1
-    # NeuronBridge
+    # Get samples from NeuronBridge:publishedURL
     payload = {"libraryName": {"$in": libs}}
     rows = COLL['publishedURL'].distinct("sampleRef", payload)
-    nbd = {}
+    npu = {}
     for row in rows:
-        nbd[row] = True
-    LOGGER.info("Found %d sample%s in NeuronBridge", len(nbd), "" if len(nbd) == 1 else "s")
+        npu[row] = True
+    LOGGER.info(f"Found {len(npu):,} sample{'' if len(npu) == 1 else 's'} in publishedURL")
+    # Get samples from NeuronBridge:neuronMetadata
+    rows = COLL['neuronMetadata'].distinct("sourceRefId", payload)
+    nmd = {}
+    for row in rows:
+        nmd[row] = True
+    LOGGER.info(f"Found {len(nmd):,} sample{'' if len(nmd) == 1 else 's'} in neuronMetadata")
     # Report
-    analyze_results(published, release_size, nbd)
+    analyze_results(published, release_size, npu, nmd)
 
 
 def perform_flyem_checks():
-    ''' Prepare comparison dicts and perform checks for FlyLight
+    ''' Prepare comparison dicts and perform checks for FlyEM
         Keyword arguments:
           None
         Returns:
@@ -321,16 +343,16 @@ def perform_flyem_checks():
     # NeuronBridge
     payload = {"libraryName": {"$in": libs}}
     rows = COLL['publishedURL'].distinct("publishedName", payload)
-    nbd = {}
+    npu = {}
     for row in rows:
-        nbd[row.split(":")[-1]] = True
-    LOGGER.info("Found %d body ID%s in NeuronBridge (%s)", len(nbd), "" if len(nbd) == 1 else "s",
+        npu[row.split(":")[-1]] = True
+    LOGGER.info("Found %d body ID%s in NeuronBridge (%s)", len(npu), "" if len(npu) == 1 else "s",
                 ", ".join(libs))
     # Compare
     bad = good = 0
     with open("missing_bodyids.txt", "w", encoding="ascii") as outstream:
         for row in sorted(jacs):
-            if row not in nbd:
+            if row not in npu:
                 bad += 1
                 outstream.write(f"{row}\n")
             else:
@@ -341,7 +363,9 @@ def perform_flyem_checks():
 
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
-        description="Upload prechecks")
+        description="Check published samples vs NeuronBridge")
+    PARSER.add_argument('--release', dest='RELEASE', action='store',
+                        default='', help='ALPS release')
     PARSER.add_argument('--library', dest='LIBRARY', action='store',
                         default='', help='color depth library')
     PARSER.add_argument('--database', dest='DATABASE', action='store',
