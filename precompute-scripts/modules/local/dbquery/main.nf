@@ -42,7 +42,7 @@ process DBQUERY {
     def published_name_filter = published_names ? "publishedName: ${get_in_filter(published_names)}," : ''
     def mip_id_filter = mip_ids ? "mipId: ${get_in_filter(mip_ids)}," : ''
     def processing_tags_filter = processing_tags ? "${get_processing_tag_in_filter(processing_tags)}," : ''
-    def with_usefull_input_files_filter = "computeFiles.InputColorDepthImage: {\\\$exists: true},"
+    def with_usefull_input_files_filter = "'computeFiles.InputColorDepthImage': {\\\$exists: true},"
     def unique_pipeline = unique_mips 
         ? "{\\\$group: {_id: \"\\\$mipId\"}},"
         : ''
