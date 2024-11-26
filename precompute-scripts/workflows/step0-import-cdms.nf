@@ -13,6 +13,7 @@ workflow {
         params.searchable_cdm_location,
         params.grad_location,
         params.zgap_location,
+        params.junk_location,
     ]
     IMPORT_CDMS(
         Channel.of(
@@ -24,6 +25,7 @@ workflow {
                 params.searchable_cdm_location,
                 params.grad_location,
                 params.zgap_location,
+                params.junk_location,
                 params.vol_segmentation_location,
             ]
         ),

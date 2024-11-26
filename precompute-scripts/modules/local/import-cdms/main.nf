@@ -17,6 +17,7 @@ process IMPORT_CDMS {
           val(searchable_cdm_locations),
           val(grad_locations),
           val(zgap_locations),
+          val(junk_locations),
           val(vol_segmentation_locations)
     tuple path(app_jar),
           path(log_config),
@@ -54,6 +55,7 @@ process IMPORT_CDMS {
         searchable_cdm_locations,
         grad_locations,
         zgap_locations,
+        junk_locations,
         vol_segmentation_locations,
     )
     def jacs_url_arg = jacs_url ? "--jacs-url ${jacs_url}" : ''
@@ -100,14 +102,16 @@ def create_library_variants_arg(library,
                                 searchable_cdm_locations,
                                 grad_locations,
                                 zgap_locations,
+                                junk_locations,
                                 vol_segmentation_locations) {
     def source_cdm_variants = create_variant_arg(library, variants_location, 'source_cdm', source_cdm_locations)
     def searchable_cdm_variants = create_variant_arg(library, variants_location, 'searchable_neurons', searchable_cdm_locations)
     def grad_variants = create_variant_arg(library, variants_location, 'gradient', grad_locations)
     def zgap_variants = create_variant_arg(library, variants_location, 'zgap', zgap_locations)
+    def junk_variants = create_variant_arg(library, variants_location, 'junk', junk_locations)
     def _3d_seg_variants = create_variant_arg(library, variants_location, '3d-segmentation', vol_segmentation_locations)
 
-    def variants_arg = "${source_cdm_variants} ${searchable_cdm_variants} ${grad_variants} ${zgap_variants} ${_3d_seg_variants}".trim()
+    def variants_arg = "${source_cdm_variants} ${searchable_cdm_variants} ${grad_variants} ${zgap_variants} ${junk_variants} ${_3d_seg_variants}".trim()
     variants_arg ? "--librariesVariants ${variants_arg}" : ''
 }
 

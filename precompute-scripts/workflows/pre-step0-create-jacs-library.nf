@@ -27,6 +27,7 @@ workflow {
                 params.searchable_cdm_location,
                 params.grad_location,
                 params.zgap_location,
+                params.junk_location,
                 params.variants_json_file,
             ]
         ),
@@ -51,6 +52,7 @@ workflow {
             params.searchable_cdm_dest,
             params.grad_dest,
             params.zgap_dest,
+            params.junk_dest,
             params.ignore_source_cdms,
             params.dry_run,
         ]

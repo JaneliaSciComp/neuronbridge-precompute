@@ -20,6 +20,7 @@ process PREPARE_VARIANTS_FOR_MIPSTORE {
           val(searchable_cdm_location),
           val(grad_location),
           val(zgap_location),
+          val(junk_location),
           val(output_name)
     tuple path(app_jar),
           path(log_config),
@@ -52,6 +53,7 @@ process PREPARE_VARIANTS_FOR_MIPSTORE {
         searchable_cdm_location,
         grad_location,
         zgap_location,
+        junk_location,
     )
     def jacs_url_arg = jacs_url ? "--jacs-url ${jacs_url}" : ''
     def jacs_auth_arg = jacs_authorization ? "--authorization \"${jacs_authorization}\"" : ''
@@ -99,7 +101,8 @@ def create_library_variants_arg(library,
                                 display_cdm_location,
                                 searchable_cdm_location,
                                 grad_location,
-                                zgap_location) {
+                                zgap_location,
+                                junk_location) {
     def variants_arg = ""
     if (display_cdm_location) {
         def display_cdm
@@ -136,6 +139,15 @@ def create_library_variants_arg(library,
             zgap = "${variants_location}/${zgap_location}"
         }
         variants_arg = "${variants_arg} ${library}:zgap:${zgap}"
+    }
+    if (junk_location) {
+        def junk
+        if (junk_location.startsWith('/')) {
+            junk = junk_location
+        } else {
+            junk = "${variants_location}/${junk_location}"
+        }
+        variants_arg = "${variants_arg} ${library}:junk:${junk}"
     }
     variants_arg ? "--librariesVariants ${variants_arg}" : ''
 }

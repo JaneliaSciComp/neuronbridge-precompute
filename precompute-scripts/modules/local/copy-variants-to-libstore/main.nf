@@ -17,6 +17,7 @@ process COPY_VARIANTS_TO_LIBSTORE {
           val(searchable_cdm_location),
           val(grad_location),
           val(zgap_location),
+          val(junk_location),
           val(ignore_source_cdms),
           val(dry_run)
     tuple path(app_jar),
@@ -28,6 +29,7 @@ process COPY_VARIANTS_TO_LIBSTORE {
     path(data_paths) // this argument is only sent to ensure all needed volumes are available
     
     output:
+    env(full_libstore_dir)
 
     when:
     task.ext.when == null || task.ext.when
@@ -42,6 +44,7 @@ process COPY_VARIANTS_TO_LIBSTORE {
     def grad_mapping_arg = "--surjective-variants-mappinggrad=${grad_location}"
     def searchable_mapping_arg = "--surjective-variants-mappingsegmentation=${searchable_cdm_location}"
     def zgap_mapping_arg = "--surjective-variants-mappingzgap=${zgap_location}"
+    def junk_mapping_arg = "--surjective-variants-mappingjunk=${junk_location}"
 
     def dry_run_arg = dry_run ? '-n' : ''
 
@@ -70,6 +73,7 @@ process COPY_VARIANTS_TO_LIBSTORE {
         ${searchable_mapping_arg} \
         ${grad_mapping_arg} \
         ${zgap_mapping_arg} \
+        ${junk_mapping_arg} \
         ${dry_run_arg}
 
     echo "\$(date) Completed copying ${library_name} variants on \$(hostname -s)"
