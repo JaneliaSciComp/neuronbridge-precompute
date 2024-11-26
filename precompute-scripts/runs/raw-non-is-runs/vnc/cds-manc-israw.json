@@ -8,6 +8,6 @@
     "targets_library": "flylight_raw_published",
     "targets_published_names": "",
     "targets_tags": "import-non-is",
-    "mip_excluded_tags": "validationError",
+    "mip_excluded_tags": "validationError,junk",
     "cds_processing_tag": "cds-manc-vs-israw"
 }
