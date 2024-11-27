@@ -43,7 +43,9 @@ process EXPORT {
           val(default_image_store),
           val(image_stores_map),
           val(jacs_read_batch_size),
-          val(processing_size)
+          val(processing_size),
+          val(max_matches_with_same_name_per_mip),
+          val(max_matches_per_mip)
 
     output:
     env(full_result_dir)
@@ -85,6 +87,8 @@ process EXPORT {
     def image_stores_map_as_str = get_image_store_map_as_string(image_stores_map)
     def image_stores_map_arg = image_stores_map_as_str ? "--image-stores-per-neuron-meta ${image_stores_map_as_str}" : ''
     def processing_size_arg = processing_size ? "-ps ${processing_size}" : ''
+    def max_matches_with_same_name_per_mip_arg = max_matches_with_same_name_per_mip ? "--max-matches-with-same-name-per-mip ${max_matches_with_same_name_per_mip}" : ''
+    def max_matches_per_mip_arg = max_matches_per_mip ? "--max-matches-per-mip ${max_matches_per_mip}" : ''
 
     """
     echo "\$(date) Run ${anatomical_area} ${export_type} export job: ${job_id} on \$(hostname -s)"
@@ -126,6 +130,8 @@ process EXPORT {
         ${excluded_target_terms_arg} \
         ${default_image_store_arg} \
         ${image_stores_map_arg} \
+        ${max_matches_with_same_name_per_mip_arg} \
+        ${max_matches_per_mip_arg} \
         --default-relative-url-index 1 \
         -od "\${result_export_dir}" \
         ${job_offset_arg} ${job_size_arg}
