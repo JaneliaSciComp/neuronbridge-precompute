@@ -9,5 +9,5 @@
     "targets_published_names": "",
     "targets_tags": "import-non-is",
     "mip_excluded_tags": "validationError,junk",
-    "cds_processing_tag": "cds-manc-vs-israw"
+    "cds_processing_tag": "cds-manc-vs-nonisraw"
 }
