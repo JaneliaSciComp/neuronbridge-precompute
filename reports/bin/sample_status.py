@@ -9,6 +9,9 @@ import collections
 from operator import attrgetter
 import re
 import sys
+import boto3
+import botocore
+from colorama import Fore, Back, Style
 import jrc_common.jrc_common as JRC
 
 # pylint: disable=broad-exception-caught,logging-not-lazy,logging-fstring-interpolation
@@ -20,6 +23,9 @@ READ = {"SC": "SELECT workstation_sample_id,slide_code,publishing_name,area,tile
               + "ON (i.id=s.image_id AND s.product='aligned_jrc2018_unisex_hr_stack') "
               + "WHERE slide_code=%s AND alps_release IS NOT NULL"
     }
+# AWS S3
+AWS = {}
+S3_SECONDS = 60 * 60 * 12
 
 def terminate_program(msg=None):
     ''' Terminate the program gracefully
@@ -44,6 +50,7 @@ def initialize_program():
     '''
     try:
         dbconfig = JRC.get_config("databases")
+        aws = JRC.get_config("aws")
     except Exception as err:
         terminate_program(err)
     # Database
@@ -55,10 +62,23 @@ def initialize_program():
             DB[source] = JRC.connect_database(dbo)
         except Exception as err:
             terminate_program(err)
+    # AWS S3
+    try:
+        sts_client = boto3.client('sts')
+        aro = sts_client.assume_role(RoleArn=attrgetter("role_arn")(aws),
+                                     RoleSessionName="AssumeRoleSession1",
+                                     DurationSeconds=S3_SECONDS)
+        credentials = aro['Credentials']
+        AWS['client'] = boto3.client('s3',
+                                     aws_access_key_id=credentials['AccessKeyId'],
+                                     aws_secret_access_key=credentials['SecretAccessKey'],
+                                     aws_session_token=credentials['SessionToken'])
+    except Exception as err:
+        terminate_program(err)
 
 
 def show_sage():
-    ''' Get data from SAGE
+    ''' Show data from SAGE
         Keyword arguments:
           None
         Returns:
@@ -80,7 +100,11 @@ def show_sage():
     colsize['publishing_name'] = 14
     colsize['objective'] = 9
     out = []
+    pnames = {}
+    samples = {}
     for row in rows:
+        pnames[row['publishing_name']] = True
+        samples[row['workstation_sample_id']] = True
         osearch = re.search(r' (\d+[Xx])/', row['objective'], re.IGNORECASE)
         if osearch:
             row['objective'] = osearch.group(1)
@@ -106,10 +130,16 @@ def show_sage():
               + f"{row['objective']:{colsize['objective']}}  " \
               + f"{row['alps_release']:{colsize['alps_release']}}  " \
               + f"{row['parent']:{colsize['parent']}}")
+    if len(pnames) > 1:
+        print(Fore.RED + f"Multiple published names found: {', '.join(pnames.keys())}" \
+              + Style.RESET_ALL)
+    if len(samples) > 1:
+        print(Fore.YELLOW + f"Multiple samples found: {', '.join(samples.keys())}" \
+              + Style.RESET_ALL)
 
 
 def show_nmd():
-    ''' Get data from neuronMetadata
+    ''' Show data from neuronMetadata
         Keyword arguments:
           None
         Returns:
@@ -127,8 +157,9 @@ def show_nmd():
     except Exception as err:
         terminate_program(err)
     if not cnt:
-        LOGGER.warning(f"{'Sample '+ARG.SAMPLE if ARG.SAMPLE else 'Slide code '+ARG.SLIDE} " \
-                       + "was not found in neuronMetadata")
+        print(Fore.YELLOW \
+              + f"\n{'Sample '+ARG.SAMPLE if ARG.SAMPLE else 'Slide code '+ARG.SLIDE} " \
+              + "was not found in neuronMetadata" + Style.RESET_ALL)
         return
     colsize = collections.defaultdict(lambda: 0, {})
     colsize['publishedName'] = 14
@@ -156,8 +187,43 @@ def show_nmd():
               + f"{row['datasetLabels']:{colsize['datasetLabels']}}")
 
 
+def check_s3(uploaded, s3files, outs3, colsize, errtype):
+    ''' Look for files on AWS S3
+        Keyword arguments:
+          uploaded: dictionary of files (key: file type, value: full path)
+          s3files: files already checked on S3
+          outs3: output list
+          colsize: dictionary of column sizes
+          errtype: dictionary of error types
+        Returns:
+          None
+    '''
+    for ftype, full in uploaded.items():
+        if len(ftype) > colsize['ftype']:
+            colsize['ftype'] = len(ftype)
+        floc = full.replace('https://s3.amazonaws.com/', '')
+        bucket, key = floc.split('/', 1)
+        if ftype in s3files and key in s3files[ftype]:
+            continue
+        if ftype not in s3files:
+            s3files[ftype] = {}
+        s3files[ftype][key] = True
+        if len(key) > colsize['key']:
+            colsize['key'] = len(key)
+        try:
+            AWS['client'].head_object(Bucket=bucket, Key=key.replace('+', ' '))
+            outs3.append([ftype, key])
+        except botocore.exceptions.ClientError as err:
+            if err.response['Error']['Code'] == "404":
+                errtype['notfound'] = True
+                outs3.append([ftype, Fore.RED+key+Style.RESET_ALL])
+            else:
+                errtype['other'] = True
+                outs3.append([ftype, Back.RED+key+Style.RESET_ALL])
+
+
 def show_purl():
-    ''' Get data from publishedURL
+    ''' Show data from publishedURL and AWS S3
         Keyword arguments:
           None
         Returns:
@@ -175,13 +241,19 @@ def show_purl():
     except Exception as err:
         terminate_program(err)
     if not cnt:
-        LOGGER.warning(f"{'Sample '+ARG.SAMPLE if ARG.SAMPLE else 'Slide code '+ARG.SLIDE} " \
-                       + "was not found in publishedURL")
+        print(Fore.YELLOW \
+              + f"\n{'Sample '+ARG.SAMPLE if ARG.SAMPLE else 'Slide code '+ARG.SLIDE} " \
+              + "was not found in publishedURL" + Style.RESET_ALL)
         return
     colsize = collections.defaultdict(lambda: 0, {})
     colsize['publishedName'] = 14
     colsize['objective'] = 9
     out = []
+    s3files = {}
+    outs3 = []
+    colsize['ftype'] = 9
+    colsize['key'] = 0
+    errtype = {}
     for row in rows:
         row['sampleRef'] = row['sampleRef'].replace('Sample#','')
         for col in ('sampleRef', 'slideCode', 'publishedName', 'anatomicalArea', 'objective',
@@ -189,6 +261,9 @@ def show_purl():
             if len(row[col]) > colsize[col]:
                 colsize[col] = len(row[col])
         out.append(row)
+        # AWS S3 uploads
+        if 'uploaded' in row and row['uploaded']:
+            check_s3(row['uploaded'], s3files, outs3, colsize, errtype)
     print(f"\n---------- publishedURL ({cnt}) ----------")
     print(f"{'Sample':{colsize['sampleRef']}}  {'Slide code':{colsize['slideCode']}}  " \
           + f"{'Published name':{colsize['publishedName']}}  " \
@@ -201,10 +276,18 @@ def show_purl():
               + f"{row['anatomicalArea']:{colsize['anatomicalArea']}}  " \
               + f"{row['objective']:{colsize['objective']}}  " \
               + f"{row['alpsRelease']:{colsize['alpsRelease']}}")
+    print(f"\n---------- AWS S3 for publishedURL ({len(outs3)}) ----------")
+    print(f"{'File type':{colsize['ftype']}}  {'Key':{colsize['key']}}")
+    for row in outs3:
+        print(f"{row[0]:{colsize['ftype']}}  {row[1]:{colsize['key']}}")
+    if 'notfound' in errtype:
+        print(f"Some S3 keys were not found and are shown in {Fore.RED+'red'+Style.RESET_ALL}")
+    if 'other' in errtype:
+        print(f"Some S3 keys are in error and are shown in {Back.RED+'red'+Style.RESET_ALL}")
 
 
 def show_pli():
-    ''' Get data from publishedLMImage
+    ''' Show data from publishedLMImage and AWS S3
         Keyword arguments:
           None
         Returns:
@@ -222,16 +305,23 @@ def show_pli():
     except Exception as err:
         terminate_program(err)
     if not cnt:
-        LOGGER.warning(f"{'Sample '+ARG.SAMPLE if ARG.SAMPLE else 'Slide code '+ARG.SLIDE} " \
-                       + "was not found in publishedLMImage")
+        print(Fore.YELLOW + \
+              f"\n{'Sample '+ARG.SAMPLE if ARG.SAMPLE else 'Slide code '+ARG.SLIDE} " \
+              + "was not found in publishedLMImage" + Style.RESET_ALL)
         return
     colsize = collections.defaultdict(lambda: 0, {})
     colsize['name'] = 14
+    colsize['tile'] = 4
     colsize['objective'] = 9
     colsize['alignment'] = 9
     out = []
+    s3files = {}
+    outs3 = []
+    colsize['ftype'] = 9
+    colsize['key'] = 0
+    errtype = {}
     for row in rows:
-        row['alignment'] = 'No'
+        row['alignment'] = Fore.YELLOW + 'No' + Style.RESET_ALL
         if 'files' in row and 'VisuallyLosslessStack' in row['files']:
             row['alignment'] = 'Yes'
         row['sampleRef'] = row['sampleRef'].replace('Sample#','')
@@ -242,6 +332,9 @@ def show_pli():
             if len(row[col]) > colsize[col]:
                 colsize[col] = len(row[col])
         out.append(row)
+        # AWS S3 uploads
+        if 'files' in row and row['files']:
+            check_s3(row['files'], s3files, outs3, colsize, errtype)
     print(f"\n---------- publishedLMImage ({cnt}) ----------")
     print(f"{'Sample':{colsize['sampleRef']}}  {'Slide code':{colsize['slideCode']}}  " \
           + f"{'Published name':{colsize['name']}}  {'Area':{colsize['area']}}  " \
@@ -254,6 +347,14 @@ def show_pli():
               + f"{row['tile']:{colsize['tile']}}  {row['objective']:{colsize['objective']}}  " \
               + f"{row['releaseName']:{colsize['releaseName']}}  " \
               + f"{row['alignment']:{colsize['alignment']}}")
+    print(f"\n---------- AWS S3 for publishedLMImage ({len(outs3)}) ----------")
+    print(f"{'File type':{colsize['ftype']}}  {'Key':{colsize['key']}}")
+    for row in outs3:
+        print(f"{row[0]:{colsize['ftype']}}  {row[1]:{colsize['key']}}")
+    if 'notfound' in errtype:
+        print(f"Some S3 keys were not found and are shown in {Fore.RED+'red'+Style.RESET_ALL}")
+    if 'other' in errtype:
+        print(f"Some S3 keys are in error and are shown in {Back.RED+'red'+Style.RESET_ALL}")
 
 
 def sample_status():
