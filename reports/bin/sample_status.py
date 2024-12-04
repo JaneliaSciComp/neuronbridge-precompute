@@ -1,8 +1,13 @@
 ''' sample_status.py
-    This script is used to generate a report of the status of a sample in NeuronBridge
-    precompute database tables.
+    This script is used to generate a report of the status of a sample, slide code, or body ID in
+    NeuronBridge precompute database tables (and AWS S3 and DynamoDB).
+    Examples:
+        python3 sample_status.py --sample 2489243463367786594
+        python3 sample_status.py --slide 20190816_62_G9
+        python3 sample_status.py --body 1537331894
+        python3 sample_status.py --body 720575940596125868
 '''
-__version__ = '1.1.0'
+__version__ = '2.0.0'
 
 import argparse
 import collections
@@ -10,6 +15,7 @@ from operator import attrgetter
 import re
 import sys
 import boto3
+from boto3.dynamodb.conditions import Key
 import botocore
 from colorama import Fore, Back, Style
 import jrc_common.jrc_common as JRC
@@ -26,6 +32,8 @@ READ = {"SC": "SELECT workstation_sample_id,slide_code,publishing_name,area,tile
 # AWS S3
 AWS = {}
 S3_SECONDS = 60 * 60 * 12
+# General
+PNAME = {}
 
 def terminate_program(msg=None):
     ''' Terminate the program gracefully
@@ -62,6 +70,13 @@ def initialize_program():
             DB[source] = JRC.connect_database(dbo)
         except Exception as err:
             terminate_program(err)
+    # AWS DynamoDB
+    try:
+        dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
+        DB['DYNAMO'] = dynamodb
+        DB['DYNAMOCLIENT'] = boto3.client('dynamodb', region_name='us-east-1')
+    except Exception as err:
+        terminate_program(err)
     # AWS S3
     try:
         sts_client = boto3.client('sts')
@@ -147,8 +162,16 @@ def show_nmd():
     '''
     if ARG.SAMPLE:
         payload = {"sourceRefId": "Sample#" + ARG.SAMPLE}
-    else:
+        itype = 'Sample'
+        ival = ARG.SAMPLE
+    elif ARG.SLIDE:
         payload = {"slideCode": ARG.SLIDE}
+        itype = 'Slide code'
+        ival = ARG.SLIDE
+    else:
+        payload = {"publishedName": ARG.BODY}
+        itype = 'Body ID'
+        ival = ARG.BODY
     rows = None
     try:
         cnt =  DB['neuronbridge']['neuronMetadata'].count_documents(payload)
@@ -157,34 +180,49 @@ def show_nmd():
     except Exception as err:
         terminate_program(err)
     if not cnt:
-        print(Fore.YELLOW \
-              + f"\n{'Sample '+ARG.SAMPLE if ARG.SAMPLE else 'Slide code '+ARG.SLIDE} " \
+        print(Fore.YELLOW + f"\n{itype} {ival} " \
               + "was not found in neuronMetadata" + Style.RESET_ALL)
         return
     colsize = collections.defaultdict(lambda: 0, {})
     colsize['publishedName'] = 14
     colsize['objective'] = 9
+    colsize['neuronType'] = 11
     out = []
     for row in rows:
         row['sourceRefId'] = row['sourceRefId'].replace('Sample#','')
-        row['datasetLabels'] = ', '.join(row['datasetLabels'])
+        if 'datasetLabels' in row:
+            row['datasetLabels'] = ', '.join(row['datasetLabels'])
+        else:
+            row['datasetLabels'] = ''
         for col in ('sourceRefId', 'slideCode', 'publishedName', 'anatomicalArea', 'objective',
-                    'datasetLabels'):
-            if len(row[col]) > colsize[col]:
+                    'datasetLabels', 'neuronType', 'neuronInstance'):
+            if col in row and len(row[col]) > colsize[col]:
                 colsize[col] = len(row[col])
+            elif col not in row:
+                row[col] = ''
         out.append(row)
     print(f"\n---------- neuronMetadata ({cnt}) ----------")
-    print(f"{'Sample':{colsize['sourceRefId']}}  {'Slide code':{colsize['slideCode']}}  " \
-          + f"{'Published name':{colsize['publishedName']}}  " \
-          + f"{'Area':{colsize['anatomicalArea']}}  " \
-          + f"{'Objective':{colsize['objective']}}  {'Release':{colsize['datasetLabels']}}")
+    if ARG.BODY:
+        print(f"{'Published name':{colsize['publishedName']}}  " \
+              + f"{'Neuron type':{colsize['neuronType']}}  " \
+              + f"{'Neuron instance':{colsize['neuronInstance']}}")
+    else:
+        print(f"{'Sample':{colsize['sourceRefId']}}  {'Slide code':{colsize['slideCode']}}  " \
+              + f"{'Published name':{colsize['publishedName']}}  " \
+              + f"{'Area':{colsize['anatomicalArea']}}  " \
+              + f"{'Objective':{colsize['objective']}}  {'Release':{colsize['neuronType']}}")
     for row in out:
-        print(f"{row['sourceRefId']:{colsize['sourceRefId']}}  " \
-              + f"{row['slideCode']:{colsize['slideCode']}}  " \
-              + f"{row['publishedName']:{colsize['publishedName']}}  " \
-              + f"{row['anatomicalArea']:{colsize['anatomicalArea']}}  " \
-              + f"{row['objective']:{colsize['objective']}}  " \
-              + f"{row['datasetLabels']:{colsize['datasetLabels']}}")
+        if ARG.BODY:
+            print(f"{row['publishedName']:{colsize['publishedName']}}  " \
+                  + f"{row['neuronType']:{colsize['neuronType']}}  " \
+                  + f"{row['neuronInstance']:{colsize['neuronInstance']}}")
+        else:
+            print(f"{row['sourceRefId']:{colsize['sourceRefId']}}  " \
+                  + f"{row['slideCode']:{colsize['slideCode']}}  " \
+                  + f"{row['publishedName']:{colsize['publishedName']}}  " \
+                  + f"{row['anatomicalArea']:{colsize['anatomicalArea']}}  " \
+                  + f"{row['objective']:{colsize['objective']}}  " \
+                  + f"{row['datasetLabels']:{colsize['datasetLabels']}}")
 
 
 def check_s3(uploaded, s3files, outs3, colsize, errtype):
@@ -219,7 +257,7 @@ def check_s3(uploaded, s3files, outs3, colsize, errtype):
                 outs3.append([ftype, Fore.RED+key+Style.RESET_ALL])
             else:
                 errtype['other'] = True
-                outs3.append([ftype, Back.RED+key+Style.RESET_ALL])
+                outs3.append([ftype, f"{Back.RED}{key} ({err}){Style.RESET_ALL}"])
 
 
 def show_purl():
@@ -230,9 +268,17 @@ def show_purl():
           None
     '''
     if ARG.SAMPLE:
-        payload = {"sample": "Sample#" + ARG.SAMPLE}
-    else:
+        payload = {"sampleRef": "Sample#" + ARG.SAMPLE}
+        itype = 'Sample'
+        ival = ARG.SAMPLE
+    elif ARG.SLIDE:
         payload = {"slideCode": ARG.SLIDE}
+        itype = 'Slide code'
+        ival = ARG.SLIDE
+    else:
+        payload = {"publishedName": {"$regex": ":" + ARG.BODY + "$"}}
+        itype = 'Body ID'
+        ival = ARG.BODY
     rows = None
     try:
         cnt =  DB['neuronbridge']['publishedURL'].count_documents(payload)
@@ -242,7 +288,7 @@ def show_purl():
         terminate_program(err)
     if not cnt:
         print(Fore.YELLOW \
-              + f"\n{'Sample '+ARG.SAMPLE if ARG.SAMPLE else 'Slide code '+ARG.SLIDE} " \
+              + f"\n{itype} {ival} " \
               + "was not found in publishedURL" + Style.RESET_ALL)
         return
     colsize = collections.defaultdict(lambda: 0, {})
@@ -257,25 +303,33 @@ def show_purl():
     for row in rows:
         row['sampleRef'] = row['sampleRef'].replace('Sample#','')
         for col in ('sampleRef', 'slideCode', 'publishedName', 'anatomicalArea', 'objective',
-                    'alpsRelease'):
-            if len(row[col]) > colsize[col]:
+                    'alpsRelease', 'name'):
+            if col in row and len(row[col]) > colsize[col]:
                 colsize[col] = len(row[col])
         out.append(row)
         # AWS S3 uploads
         if 'uploaded' in row and row['uploaded']:
             check_s3(row['uploaded'], s3files, outs3, colsize, errtype)
     print(f"\n---------- publishedURL ({cnt}) ----------")
-    print(f"{'Sample':{colsize['sampleRef']}}  {'Slide code':{colsize['slideCode']}}  " \
-          + f"{'Published name':{colsize['publishedName']}}  " \
-          + f"{'Area':{colsize['anatomicalArea']}}  " \
-          + f"{'Objective':{colsize['objective']}}  {'Release':{colsize['alpsRelease']}}")
+    if ARG.BODY:
+        print(f"{'Published name':{colsize['publishedName']}}  {'Name':{colsize['name']}}")
+    else:
+        print(f"{'Sample':{colsize['sampleRef']}}  {'Slide code':{colsize['slideCode']}}  " \
+              + f"{'Published name':{colsize['publishedName']}}  " \
+              + f"{'Area':{colsize['anatomicalArea']}}  " \
+              + f"{'Objective':{colsize['objective']}}  {'Release':{colsize['alpsRelease']}}")
     for row in out:
-        print(f"{row['sampleRef']:{colsize['sampleRef']}}  " \
-              + f"{row['slideCode']:{colsize['slideCode']}}  " \
-              + f"{row['publishedName']:{colsize['publishedName']}}  " \
-              + f"{row['anatomicalArea']:{colsize['anatomicalArea']}}  " \
-              + f"{row['objective']:{colsize['objective']}}  " \
-              + f"{row['alpsRelease']:{colsize['alpsRelease']}}")
+        PNAME[row['publishedName']] = True
+        if ARG.BODY:
+            print(f"{row['publishedName']:{colsize['publishedName']}}  " \
+                  + f"{row['name']:{colsize['name']}}")
+        else:
+            print(f"{row['sampleRef']:{colsize['sampleRef']}}  " \
+                  + f"{row['slideCode']:{colsize['slideCode']}}  " \
+                  + f"{row['publishedName']:{colsize['publishedName']}}  " \
+                  + f"{row['anatomicalArea']:{colsize['anatomicalArea']}}  " \
+                  + f"{row['objective']:{colsize['objective']}}  " \
+                  + f"{row['alpsRelease']:{colsize['alpsRelease']}}")
     print(f"\n---------- AWS S3 for publishedURL ({len(outs3)}) ----------")
     print(f"{'File type':{colsize['ftype']}}  {'Key':{colsize['key']}}")
     for row in outs3:
@@ -284,6 +338,25 @@ def show_purl():
         print(f"Some S3 keys were not found and are shown in {Fore.RED+'red'+Style.RESET_ALL}")
     if 'other' in errtype:
         print(f"Some S3 keys are in error and are shown in {Back.RED+'red'+Style.RESET_ALL}")
+
+
+def get_stacks(key):
+    ''' Show entries in janelia-neuronbridge-published-stacks
+        Keyword arguments:
+          key: partition key
+        Returns:
+          Release name
+    '''
+    tbl = 'janelia-neuronbridge-published-stacks'
+    DB[tbl] = DB['DYNAMO'].Table(tbl)
+    try:
+        response = DB[tbl].query(KeyConditionExpression= \
+                                 Key('itemType').eq(key))
+    except DB['DYNAMOCLIENT'].exceptions.ResourceNotFoundException:
+        terminate_program(f"DynamoDB table {tbl} does not exist")
+    if not response or ('Items' not in response) or not response['Items']:
+        return None
+    return response['Items'][0]['releaseName']
 
 
 def show_pli():
@@ -319,7 +392,9 @@ def show_pli():
     outs3 = []
     colsize['ftype'] = 9
     colsize['key'] = 0
+    colsize['release'] = 0
     errtype = {}
+    ddb = {}
     for row in rows:
         row['alignment'] = Fore.YELLOW + 'No' + Style.RESET_ALL
         if 'files' in row and 'VisuallyLosslessStack' in row['files']:
@@ -331,6 +406,11 @@ def show_pli():
                 row[col] = ''
             if len(row[col]) > colsize[col]:
                 colsize[col] = len(row[col])
+            ddb_key = '-'.join([row['slideCode'], row['objective'], row['alignmentSpace']]).lower()
+            if ddb_key not in ddb:
+                ret = get_stacks(ddb_key)
+                if ret:
+                    ddb[ddb_key] = ret
         out.append(row)
         # AWS S3 uploads
         if 'files' in row and row['files']:
@@ -355,6 +435,56 @@ def show_pli():
         print(f"Some S3 keys were not found and are shown in {Fore.RED+'red'+Style.RESET_ALL}")
     if 'other' in errtype:
         print(f"Some S3 keys are in error and are shown in {Back.RED+'red'+Style.RESET_ALL}")
+    if ddb:
+        print("\n---------- DynamoDB janelia-neuronbridge-published-stacks " \
+              + f"({len(ddb)}) ----------")
+        colsize['key'] = 0
+        for key, val in ddb.items():
+            if len(key) > colsize['key']:
+                colsize['key'] = len(key)
+            if len(val) > colsize['release']:
+                colsize['release'] = len(val)
+        print(f"{'itemType':{colsize['key']}}  {'Release':{colsize['release']}}")
+        for key, val in ddb.items():
+            print(f"{key:{colsize['key']}}  {val:{colsize['release']}}")
+
+
+def show_dois():
+    ''' Show entries in janelia-neuronbridge-publishing-doi
+        Keyword arguments:
+          key: partition key
+        Returns:
+          None
+    '''
+    tbl = 'janelia-neuronbridge-publishing-doi'
+    DB[tbl] = DB['DYNAMO'].Table(tbl)
+    colsize = collections.defaultdict(lambda: 0, {})
+    colsize['name'] = 15
+    out = []
+    for pname in PNAME:
+        try:
+            response = DB[tbl].query(KeyConditionExpression= \
+                                     Key('name').eq(pname))
+        except DB['DYNAMOCLIENT'].exceptions.ResourceNotFoundException:
+            terminate_program(f"DynamoDB table {tbl} does not exist")
+        if not response or ('Items' not in response) or not response['Items']:
+            continue
+        dois = response['Items'][0]
+        if len(dois['name']) > colsize['name']:
+            colsize['name'] = len(dois['name'])
+        for doi in dois['doi']:
+            for col in ('link', 'citation'):
+                if len(doi[col]) > colsize[col]:
+                    colsize[col] = len(doi[col])
+            out.append({'name': dois['name'], 'link': doi['link'], 'citation': doi['citation']})
+    if not out:
+        return
+    print(f"\n---------- DynamoDB {tbl} ({len(out)}) ----------")
+    print(f"{'Publishing name':{colsize['name']}}  {'Citation':{colsize['citation']}}  " \
+          + f"{'Link':{colsize['link']}}")
+    for row in out:
+        print(f"{row['name']:{colsize['name']}}  {row['citation']:{colsize['citation']}}  " \
+              + f"{row['link']:{colsize['link']}}")
 
 
 def sample_status():
@@ -364,16 +494,21 @@ def sample_status():
         Returns:
           None
     '''
-    show_sage()
+    if not ARG.BODY:
+        show_sage()
     show_nmd()
     show_purl()
-    show_pli()
+    if not ARG.BODY:
+        show_pli()
+    show_dois()
 
 # -----------------------------------------------------------------------------
 
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(description="Report on sample status")
     LOOKUP = PARSER.add_mutually_exclusive_group(required=True)
+    LOOKUP.add_argument('--body', dest='BODY', action='store',
+                        default='', help='Body ID or FlyWire Root ID')
     LOOKUP.add_argument('--sample', dest='SAMPLE', action='store',
                         default='', help='Sample')
     LOOKUP.add_argument('--slide', dest='SLIDE', action='store',
