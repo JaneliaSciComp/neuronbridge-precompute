@@ -1,4 +1,4 @@
-include { NORMNALIZE_GA } from '../modules/local/normalize-ga/main.nf'
+include { NORMALIZE_GA } from '../modules/local/normalize-ga/main.nf'
 include { DBQUERY as COUNT_MASKS } from '../modules/local/dbquery/main.nf'
 
 include {
