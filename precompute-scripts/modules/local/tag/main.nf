@@ -24,7 +24,9 @@ process TAG {
           val(processing_tags),
           val(excluded_tags),
           val(published_names),
-          val(mip_ids)
+          val(mip_ids),
+          val(neuron_terms),
+          val(excluded_neuron_terms)
 
     script:
     def java_app = app_jar ?: '/app/colormipsearch-3.1.0-jar-with-dependencies.jar'
@@ -38,6 +40,8 @@ process TAG {
     def processing_tags_arg = processing_tags ? "--processing-tags ${processing_tags}" : ''
     def published_names_arg = published_names ? "--published-names ${published_names}" : ''
     def mip_ids_arg = mip_ids ? "--mip-ids ${mip_ids}" : ''
+    def neuron_terms_arg = neuron_terms ? "--neuron-terms ${neuron_terms}" : ''
+    def excluded_neuron_terms_arg = excluded_neuron_terms ? "--excluded-neuron-terms ${excluded_neuron_terms}" : ''
 
     """
     echo "\$(date) Tag mips with: ${new_tag} on \$(hostname -s)"
@@ -55,6 +59,9 @@ process TAG {
         ${excluded_tags_arg} \
         ${processing_tags_arg} \
         ${published_names_arg} \
-        ${mip_ids_arg}
+        ${mip_ids_arg} \
+        ${neuron_terms_arg} \
+        ${excluded_neuron_terms_arg}
+
     """
 }

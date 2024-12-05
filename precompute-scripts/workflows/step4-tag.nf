@@ -23,6 +23,8 @@ workflow {
             params.mip_excluded_tags,
             params.mip_published_names,
             params.mip_ids,
+            params.neuron_terms,
+            params.excluded_neuron_terms,
        ]
     )
 }

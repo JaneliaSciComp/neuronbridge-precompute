@@ -1,0 +1,7 @@
+{
+    "anatomical_area": "vnc",
+    "db_config": "mylocal/proddb-config.properties",
+    "data_version": "3.4.1",
+    "mip_excluded_tags": "validationError,junk",
+    
+}
