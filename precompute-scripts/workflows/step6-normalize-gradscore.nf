@@ -62,10 +62,10 @@ workflow {
        params.mem_gb,
        params.java_opts,
        [
-            params.normalize_ga_processing_tag,
+            params.normalize_score_processing_tag,
             params.masks_published_names,
             params.targets_published_names,
-            params.ga_processing_size,
+            params.normalize_score_batch_size,
        ],
     )
 }
