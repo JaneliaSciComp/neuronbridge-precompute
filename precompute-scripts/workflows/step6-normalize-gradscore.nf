@@ -29,7 +29,7 @@ workflow {
     // split the work
     def normalize_gradscore_inputs = unique_masks_count
     | flatMap { anatomical_area, masks_library, nmasks ->
-        def gradscore_jobs = partition_work(nmasks, params.normalize_ga_batch_size)
+        def gradscore_jobs = partition_work(nmasks, params.normalize_score_batch_size)
         gradscore_jobs
             .withIndex()
             .collect { job, idx ->
