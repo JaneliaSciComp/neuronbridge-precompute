@@ -1,4 +1,4 @@
-include { VALIDATE_EXPORT } from '../modules/local/validate-export/main.nf'
+include { VALIDATE_EXPORT } from '../modules/local/validate-export/main'
 
 workflow {
 
@@ -12,4 +12,5 @@ workflow {
         params.mem_gb,
         params.ray_cluster_address
     )
+
 }

@@ -1,4 +1,4 @@
-include { TAG } from '../modules/local/tag/main.nf'
+include { TAG } from '../modules/local/tag/main'
 
 workflow {
     TAG(

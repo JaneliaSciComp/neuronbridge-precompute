@@ -1,5 +1,5 @@
-include { GA } from '../modules/local/ga/main.nf'
-include { DBQUERY as COUNT_MASKS } from '../modules/local/dbquery/main.nf'
+include { GA                     } from '../modules/local/ga/main'
+include { DBQUERY as COUNT_MASKS } from '../modules/local/dbquery/main'
 
 include {
     is_job_id_in_process_list;

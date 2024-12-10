@@ -1,5 +1,5 @@
-include { VALIDATE } from '../modules/local/validate/main.nf'
-include { DBQUERY as COUNT_MIPS } from '../modules/local/dbquery/main.nf'
+include { VALIDATE              } from '../modules/local/validate/main'
+include { DBQUERY as COUNT_MIPS } from '../modules/local/dbquery/main'
 
 include {
     is_job_id_in_process_list;

@@ -1,5 +1,5 @@
-include { EXPORT } from '../modules/local/export/main.nf'
-include { DBQUERY as COUNT_MIPS } from '../modules/local/dbquery/main.nf'
+include { EXPORT                } from '../modules/local/export/main'
+include { DBQUERY as COUNT_MIPS } from '../modules/local/dbquery/main'
 
 include {
     is_job_id_in_process_list;

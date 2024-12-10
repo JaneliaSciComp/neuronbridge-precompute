@@ -1,5 +1,4 @@
-include { UPLOAD                   } from '../modules/local/upload/main.nf'
-
+include { UPLOAD                   } from '../modules/local/upload/main'
 include { get_values_as_collection } from '../nfutils/utils'
 
 workflow {

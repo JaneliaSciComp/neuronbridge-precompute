@@ -1,5 +1,4 @@
 process VALIDATE_EXPORT {
-    container { task.ext.container }
     conda { task.ext.conda }
     cpus { cpus }
     memory "${mem_gb} GB"
