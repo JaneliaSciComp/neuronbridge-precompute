@@ -1,5 +1,5 @@
 process VALIDATE_EXPORT {
-    conda { task.ext.conda }
+//     conda { task.ext.conda }
     cpus { cpus }
     memory "${mem_gb} GB"
     label 'neuronbridgeTools'
