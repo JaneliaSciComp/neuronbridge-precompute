@@ -151,7 +151,14 @@ and 2 that export data for both anatomical areas (brain and VNC) - one for brain
  * EM_MIPS
  * LM_MIPS
 
-## Step 8: Upload color depth matches to AWS
+## Step 8: Validate export data
+Running export data validation requires a conda environment. Check (NeuronBridge python tools)[https://github.com/JaneliaSciComp/neuronbridge-python.git] how to setup the conda environment
+
+```
+nextflow run workflows/step8-validate-export.nf
+```
+
+## Step 9: Upload color depth matches to AWS
 Before uploading to AWS you need to setup your AWS credentials as nextflow secrets:
 ```
 nextflow secrets set AWS_ACCESS_KEY <youraccesskey>
@@ -159,7 +166,7 @@ nextflow secrets set AWS_SECRET_KEY <yoursecret>
 ```
 Upload the MIPs with:
 ```
-nextflow run workflows/step8-upload.nf \
+nextflow run workflows/step9-upload.nf \
          --dry_run false \
          --upload_anatomical_areas brain+vnc \
          --upload_type "EM_MIPS,LM_MIPS"
