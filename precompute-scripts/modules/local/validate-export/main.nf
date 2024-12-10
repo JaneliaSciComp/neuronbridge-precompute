@@ -1,5 +1,5 @@
 process VALIDATE_EXPORT {
-//     conda { task.ext.conda }
+    conda { task.ext.conda_env }
     cpus { cpus }
     memory "${mem_gb} GB"
     label 'neuronbridgeTools'
@@ -7,7 +7,7 @@ process VALIDATE_EXPORT {
     input:
     tuple val(data_version),
           path(base_export_dir),
-          val(release_dirname),
+          val(release_dirname)
     val(cpus)
     val(mem_gb)
     val(ray_cluster_address)
