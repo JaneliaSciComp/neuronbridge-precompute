@@ -1,8 +1,8 @@
-include { VALIDATE_EXPORT } from '../modules/local/validate-export/main'
+include { VALIDATE_EXPORT as VE} from '../modules/local/validate-export/main'
 
 workflow {
 
-    VALIDATE_EXPORT(
+    VE(
         Channel.of([ 
             params.data_version,
             file(params.base_export_dir),
