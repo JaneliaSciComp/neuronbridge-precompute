@@ -152,7 +152,8 @@ and 2 that export data for both anatomical areas (brain and VNC) - one for brain
  * LM_MIPS
 
 ## Step 8: Validate export data
-Running export data validation requires a conda environment. Check (NeuronBridge python tools)[https://github.com/JaneliaSciComp/neuronbridge-python.git] how to setup the conda environment
+
+Running export data validation requires a conda environment. Check (NeuronBridge python tools)[https://github.com/JaneliaSciComp/neuronbridge-python.git] how to setup the conda environment. The default conda environment for validation is `${HOME}/miniforge3/envs/neuronbridge`. If you have a different environment or different conda setup, use `validate_export_conda_env` parameter to specify it. For running the export validation you don't need the specified conda environment to be activate it but you need conda to be active.
 
 ```
 nextflow run workflows/step8-validate-export.nf
