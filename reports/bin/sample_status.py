@@ -155,7 +155,7 @@ def show_sage():
 
 
 def show_sample():
-    ''' Show data from Sample
+    ''' Show data from jacs:sample
         Keyword arguments:
           None
         Returns:
@@ -169,8 +169,6 @@ def show_sample():
         payload = {"slideCode": ARG.SLIDE}
         itype = 'Slide code'
         ival = ARG.SLIDE
-    else:
-        return
     rows = None
     try:
         cnt =  DB['jacs']['sample'].count_documents(payload)
@@ -213,6 +211,65 @@ def show_sample():
                   + f"{row['releaseLabel']:{colsize['releaseLabel']}}  " \
                   + f"{row['status']:{colsize['status']}}")
 
+
+def show_image():
+    ''' Show data from jacs:image
+        Keyword arguments:
+          None
+        Returns:
+          None
+    '''
+    if ARG.SAMPLE:
+        payload = {"sampleRef": 'Sample#' + ARG.SAMPLE}
+        itype = 'Sample'
+        ival = ARG.SAMPLE
+    elif ARG.SLIDE:
+        payload = {"slideCode": ARG.SLIDE}
+        itype = 'Slide code'
+        ival = ARG.SLIDE
+    else:
+        return
+    rows = None
+    try:
+        cnt =  DB['jacs']['image'].count_documents(payload)
+        if cnt:
+            rows = DB['jacs']['image'].find(payload)
+    except Exception as err:
+        terminate_program(err)
+    if not cnt:
+        print(Fore.YELLOW + f"\n{itype} {ival} " \
+              + "was not found in image" + Style.RESET_ALL)
+        return
+    colsize = collections.defaultdict(lambda: 0, {})
+    colsize['anatomicalArea'] = 4
+    colsize['objective'] = 9
+    colsize['gender'] = 6
+    out = []
+    for row in rows:
+        row['_id'] = str(row['_id'])
+        for col in ('sampleRef', 'slideCode', 'line', 'anatomicalArea', 'tile', 'objective', 'gender',
+                    'dataSet', 'name'):
+            if col in row and len(row[col]) > colsize[col]:
+                colsize[col] = len(row[col])
+            elif col not in row:
+                row[col] = ''
+        out.append(row)
+    print(f"\n---------- image ({cnt}) ----------")
+    print(f"{'Sample':{colsize['sampleRef']}}  {'Slide code':{colsize['slideCode']}}  " \
+              + f"{'Line':{colsize['line']}}  " \
+              + f"{'Area':{colsize['anatomicalArea']}}  {'Tile':{colsize['tile']}}  " \
+              + f"{'Objective':{colsize['objective']}}  "
+              + f"{'Gender':{colsize['gender']}}  {'Data set':{colsize['dataSet']}}")
+    for row in out:
+        print(f"{row['sampleRef']:{colsize['sampleRef']}}  " \
+                  + f"{row['slideCode']:{colsize['slideCode']}}  " \
+                  + f"{row['line']:{colsize['line']}}  " \
+                  + f"{row['anatomicalArea']:{colsize['anatomicalArea']}}  " \
+                  + f"{row['tile']:{colsize['tile']}}  " \
+                  + f"{row['objective']:{colsize['objective']}}  " \
+                  + f"{row['gender']:{colsize['gender']}}  " \
+                  + f"{row['dataSet']:{colsize['dataSet']}}")
+        
 
 def show_nmd():
     ''' Show data from neuronMetadata
@@ -564,6 +621,7 @@ def sample_status():
     if not ARG.BODY:
         show_sage()
         show_sample()
+        show_image()
     show_nmd()
     show_purl()
     if not ARG.BODY:
