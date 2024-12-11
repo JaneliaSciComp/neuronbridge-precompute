@@ -422,7 +422,7 @@ def upload_aws(bucket, dirpath, fname, newname, force=False):
             LOGGER.error(err_text)
             ERR.write(err_text + "\n")
             COUNT['Duplicate objects'] += 1
-            return False
+            return False, False
         LOGGER.debug("Already uploaded %s", object_name)
         COUNT['Duplicate objects'] += 1
         return url, True
@@ -459,7 +459,7 @@ def upload_aws(bucket, dirpath, fname, newname, force=False):
                               ExtraArgs=payload)
     except ClientError as err:
         LOGGER.critical(err)
-        return False
+        return False, False
     COUNT['Amazon S3 uploads'] += 1
     return url, False
 
