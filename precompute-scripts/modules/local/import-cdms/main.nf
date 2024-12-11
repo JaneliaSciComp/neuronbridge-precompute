@@ -31,7 +31,9 @@ process IMPORT_CDMS {
           val(import_tag),
           val(import_mips),
           val(import_published_names),
-          val(excluded_libraries)
+          val(excluded_libraries),
+          val(included_neurons),
+          val(excluded_neurons)
     path(data_paths) // this argument is only sent to ensure all needed volumes are available
     
     output:
@@ -64,6 +66,8 @@ process IMPORT_CDMS {
     def import_mips_arg = import_mips ? "--mips ${import_mips}" : ''
     def import_published_names_arg = import_published_names ? "--included-published-names ${import_published_names}" : ''
     def excluded_libraries_arg = excluded_libraries ? "--excluded-libraries ${excluded_libraries}" : ''
+    def included_neurons_arg = included_neurons ? "--included-neurons ${included_neurons}" : ''
+    def excluded_neurons_arg = excluded_neurons ? "--excluded-neurons ${excluded_neurons}" : ''
 
     """
     echo "\$(date) Run ${library_name} CDMs import on \$(hostname -s)"
@@ -89,6 +93,8 @@ process IMPORT_CDMS {
         ${import_mips_arg} \
         ${import_published_names_arg} \
         ${excluded_libraries_arg} \
+        ${included_neurons_arg} \
+        ${excluded_neurons_arg} \
         --results-storage DB \
         --for-update
 

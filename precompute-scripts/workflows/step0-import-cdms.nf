@@ -41,6 +41,8 @@ workflow {
             params.import_mips,
             params.import_published_names,
             params.excluded_libraries,
+            params.included_neurons,
+            params.excluded_neurons,
         ],
         get_data_paths(cdmips_paths),
     ) // [area, library, import_tag]
