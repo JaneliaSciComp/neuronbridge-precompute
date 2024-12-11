@@ -669,6 +669,7 @@ def process_light(smp):
     '''
     sid, publishing_name = get_smp_info(smp)
     if not sid:
+        LOGGER.error(f"Sample ID not found for ID {smp['_id']}")
         return False
     REC['line'] = publishing_name
     missing = []
@@ -683,6 +684,7 @@ def process_light(smp):
     REC['area'] = smp['anatomicalArea'].lower()
     drv = driver_check(publishing_name, sid)
     if not drv:
+        LOGGER.error(f"Driver not found for {sid}")
         return False
     fname = os.path.basename(smp['filepath'])
     if 'gamma' in fname:
