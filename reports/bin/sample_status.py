@@ -165,7 +165,7 @@ def show_sample():
         payload = {"_id": int(ARG.SAMPLE)}
         itype = 'Sample'
         ival = ARG.SAMPLE
-    elif ARG.SLIDE:
+    else:
         payload = {"slideCode": ARG.SLIDE}
         itype = 'Slide code'
         ival = ARG.SLIDE
@@ -187,8 +187,8 @@ def show_sample():
     out = []
     for row in rows:
         row['_id'] = str(row['_id'])
-        for col in ('_id', 'slideCode', 'line', 'publishingName', 'gender', 'dataSet', 'releaseLabel',
-                    'status'):
+        for col in ('_id', 'slideCode', 'line', 'publishingName', 'gender', 'dataSet',
+                    'releaseLabel', 'status'):
             if col in row and len(row[col]) > colsize[col]:
                 colsize[col] = len(row[col])
             elif col not in row:
@@ -223,12 +223,10 @@ def show_image():
         payload = {"sampleRef": 'Sample#' + ARG.SAMPLE}
         itype = 'Sample'
         ival = ARG.SAMPLE
-    elif ARG.SLIDE:
+    else:
         payload = {"slideCode": ARG.SLIDE}
         itype = 'Slide code'
         ival = ARG.SLIDE
-    else:
-        return
     rows = None
     try:
         cnt =  DB['jacs']['image'].count_documents(payload)
@@ -247,8 +245,8 @@ def show_image():
     out = []
     for row in rows:
         row['_id'] = str(row['_id'])
-        for col in ('sampleRef', 'slideCode', 'line', 'anatomicalArea', 'tile', 'objective', 'gender',
-                    'dataSet', 'name'):
+        for col in ('sampleRef', 'slideCode', 'line', 'anatomicalArea', 'tile', 'objective',
+                    'gender', 'dataSet', 'name'):
             if col in row and len(row[col]) > colsize[col]:
                 colsize[col] = len(row[col])
             elif col not in row:
@@ -269,7 +267,7 @@ def show_image():
                   + f"{row['objective']:{colsize['objective']}}  " \
                   + f"{row['gender']:{colsize['gender']}}  " \
                   + f"{row['dataSet']:{colsize['dataSet']}}")
-        
+
 
 def show_nmd():
     ''' Show data from neuronMetadata
