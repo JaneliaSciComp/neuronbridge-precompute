@@ -189,7 +189,8 @@ def show_sample():
     out = []
     for row in rows:
         row['_id'] = str(row['_id'])
-        for col in ('_id', 'slideCode', 'line', 'publishingName', 'gender', 'releaseLabel', 'status'):
+        for col in ('_id', 'slideCode', 'line', 'publishingName', 'gender', 'dataSet', 'releaseLabel',
+                    'status'):
             if col in row and len(row[col]) > colsize[col]:
                 colsize[col] = len(row[col])
             elif col not in row:
@@ -199,7 +200,8 @@ def show_sample():
     print(f"{'Sample':{colsize['_id']}}  {'Slide code':{colsize['slideCode']}}  " \
               + f"{'Line':{colsize['line']}}  " \
               + f"{'Publishing name':{colsize['publishingName']}}  " \
-              + f"{'Gender':{colsize['gender']}}  {'Release':{colsize['releaseLabel']}}  "\
+              + f"{'Gender':{colsize['gender']}}  {'Data set':{colsize['dataSet']}}  "\
+              + f"{'Release':{colsize['releaseLabel']}}  " \
               + f"{'Status':{colsize['status']}}")
     for row in out:
         print(f"{row['_id']:{colsize['_id']}}  " \
@@ -207,6 +209,7 @@ def show_sample():
                   + f"{row['line']:{colsize['line']}}  " \
                   + f"{row['publishingName']:{colsize['publishingName']}}  " \
                   + f"{row['gender']:{colsize['gender']}}  " \
+                  + f"{row['dataSet']:{colsize['dataSet']}}  " \
                   + f"{row['releaseLabel']:{colsize['releaseLabel']}}  " \
                   + f"{row['status']:{colsize['status']}}")
 
