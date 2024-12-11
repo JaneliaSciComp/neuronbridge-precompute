@@ -62,7 +62,7 @@ def initialize_program():
     except Exception as err:
         terminate_program(err)
     # Database
-    for source in ("sage", "neuronbridge"):
+    for source in ("sage", "jacs", "neuronbridge"):
         manifold = 'prod' if source == 'sage' else ARG.MANIFOLD
         dbo = attrgetter(f"{source}.{manifold}.read")(dbconfig)
         LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, manifold, dbo.host, dbo.user)
@@ -113,6 +113,7 @@ def show_sage():
         return
     colsize = collections.defaultdict(lambda: 0, {})
     colsize['publishing_name'] = 14
+    colsize['anatomicalArea'] = 4
     colsize['objective'] = 9
     out = []
     pnames = {}
@@ -153,6 +154,63 @@ def show_sage():
               + Style.RESET_ALL)
 
 
+def show_sample():
+    ''' Show data from Sample
+        Keyword arguments:
+          None
+        Returns:
+          None
+    '''
+    if ARG.SAMPLE:
+        payload = {"_id": int(ARG.SAMPLE)}
+        itype = 'Sample'
+        ival = ARG.SAMPLE
+    elif ARG.SLIDE:
+        payload = {"slideCode": ARG.SLIDE}
+        itype = 'Slide code'
+        ival = ARG.SLIDE
+    else:
+        return
+    rows = None
+    try:
+        cnt =  DB['jacs']['sample'].count_documents(payload)
+        if cnt:
+            rows = DB['jacs']['sample'].find(payload)
+    except Exception as err:
+        terminate_program(err)
+    if not cnt:
+        print(Fore.YELLOW + f"\n{itype} {ival} " \
+              + "was not found in sample" + Style.RESET_ALL)
+        return
+    colsize = collections.defaultdict(lambda: 0, {})
+    colsize['publishingName'] = 15
+    colsize['gender'] = 6
+    colsize['releaseLabel'] = 7
+    out = []
+    for row in rows:
+        row['_id'] = str(row['_id'])
+        for col in ('_id', 'slideCode', 'line', 'publishingName', 'gender', 'releaseLabel', 'status'):
+            if col in row and len(row[col]) > colsize[col]:
+                colsize[col] = len(row[col])
+            elif col not in row:
+                row[col] = ''
+        out.append(row)
+    print(f"\n---------- sample ({cnt}) ----------")
+    print(f"{'Sample':{colsize['_id']}}  {'Slide code':{colsize['slideCode']}}  " \
+              + f"{'Line':{colsize['line']}}  " \
+              + f"{'Publishing name':{colsize['publishingName']}}  " \
+              + f"{'Gender':{colsize['gender']}}  {'Release':{colsize['releaseLabel']}}  "\
+              + f"{'Status':{colsize['status']}}")
+    for row in out:
+        print(f"{row['_id']:{colsize['_id']}}  " \
+                  + f"{row['slideCode']:{colsize['slideCode']}}  " \
+                  + f"{row['line']:{colsize['line']}}  " \
+                  + f"{row['publishingName']:{colsize['publishingName']}}  " \
+                  + f"{row['gender']:{colsize['gender']}}  " \
+                  + f"{row['releaseLabel']:{colsize['releaseLabel']}}  " \
+                  + f"{row['status']:{colsize['status']}}")
+
+
 def show_nmd():
     ''' Show data from neuronMetadata
         Keyword arguments:
@@ -185,7 +243,9 @@ def show_nmd():
         return
     colsize = collections.defaultdict(lambda: 0, {})
     colsize['publishedName'] = 14
+    colsize['anatomicalArea'] = 4
     colsize['objective'] = 9
+    colsize['gender'] = 6
     colsize['neuronType'] = 11
     out = []
     for row in rows:
@@ -195,7 +255,7 @@ def show_nmd():
         else:
             row['datasetLabels'] = ''
         for col in ('sourceRefId', 'slideCode', 'publishedName', 'anatomicalArea', 'objective',
-                    'datasetLabels', 'neuronType', 'neuronInstance'):
+                    'gender', 'datasetLabels', 'neuronType', 'neuronInstance'):
             if col in row and len(row[col]) > colsize[col]:
                 colsize[col] = len(row[col])
             elif col not in row:
@@ -210,7 +270,8 @@ def show_nmd():
         print(f"{'Sample':{colsize['sourceRefId']}}  {'Slide code':{colsize['slideCode']}}  " \
               + f"{'Published name':{colsize['publishedName']}}  " \
               + f"{'Area':{colsize['anatomicalArea']}}  " \
-              + f"{'Objective':{colsize['objective']}}  {'Release':{colsize['neuronType']}}")
+              + f"{'Objective':{colsize['objective']}}  {'Gender':{colsize['gender']}}  " \
+              + f"{'Release':{colsize['neuronType']}}")
     for row in out:
         if ARG.BODY:
             print(f"{row['publishedName']:{colsize['publishedName']}}  " \
@@ -222,6 +283,7 @@ def show_nmd():
                   + f"{row['publishedName']:{colsize['publishedName']}}  " \
                   + f"{row['anatomicalArea']:{colsize['anatomicalArea']}}  " \
                   + f"{row['objective']:{colsize['objective']}}  " \
+                  + f"{row['gender']:{colsize['gender']}}  " \
                   + f"{row['datasetLabels']:{colsize['datasetLabels']}}")
 
 
@@ -293,6 +355,7 @@ def show_purl():
         return
     colsize = collections.defaultdict(lambda: 0, {})
     colsize['publishedName'] = 14
+    colsize['anatomicalArea'] = 4
     colsize['objective'] = 9
     out = []
     s3files = {}
@@ -384,6 +447,7 @@ def show_pli():
         return
     colsize = collections.defaultdict(lambda: 0, {})
     colsize['name'] = 14
+    colsize['area'] = 4
     colsize['tile'] = 4
     colsize['objective'] = 9
     colsize['alignment'] = 9
@@ -496,6 +560,7 @@ def sample_status():
     '''
     if not ARG.BODY:
         show_sage()
+        show_sample()
     show_nmd()
     show_purl()
     if not ARG.BODY:
