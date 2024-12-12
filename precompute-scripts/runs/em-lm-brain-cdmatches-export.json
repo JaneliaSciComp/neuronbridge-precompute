@@ -3,7 +3,7 @@
     "anatomical_area": "brain",
     "export_type": "EM_CD_MATCHES",
     "db_config": "mylocal/proddb-config.properties",
-    "exported_mask_mips": "3302117761939394704",
+    "exported_mask_mips": "",
     "jacs_url": "",
     "jacs_authorization": "",
     "java_opts": ""
