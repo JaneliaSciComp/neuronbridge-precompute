@@ -116,6 +116,8 @@ def show_sage():
     colsize['anatomicalArea'] = 4
     colsize['objective'] = 9
     out = []
+    fields = ['workstation_sample_id', 'slide_code', 'publishing_name', 'area', 'tile',
+              'objective', 'alps_release', 'parent']
     pnames = {}
     samples = {}
     for row in rows:
@@ -124,8 +126,7 @@ def show_sage():
         osearch = re.search(r' (\d+[Xx])/', row['objective'], re.IGNORECASE)
         if osearch:
             row['objective'] = osearch.group(1)
-        for col in ('workstation_sample_id', 'slide_code', 'publishing_name', 'area', 'tile',
-                    'objective', 'alps_release', 'parent'):
+        for col in fields:
             if row[col] is None:
                 row[col] = ''
             if len(row[col]) > colsize[col]:
@@ -139,13 +140,7 @@ def show_sage():
           + f"{'Objective':{colsize['objective']}}  {'Release':{colsize['alps_release']}}  " \
           + f"{'Alignment':{colsize['parent']}}")
     for row in out:
-        print(f"{row['workstation_sample_id']:{colsize['workstation_sample_id']}}  " \
-              + f"{row['slide_code']:{colsize['slide_code']}}  " \
-              + f"{row['publishing_name']:{colsize['publishing_name']}}  " \
-              + f"{row['area']:{colsize['area']}}  {row['tile']:{colsize['tile']}}  " \
-              + f"{row['objective']:{colsize['objective']}}  " \
-              + f"{row['alps_release']:{colsize['alps_release']}}  " \
-              + f"{row['parent']:{colsize['parent']}}")
+        print('  '.join([f"{row[fld]:{colsize[fld]}}" for fld in fields]))
     if len(pnames) > 1:
         print(Fore.RED + f"Multiple published names found: {', '.join(pnames.keys())}" \
               + Style.RESET_ALL)
@@ -185,10 +180,11 @@ def show_sample():
     colsize['gender'] = 6
     colsize['releaseLabel'] = 7
     out = []
+    fields = ['_id', 'slideCode', 'line', 'publishingName', 'gender', 'dataSet',
+              'releaseLabel', 'status']
     for row in rows:
         row['_id'] = str(row['_id'])
-        for col in ('_id', 'slideCode', 'line', 'publishingName', 'gender', 'dataSet',
-                    'releaseLabel', 'status'):
+        for col in fields:
             if col in row and len(row[col]) > colsize[col]:
                 colsize[col] = len(row[col])
             elif col not in row:
@@ -202,14 +198,7 @@ def show_sample():
               + f"{'Release':{colsize['releaseLabel']}}  " \
               + f"{'Status':{colsize['status']}}")
     for row in out:
-        print(f"{row['_id']:{colsize['_id']}}  " \
-                  + f"{row['slideCode']:{colsize['slideCode']}}  " \
-                  + f"{row['line']:{colsize['line']}}  " \
-                  + f"{row['publishingName']:{colsize['publishingName']}}  " \
-                  + f"{row['gender']:{colsize['gender']}}  " \
-                  + f"{row['dataSet']:{colsize['dataSet']}}  " \
-                  + f"{row['releaseLabel']:{colsize['releaseLabel']}}  " \
-                  + f"{row['status']:{colsize['status']}}")
+        print('  '.join([f"{row[fld]:{colsize[fld]}}" for fld in fields]))
 
 
 def show_image():
@@ -243,10 +232,11 @@ def show_image():
     colsize['objective'] = 9
     colsize['gender'] = 6
     out = []
+    fields = ['sampleRef', 'slideCode', 'line', 'anatomicalArea', 'tile', 'objective',
+              'gender', 'dataSet', 'name']
     for row in rows:
         row['_id'] = str(row['_id'])
-        for col in ('sampleRef', 'slideCode', 'line', 'anatomicalArea', 'tile', 'objective',
-                    'gender', 'dataSet', 'name'):
+        for col in fields:
             if col in row and len(row[col]) > colsize[col]:
                 colsize[col] = len(row[col])
             elif col not in row:
@@ -257,16 +247,10 @@ def show_image():
               + f"{'Line':{colsize['line']}}  " \
               + f"{'Area':{colsize['anatomicalArea']}}  {'Tile':{colsize['tile']}}  " \
               + f"{'Objective':{colsize['objective']}}  "
-              + f"{'Gender':{colsize['gender']}}  {'Data set':{colsize['dataSet']}}")
+              + f"{'Gender':{colsize['gender']}}  {'Data set':{colsize['dataSet']}}  " \
+              + f"{'Name':{colsize['name']}}")
     for row in out:
-        print(f"{row['sampleRef']:{colsize['sampleRef']}}  " \
-                  + f"{row['slideCode']:{colsize['slideCode']}}  " \
-                  + f"{row['line']:{colsize['line']}}  " \
-                  + f"{row['anatomicalArea']:{colsize['anatomicalArea']}}  " \
-                  + f"{row['tile']:{colsize['tile']}}  " \
-                  + f"{row['objective']:{colsize['objective']}}  " \
-                  + f"{row['gender']:{colsize['gender']}}  " \
-                  + f"{row['dataSet']:{colsize['dataSet']}}")
+        print('  '.join([f"{row[fld]:{colsize[fld]}}" for fld in fields]))
 
 
 def show_nmd():
@@ -306,14 +290,18 @@ def show_nmd():
     colsize['gender'] = 6
     colsize['neuronType'] = 11
     out = []
+    if ARG.BODY:
+        fields = ['publishedName', 'neuronType', 'neuronInstance']
+    else:
+        fields = ['sourceRefId', 'mipId', 'alignmentSpace', 'slideCode', 'publishedName',
+                  'anatomicalArea', 'objective', 'gender', 'datasetLabels']
     for row in rows:
         row['sourceRefId'] = row['sourceRefId'].replace('Sample#','')
         if 'datasetLabels' in row:
             row['datasetLabels'] = ', '.join(row['datasetLabels'])
         else:
             row['datasetLabels'] = ''
-        for col in ('sourceRefId', 'slideCode', 'publishedName', 'anatomicalArea', 'objective',
-                    'gender', 'datasetLabels', 'neuronType', 'neuronInstance'):
+        for col in fields:
             if col in row and len(row[col]) > colsize[col]:
                 colsize[col] = len(row[col])
             elif col not in row:
@@ -325,24 +313,15 @@ def show_nmd():
               + f"{'Neuron type':{colsize['neuronType']}}  " \
               + f"{'Neuron instance':{colsize['neuronInstance']}}")
     else:
-        print(f"{'Sample':{colsize['sourceRefId']}}  {'Slide code':{colsize['slideCode']}}  " \
+        print(f"{'Sample':{colsize['sourceRefId']}}  {'MIP':{colsize['mipId']}}  " \
+              + f"{'Alignment':{colsize['alignmentSpace']}}  " \
+              + f"{'Slide code':{colsize['slideCode']}}  "
               + f"{'Published name':{colsize['publishedName']}}  " \
               + f"{'Area':{colsize['anatomicalArea']}}  " \
               + f"{'Objective':{colsize['objective']}}  {'Gender':{colsize['gender']}}  " \
-              + f"{'Release':{colsize['neuronType']}}")
+              + f"{'Release':{colsize['datasetLabels']}}")
     for row in out:
-        if ARG.BODY:
-            print(f"{row['publishedName']:{colsize['publishedName']}}  " \
-                  + f"{row['neuronType']:{colsize['neuronType']}}  " \
-                  + f"{row['neuronInstance']:{colsize['neuronInstance']}}")
-        else:
-            print(f"{row['sourceRefId']:{colsize['sourceRefId']}}  " \
-                  + f"{row['slideCode']:{colsize['slideCode']}}  " \
-                  + f"{row['publishedName']:{colsize['publishedName']}}  " \
-                  + f"{row['anatomicalArea']:{colsize['anatomicalArea']}}  " \
-                  + f"{row['objective']:{colsize['objective']}}  " \
-                  + f"{row['gender']:{colsize['gender']}}  " \
-                  + f"{row['datasetLabels']:{colsize['datasetLabels']}}")
+        print('  '.join([f"{row[fld]:{colsize[fld]}}" for fld in fields]))
 
 
 def check_s3(uploaded, s3files, outs3, colsize, errtype):
@@ -415,7 +394,13 @@ def show_purl():
     colsize['publishedName'] = 14
     colsize['anatomicalArea'] = 4
     colsize['objective'] = 9
+    colsize['gender'] = 6
     out = []
+    if ARG.BODY:
+        fields = ['publishedName', 'name']
+    else:
+        fields = ['sampleRef', 'mipId', 'alignmentSpace', 'slideCode', 'publishedName',
+                  'anatomicalArea', 'objective', 'gender', 'alpsRelease']
     s3files = {}
     outs3 = []
     colsize['ftype'] = 9
@@ -423,8 +408,7 @@ def show_purl():
     errtype = {}
     for row in rows:
         row['sampleRef'] = row['sampleRef'].replace('Sample#','')
-        for col in ('sampleRef', 'slideCode', 'publishedName', 'anatomicalArea', 'objective',
-                    'alpsRelease', 'name'):
+        for col in fields:
             if col in row and len(row[col]) > colsize[col]:
                 colsize[col] = len(row[col])
         out.append(row)
@@ -435,22 +419,16 @@ def show_purl():
     if ARG.BODY:
         print(f"{'Published name':{colsize['publishedName']}}  {'Name':{colsize['name']}}")
     else:
-        print(f"{'Sample':{colsize['sampleRef']}}  {'Slide code':{colsize['slideCode']}}  " \
+        print(f"{'Sample':{colsize['sampleRef']}}  {'MIP':{colsize['mipId']}}  " \
+              + f"{'Alignment':{colsize['alignmentSpace']}}  " \
+              + f"{'Slide code':{colsize['slideCode']}}  "
               + f"{'Published name':{colsize['publishedName']}}  " \
               + f"{'Area':{colsize['anatomicalArea']}}  " \
-              + f"{'Objective':{colsize['objective']}}  {'Release':{colsize['alpsRelease']}}")
+              + f"{'Objective':{colsize['objective']}}  {'Gender':{colsize['gender']}}  " \
+              + f"{'Release':{colsize['alpsRelease']}}")
     for row in out:
         PNAME[row['publishedName']] = True
-        if ARG.BODY:
-            print(f"{row['publishedName']:{colsize['publishedName']}}  " \
-                  + f"{row['name']:{colsize['name']}}")
-        else:
-            print(f"{row['sampleRef']:{colsize['sampleRef']}}  " \
-                  + f"{row['slideCode']:{colsize['slideCode']}}  " \
-                  + f"{row['publishedName']:{colsize['publishedName']}}  " \
-                  + f"{row['anatomicalArea']:{colsize['anatomicalArea']}}  " \
-                  + f"{row['objective']:{colsize['objective']}}  " \
-                  + f"{row['alpsRelease']:{colsize['alpsRelease']}}")
+        print('  '.join([f"{row[fld]:{colsize[fld]}}" for fld in fields]))
     print(f"\n---------- AWS S3 for publishedURL ({len(outs3)}) ----------")
     print(f"{'File type':{colsize['ftype']}}  {'Key':{colsize['key']}}")
     for row in outs3:
@@ -510,6 +488,8 @@ def show_pli():
     colsize['objective'] = 9
     colsize['alignment'] = 9
     out = []
+    fields = ['sampleRef', 'slideCode', 'name', 'area', 'tile', 'objective', 'releaseName',
+              'alignment']
     s3files = {}
     outs3 = []
     colsize['ftype'] = 9
@@ -522,8 +502,7 @@ def show_pli():
         if 'files' in row and 'VisuallyLosslessStack' in row['files']:
             row['alignment'] = 'Yes'
         row['sampleRef'] = row['sampleRef'].replace('Sample#','')
-        for col in ('sampleRef', 'slideCode', 'name', 'area', 'tile', 'objective', 'releaseName',
-                    'alignment'):
+        for col in fields:
             if col not in row or row[col] is None:
                 row[col] = ''
             if len(row[col]) > colsize[col]:
@@ -543,12 +522,7 @@ def show_pli():
           + f"{'Tile':{colsize['tile']}}  {'Objective':{colsize['objective']}}  " \
           + f"{'Release':{colsize['releaseName']}}  {'Alignment':{colsize['alignment']}}")
     for row in out:
-        print(f"{row['sampleRef']:{colsize['sampleRef']}}  " \
-              + f"{row['slideCode']:{colsize['slideCode']}}  " \
-              + f"{row['name']:{colsize['name']}}  {row['area']:{colsize['area']}}  " \
-              + f"{row['tile']:{colsize['tile']}}  {row['objective']:{colsize['objective']}}  " \
-              + f"{row['releaseName']:{colsize['releaseName']}}  " \
-              + f"{row['alignment']:{colsize['alignment']}}")
+        print('  '.join([f"{row[fld]:{colsize[fld]}}" for fld in fields]))
     print(f"\n---------- AWS S3 for publishedLMImage ({len(outs3)}) ----------")
     print(f"{'File type':{colsize['ftype']}}  {'Key':{colsize['key']}}")
     for row in outs3:
