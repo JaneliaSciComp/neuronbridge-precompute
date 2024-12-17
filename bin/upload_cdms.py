@@ -602,7 +602,7 @@ def get_smp_info(smp):
         if sid not in RELEASE:
             COUNT['Sample not published'] += 1
             err_text = f"Sample {sid} was not published"
-            LOGGER.error(err_text)
+            LOGGER.warning(err_text)
             ERR.write(err_text + "\n")
             return None, None
     if 'publishedName' not in smp or not smp['publishedName']:
@@ -1176,7 +1176,6 @@ def upload_cdms():
         if 'flylight' in ARG.LIBRARY and smp['sourceRefId'] not in published_sample:
             COUNT['Sample not published'] += 1
             LOGGER.warning("Sample %s is not published in publishedLMImage", smp['sourceRefId'])
-            continue
         remap_sample(smp)
         if ARG.SAMPLES and COUNT['Samples'] >= ARG.SAMPLES:
             break
