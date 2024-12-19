@@ -6,8 +6,9 @@
         python3 sample_status.py --slide 20190816_62_G9
         python3 sample_status.py --body 1537331894
         python3 sample_status.py --body 720575940596125868
+        python3 sample_status.py --slide 20160617_24_C1
 '''
-__version__ = '2.0.0'
+__version__ = '3.0.0'
 
 import argparse
 import collections
@@ -62,8 +63,11 @@ def initialize_program():
     except Exception as err:
         terminate_program(err)
     # Database
-    for source in ("sage", "jacs", "neuronbridge"):
-        manifold = 'prod' if source == 'sage' else ARG.MANIFOLD
+    for source in ("sage", "gen1mcfo", "raw", "mbew", "jacs", "neuronbridge"):
+        if source in ("sage","jacs", "neuronbridge"):
+            manifold = 'prod'
+        else:
+            manifold = ARG.MANIFOLD
         dbo = attrgetter(f"{source}.{manifold}.read")(dbconfig)
         LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, manifold, dbo.host, dbo.user)
         try:
@@ -92,7 +96,28 @@ def initialize_program():
         terminate_program(err)
 
 
-def show_sage():
+def set_colsize(colsize):
+    ''' Set default column sizes
+        Keyword arguments:
+          colsize: dictionary of column sizes
+        Returns:
+          None
+    '''
+    colsize['alignment'] = 9
+    colsize['anatomicalArea'] = 4
+    colsize['area'] = 4
+    colsize['gender'] = 6
+    colsize['name'] = 15
+    colsize['neuronType'] = 11
+    colsize['objective'] = 9
+    colsize['publishedName'] = 14
+    colsize['publishing_name'] = 14
+    colsize['publishingName'] = 15
+    colsize['releaseLabel'] = 7
+    colsize['tile'] = 4
+
+
+def show_sage(dbn='sage'):
     ''' Show data from SAGE
         Keyword arguments:
           None
@@ -103,8 +128,8 @@ def show_sage():
     if ARG.SAMPLE:
         sql = sql.replace('WHERE slide_code', 'WHERE workstation_sample_id')
     try:
-        DB['sage']['cursor'].execute(sql, (ARG.SAMPLE if ARG.SAMPLE else ARG.SLIDE,))
-        rows = DB['sage']['cursor'].fetchall()
+        DB[dbn]['cursor'].execute(sql, (ARG.SAMPLE if ARG.SAMPLE else ARG.SLIDE,))
+        rows = DB[dbn]['cursor'].fetchall()
     except Exception as err:
         terminate_program(JRC.sql_error(err))
     if not rows:
@@ -112,14 +137,13 @@ def show_sage():
                        + "was not found in SAGE")
         return
     colsize = collections.defaultdict(lambda: 0, {})
-    colsize['publishing_name'] = 14
-    colsize['anatomicalArea'] = 4
-    colsize['objective'] = 9
+    set_colsize(colsize)
     out = []
     fields = ['workstation_sample_id', 'slide_code', 'publishing_name', 'area', 'tile',
               'objective', 'alps_release', 'parent']
     pnames = {}
     samples = {}
+    databases = []
     for row in rows:
         pnames[row['publishing_name']] = True
         samples[row['workstation_sample_id']] = True
@@ -132,7 +156,16 @@ def show_sage():
             if len(row[col]) > colsize[col]:
                 colsize[col] = len(row[col])
         out.append(row)
-    print(f"---------- SAGE ({len(rows)}) ----------")
+        if row['alps_release']:
+            if 'Omnibus Broad' in row['alps_release']:
+                ndb = 'raw'
+            elif 'Gen1 MCFO' in row['alps_release']:
+                ndb = 'gen1mcfo'
+            else:
+                ndb = 'mbew'
+            if ndb not in databases:
+                databases.append(ndb)
+    print(f"---------- {dbn} ({len(rows)}) ----------")
     print(f"{'Sample':{colsize['workstation_sample_id']}}  " \
           + f"{'Slide code':{colsize['slide_code']}}  " \
           + f"{'Published name':{colsize['publishing_name']}}  " \
@@ -147,6 +180,10 @@ def show_sage():
     if len(samples) > 1:
         print(Fore.YELLOW + f"Multiple samples found: {', '.join(samples.keys())}" \
               + Style.RESET_ALL)
+    if dbn == 'sage':
+        for next_dbn in databases:
+            print()
+            show_sage(next_dbn)
 
 
 def show_sample():
@@ -176,9 +213,7 @@ def show_sample():
               + "was not found in sample" + Style.RESET_ALL)
         return
     colsize = collections.defaultdict(lambda: 0, {})
-    colsize['publishingName'] = 15
-    colsize['gender'] = 6
-    colsize['releaseLabel'] = 7
+    set_colsize(colsize)
     out = []
     fields = ['_id', 'slideCode', 'line', 'publishingName', 'gender', 'dataSet',
               'releaseLabel', 'status']
@@ -228,9 +263,7 @@ def show_image():
               + "was not found in image" + Style.RESET_ALL)
         return
     colsize = collections.defaultdict(lambda: 0, {})
-    colsize['anatomicalArea'] = 4
-    colsize['objective'] = 9
-    colsize['gender'] = 6
+    set_colsize(colsize)
     out = []
     fields = ['sampleRef', 'slideCode', 'line', 'anatomicalArea', 'tile', 'objective',
               'gender', 'dataSet', 'name']
@@ -284,11 +317,7 @@ def show_nmd():
               + "was not found in neuronMetadata" + Style.RESET_ALL)
         return
     colsize = collections.defaultdict(lambda: 0, {})
-    colsize['publishedName'] = 14
-    colsize['anatomicalArea'] = 4
-    colsize['objective'] = 9
-    colsize['gender'] = 6
-    colsize['neuronType'] = 11
+    set_colsize(colsize)
     out = []
     if ARG.BODY:
         fields = ['publishedName', 'neuronType', 'neuronInstance']
@@ -391,10 +420,7 @@ def show_purl():
               + "was not found in publishedURL" + Style.RESET_ALL)
         return
     colsize = collections.defaultdict(lambda: 0, {})
-    colsize['publishedName'] = 14
-    colsize['anatomicalArea'] = 4
-    colsize['objective'] = 9
-    colsize['gender'] = 6
+    set_colsize(colsize)
     out = []
     if ARG.BODY:
         fields = ['publishedName', 'name']
@@ -482,11 +508,7 @@ def show_pli():
               + "was not found in publishedLMImage" + Style.RESET_ALL)
         return
     colsize = collections.defaultdict(lambda: 0, {})
-    colsize['name'] = 14
-    colsize['area'] = 4
-    colsize['tile'] = 4
-    colsize['objective'] = 9
-    colsize['alignment'] = 9
+    set_colsize(colsize)
     out = []
     fields = ['sampleRef', 'slideCode', 'name', 'area', 'tile', 'objective', 'releaseName',
               'alignment']
@@ -555,7 +577,7 @@ def show_dois():
     tbl = 'janelia-neuronbridge-publishing-doi'
     DB[tbl] = DB['DYNAMO'].Table(tbl)
     colsize = collections.defaultdict(lambda: 0, {})
-    colsize['name'] = 15
+    set_colsize(colsize)
     out = []
     for pname in PNAME:
         try:
@@ -612,7 +634,8 @@ if __name__ == '__main__':
     LOOKUP.add_argument('--slide', dest='SLIDE', action='store',
                         default='', help='Slide code')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
-                        default='prod', choices=['dev', 'prod'], help='MongoDB manifold [prod]')
+                        default='staging', choices=['staging', 'prod'],
+                        help='Publishing manifold [staging]')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
                         default=False, help='Flag, Chatty')
     PARSER.add_argument('--debug', dest='DEBUG', action='store_true',
