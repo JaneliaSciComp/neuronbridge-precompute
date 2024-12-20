@@ -220,7 +220,9 @@ def show_sample():
     for row in rows:
         row['_id'] = str(row['_id'])
         for col in fields:
-            if col in row and len(row[col]) > colsize[col]:
+            if col in row and row[col] is None:
+                row[col] = ''
+            if col in row and row[col] and len(row[col]) > colsize[col]:
                 colsize[col] = len(row[col])
             elif col not in row:
                 row[col] = ''
