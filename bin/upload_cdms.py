@@ -1021,7 +1021,7 @@ def read_json():
     coll = DBM.neuronMetadata
     payload = {"libraryName": ARG.LIBRARY,
                "$and": [{"tags": ARG.TAG},
-                        {"tags": {"$nin": ["unreleased"]}}],
+                        {"tags": {"$nin": ["unreleased", "validationError"]}}],
                "publishedName": {"$exists": True}}
     if ARG.PUBLISHED:
         payload["publishedName"] = ARG.PUBLISHED
