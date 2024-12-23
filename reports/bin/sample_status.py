@@ -106,7 +106,9 @@ def set_colsize(colsize):
     colsize['alignment'] = 9
     colsize['anatomicalArea'] = 4
     colsize['area'] = 4
+    colsize['citation'] = 8
     colsize['gender'] = 6
+    colsize['link'] = 4
     colsize['name'] = 15
     colsize['neuronType'] = 11
     colsize['objective'] = 9
@@ -593,6 +595,8 @@ def show_dois():
         if len(dois['name']) > colsize['name']:
             colsize['name'] = len(dois['name'])
         for doi in dois['doi']:
+            if 'link' not in doi:
+                doi['link'] = ''
             for col in ('link', 'citation'):
                 if len(doi[col]) > colsize[col]:
                     colsize[col] = len(doi[col])
