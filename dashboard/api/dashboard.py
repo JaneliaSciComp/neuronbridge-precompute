@@ -333,8 +333,6 @@ def show_tags():
     else:
         results = get_tag_report()
     for row in results:
-        if not re.search(r"^\d\.", row['_id']['tag']) and row['_id']['tag'] != 'unreleased':
-            continue
         field = [row['_id'][k] for k in ['lib', 'template', 'tag']]
         field.append(f"{row['count']:,}")
         html += wtemplate % tuple(field)
