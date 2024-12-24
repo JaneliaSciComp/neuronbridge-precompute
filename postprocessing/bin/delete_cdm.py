@@ -46,7 +46,7 @@ TARGET = {"s3-cdm": [], "s3-sn-tif": [], "s3-sn-png": [], "s3-thumbnail": [],
 AREA = {"s3-cdm": "AWS S3 color depth", "s3-sn-tif": "AWS S3 searchable neuron TIFFs",
         "s3-sn-png": "AWS S3 searchable neuron PNGs",
         "s3-thumbnail": "AWS S3 color depth thumbnails",
-        "neuronMetadata": "MongoDB NeuronBridge neuronmetadata",
+        #"neuronMetadata": "MongoDB NeuronBridge neuronmetadata",
         "publishedLMImage": "MongoDB NeuronBridge publishedLMImage",
         "publishedURL": "MongoDB NeuronBridge publishedURL",
         "published-stacks": f"DynamoDB {DDBASE}-published-stacks",
@@ -54,8 +54,9 @@ AREA = {"s3-cdm": "AWS S3 color depth", "s3-sn-tif": "AWS S3 searchable neuron T
 COUNT = {}
 NEURON_TO_DELETE = ('neuronType', 'neuronInstance')
 OTHER = {}
-# Output file
+# Output files
 LINES = []
+ORDER = []
 
 
 def terminate_program(msg=None):
@@ -534,7 +535,9 @@ def s3_cdm(area):
         LOGGER.debug(f"Deleting {key}")
         try:
             obj = S3['resource'].Object(ARG.BUCKET, key)
-            if ARG.WRITE:
+            if ARG.DEFER:
+                ORDER.append(f"{ARG.BUCKET}/{key}")
+            elif ARG.WRITE:
                 response = obj.delete()
                 if response['ResponseMetadata']['HTTPStatusCode'] in (200, 204):
                     COUNT[AREA[area]] += 1
@@ -563,7 +566,9 @@ def s3_thumbnail(area):
         LOGGER.debug(f"Deleting {key}")
         try:
             obj = S3['resource'].Object(ARG.BUCKET + '-thumbnails', key)
-            if ARG.WRITE:
+            if ARG.DEFER:
+                ORDER.append(f"{ARG.BUCKET}-thumbnails/{key}")
+            elif ARG.WRITE:
                 response = obj.delete()
                 if response['ResponseMetadata']['HTTPStatusCode'] in (200, 204):
                     COUNT[AREA[area]] += 1
@@ -787,8 +792,11 @@ def delete_items():
         AREA[f"published-{ARG.VERSION}"] = f"DynamoDB {DDBASE}-published-{ARG.VERSION}"
     choices = []
     accepted = []
+    S3_DELETE = False
     for key, val in AREA.items():
         if TARGET[key]:
+            if 's3' in key:
+                S3_DELETE = True
             choices.append((f"{val}: {len(TARGET[key])} item(s)", key))
             accepted.append(key)
     if not choices:
@@ -798,6 +806,8 @@ def delete_items():
         answers = {}
         answers['area'] = accepted
     else:
+        if S3_DELETE and not ARG.DEFER:
+            LOGGER.warning("Objects will be deleted from S3 if selected")
         question = [inquirer.Checkbox("area", message="Where should items be deleted from",
                                       choices=choices)]
         answers = inquirer.prompt(question)
@@ -850,6 +860,11 @@ def process_slide():
         with open("cdm_deletions.txt", "w", encoding="ascii") as outstream:
             for line in LINES:
                 outstream.write(f"{line}\n")
+    if ARG.DEFER and ORDER:
+        LOGGER.info("Writing aws_cdm_deletion.order")
+        with open("aws_cdm_deletion.order", "w", encoding="ascii") as outstream:
+            for line in ORDER:
+                outstream.write(f"{line}\n")
     maxlen = 0
     for area in COUNT:
         if len(area) > maxlen:
@@ -858,6 +873,9 @@ def process_slide():
         print("Deletions/updates:" if ARG.WRITE else "Simulated deletions/updates:")
         for key, val in COUNT.items():
             print(f"{key+':':<{maxlen+1}} {val}")
+    if ARG.DEFER and ORDER:
+        print("Deletions have been deferred. To perform the deletions, run:")
+        print(f"python3 s3cp.py --profile FlyLightPDSAdmin --order aws_cdm_deletion.order --delete")
 
 
 if __name__ == '__main__':
@@ -879,8 +897,10 @@ if __name__ == '__main__':
                         default=False, help='Accept all deletion choices')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         default='prod', choices=MANIFOLDS, help='S3 manifold')
+    PARSER.add_argument('--defer', dest='DEFER', action='store_true',
+                        default=False, help='Defer AWS S3 deletions (write to order file)')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',
-                        default=False, help='Perform deletions')
+                        default=False, help='Perform database changes/deletions')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
                         default=False, help='Flag, Chatty')
     PARSER.add_argument('--debug', dest='DEBUG', action='store_true',
