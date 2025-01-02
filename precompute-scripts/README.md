@@ -175,7 +175,7 @@ nextflow run workflows/step9-upload.nf \
 
 Upload the matches with:
 ```
-nextflow run workflows/step8-upload.nf \
+nextflow run workflows/step9-upload.nf \
          --dry_run false \
          --upload_anatomical_areas "brain,vnc" \
          --upload_type "EM_CD_MATCHES,LM_CD_MATCHES,EM_PPP_MATCHES"
