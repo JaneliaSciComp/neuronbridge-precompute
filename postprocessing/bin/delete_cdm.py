@@ -1,5 +1,5 @@
 ''' delete_cdm.py
-    This program will delete a slide code from NeuronBridge
+    This program will delete a sample or body ID from NeuronBridge
 '''
 
 import argparse
@@ -25,14 +25,16 @@ S3_SECONDS = 60 * 60 * 12
 # Database
 DB = {}
 DDBASE = "janelia-neuronbridge"
-READ = {"LINE": "SELECT DISTINCT line FROM image_data_mv WHERE slide_code=%s",
+READ = {"LINE": "SELECT DISTINCT line FROM image_data_mv WHERE workstation_sample_id=%s",
         "PFALLBACK": "SELECT publishing_name FROM publishing_name_vw WHERE line=%s "
                      + "AND display_genotype=0 AND preferred_name=1",
         "PNAME0": "SELECT publishing_name FROM publishing_name_vw WHERE "
                  + "display_genotype=0 AND line=%s",
-        "PNAME": "SELECT DISTINCT publishing_name FROM image_data_mv WHERE line=%s AND slide_code=%s",
+        "PNAME": "SELECT DISTINCT publishing_name FROM image_data_mv WHERE line=%s "
+                 + "AND workstation_sample_id=%s",
         "RELEASES": "SELECT DISTINCT published_to,alps_release FROM image_data_mv WHERE "
-                    + "published_to IS NOT NULL AND publishing_name=%s AND slide_code!=%s",
+                    + "published_to IS NOT NULL AND publishing_name=%s AND workstation_sample_id!=%s",
+        "SLIDE": "SELECT DISTINCT slide_code FROM image_data_mv WHERE workstation_sample_id=%s",
        }
 # Configuration
 MANIFOLDS = ['dev', 'prod', 'devpre', 'prodpre']
@@ -44,7 +46,7 @@ TARGET = {"s3-cdm": [], "s3-sn-tif": [], "s3-sn-png": [], "s3-thumbnail": [],
 AREA = {"s3-cdm": "AWS S3 color depth", "s3-sn-tif": "AWS S3 searchable neuron TIFFs",
         "s3-sn-png": "AWS S3 searchable neuron PNGs",
         "s3-thumbnail": "AWS S3 color depth thumbnails",
-        "neuronMetadata": "MongoDB NeuronBridge neuronmetadata",
+        #"neuronMetadata": "MongoDB NeuronBridge neuronmetadata",
         "publishedLMImage": "MongoDB NeuronBridge publishedLMImage",
         "publishedURL": "MongoDB NeuronBridge publishedURL",
         "published-stacks": f"DynamoDB {DDBASE}-published-stacks",
@@ -52,8 +54,9 @@ AREA = {"s3-cdm": "AWS S3 color depth", "s3-sn-tif": "AWS S3 searchable neuron T
 COUNT = {}
 NEURON_TO_DELETE = ('neuronType', 'neuronInstance')
 OTHER = {}
-# Output file
+# Output files
 LINES = []
+ORDER = []
 
 
 def terminate_program(msg=None):
@@ -109,16 +112,6 @@ def initialize_aws():
     DB['DYNAMO'] = dynamodb
 
 
-def is_light(pname):
-    """ Determine if the provided publishing name is for a light image
-        Keyword arguments:
-          pname: publishing name
-        Returns:
-          True if light, False otherwise
-    """
-    return not bool(pname.isnumeric())
-
-
 def initialize_program():
     """ Initialize the program
         Keyword arguments:
@@ -143,7 +136,7 @@ def initialize_program():
     if not ARG.LIBRARY:
         ARG.LIBRARY = NB.get_library(source='aws', client=S3['client'], bucket=ARG.BUCKET,
                                      template=ARG.TEMPLATE, exclude='FlyEM' \
-                                     if is_light(ARG.ITEM) else 'FlyLight')
+                                     if ARG.SAMPLE else 'FlyLight')
 
     if not ARG.LIBRARY:
         terminate_program("No library was selected")
@@ -159,13 +152,13 @@ def get_sage_info():
           pname: publishing name
     """
     try:
-        DB['sage']['cursor'].execute(READ['LINE'], (ARG.ITEM,))
+        DB['sage']['cursor'].execute(READ['LINE'], (ARG.SAMPLE,))
         row = DB['sage']['cursor'].fetchone()
     except MySQLdb.Error as err:
         terminate_program(JRC.sql_error(err))
     line = row['line']
     try:
-        DB['sage']['cursor'].execute(READ['PNAME'], (line, ARG.ITEM))
+        DB['sage']['cursor'].execute(READ['PNAME'], (line, ARG.SAMPLE))
         rows = DB['sage']['cursor'].fetchall()
     except MySQLdb.Error as err:
         terminate_program(JRC.sql_error(err))
@@ -185,15 +178,15 @@ def get_sage_info():
         if len(rows) > 1:
             terminate_program(f"Multiple publishing names found for {line}")
         pname = rows[0]['publishing_name']
-    print(f"Slide code {ARG.ITEM} is in line {line} ({pname})")
+    print(f"Sample {ARG.SAMPLE} is in line {line} ({pname})")
     try:
-        DB['sage']['cursor'].execute(READ['RELEASES'], (pname, ARG.ITEM))
+        DB['sage']['cursor'].execute(READ['RELEASES'], (pname, ARG.SAMPLE))
         rows = DB['sage']['cursor'].fetchall()
     except MySQLdb.Error as err:
         terminate_program(JRC.sql_error(err))
     TARGET['sage'] = bool(rows)
     if TARGET['sage']:
-        LOGGER.warning(f"{pname} is still published for other slide codes")
+        LOGGER.warning(f"{pname} is still published for other samples")
     return line, pname
 
 
@@ -217,6 +210,25 @@ def check_for_thumbnail(obj):
         terminate_program(err)
 
 
+def get_slide_code():
+    """ Get the slide code from the body ID
+        Keyword arguments:
+          None
+        Returns:
+          None
+    """
+    try:
+        DB['sage']['cursor'].execute(READ['SLIDE'], (ARG.SAMPLE,))
+        rows = DB['sage']['cursor'].fetchall()
+    except MySQLdb.Error as err:
+        terminate_program(JRC.sql_error(err))
+    if not rows:
+        terminate_program(f"Could not find slide code for {ARG.SAMPLE}")
+    if len(rows) > 1:
+        terminate_program(f"Multiple slide codes found for {ARG.SAMPLE}")
+    return rows[0]['slide_code']
+
+
 def check_manifest():
     """ Find files to delete from manifest
         Keyword arguments:
@@ -226,16 +238,24 @@ def check_manifest():
     """
     fname = f"{ARG.BUCKET}_manifest.txt"
     LOGGER.info(f"Loading manifest for {ARG.BUCKET}")
-    with open(fname, 'r', encoding='ascii') as infile:
-        manifest = [x.strip() for x in infile.readlines()]
+    try:
+        with open(fname, 'r', encoding='ascii') as infile:
+            manifest = [x.strip() for x in infile.readlines()]
+    except Exception as err:
+        terminate_program(err)
     LOGGER.info(f"Found {len(manifest):,} entries in manifest")
     base = f"{ARG.TEMPLATE}/{ARG.LIBRARY}"
-    flylight = is_light(ARG.ITEM)
-    searchkey = f"-{ARG.ITEM}-" if flylight else f"{ARG.ITEM}-{ARG.TEMPLATE}-"
+    if ARG.SAMPLE:
+        slide_code = get_slide_code()
+        searchkey = f"-{slide_code}-"
+        flylight = True
+    else:
+        searchkey = f"{ARG.BODY}-{ARG.TEMPLATE}-"
+        flylight = False
     obj_cnt = 0
     for obj in tqdm(manifest, desc='Checking manifest'):
         if obj.startswith(base) and (searchkey in obj or \
-                                     ((not flylight) and obj.endswith(f"{ARG.ITEM}.swc"))):
+                                     ((not flylight) and obj.endswith(f"{ARG.BODY}.swc"))):
             tname = 's3-cdm'
             if 'searchable' in obj:
                 tname = 's3-sn-png' if obj.endswith('.png') else 's3-sn-tif'
@@ -312,7 +332,7 @@ def get_version():
 
 
 def check_neuronmetadata_lm():
-    """ Check for images with a template/slide code in the neuronMetadata collection
+    """ Check for images with a template/sample in the neuronMetadata collection
         Keyword arguments:
           None
         Returns:
@@ -323,9 +343,9 @@ def check_neuronmetadata_lm():
     tag = ARG.VERSION.replace("v", "")
     coll = DB['NB']['neuronMetadata']
     payload = {"alignmentSpace": ARG.TEMPLATE,
-               "slideCode": ARG.ITEM,
+               "sourceRefId": 'Sample#' + ARG.SAMPLE,
                "tags": tag}
-    LOGGER.info(f"Searching neuronMetadata for {ARG.TEMPLATE} {ARG.ITEM} {tag}")
+    LOGGER.info(f"Searching neuronMetadata for {ARG.TEMPLATE} {ARG.SAMPLE} {tag}")
     try:
         results = coll.find(payload)
     except Exception as err:
@@ -333,10 +353,12 @@ def check_neuronmetadata_lm():
     for row in results:
         TARGET['neuronMetadata'].append(row['_id'])
     LOGGER.info(f"neuronMetadata records found: {len(TARGET['neuronMetadata']):,}")
+    if not TARGET['neuronMetadata']:
+        terminate_program(f"No neuronMetadata records found for {ARG.SAMPLE}")
 
 
 def check_publishedlmimage():
-    """ Check for images with a template/slide code in the publishedLMImage collection
+    """ Check for images with a template/sample in the publishedLMImage collection
         Keyword arguments:
           None
         Returns:
@@ -344,8 +366,8 @@ def check_publishedlmimage():
     """
     coll = DB['NB']['publishedLMImage']
     payload = {"alignmentSpace": ARG.TEMPLATE,
-               "slideCode": ARG.ITEM}
-    LOGGER.info(f"Searching publishedLMImage for {ARG.TEMPLATE} {ARG.ITEM}")
+               "sampleRef": 'Sample#' + ARG.SAMPLE}
+    LOGGER.info(f"Searching publishedLMImage for {ARG.TEMPLATE} {ARG.SAMPLE}")
     try:
         results = coll.find(payload)
     except Exception as err:
@@ -366,7 +388,7 @@ def full_body_id(libname=None):
         libname = get_library_name()
     prefix = libname.replace('flyem_', '')
     prefix, version = prefix.split('_', 1)
-    return ":".join([prefix, 'v' + version.replace('_', '.'), ARG.ITEM])
+    return ":".join([prefix, 'v' + version.replace('_', '.'), ARG.BODY])
 
 
 def check_publishedurl():
@@ -380,8 +402,8 @@ def check_publishedurl():
     coll = DB['NB']['publishedURL']
     payload = {"alignmentSpace": ARG.TEMPLATE,
                "libraryName": libname}
-    if is_light(ARG.ITEM):
-        payload['slideCode'] = searchkey = ARG.ITEM
+    if ARG.SAMPLE:
+        payload['sampleRef'] = searchkey = 'Sample#' + ARG.SAMPLE
     else:
         searchkey = full_body_id(libname)
         payload['publishedName'] = searchkey
@@ -414,8 +436,8 @@ def check_neuronmetadata_em():
     coll = DB['NB']['neuronMetadata']
     payload = {"alignmentSpace": ARG.TEMPLATE,
                "libraryName": libname}
-    payload['publishedName'] = ARG.ITEM
-    LOGGER.info(f"Searching neuronMetadata for {ARG.TEMPLATE}/{libname} {ARG.ITEM}")
+    payload['publishedName'] = ARG.BODY
+    LOGGER.info(f"Searching neuronMetadata for {ARG.TEMPLATE}/{libname} {ARG.BODY}")
     try:
         row = coll.find_one(payload)
     except Exception as err:
@@ -435,7 +457,8 @@ def check_published_stacks():
     """
     tbl = 'published-stacks'
     for obj in OBJECTIVE:
-        key = f"{ARG.ITEM.lower()}-{obj}-{ARG.TEMPLATE.lower()}"
+        slide_code = get_slide_code()
+        key = f"{slide_code.lower()}-{obj}-{ARG.TEMPLATE.lower()}"
         LOGGER.info(f"Searching {DDBASE}-{tbl} for {key}")
         response = DB[tbl].query(KeyConditionExpression=Key('itemType').eq(key))
         if 'Count' not in response or not response['Count']:
@@ -487,7 +510,7 @@ def check_publishing_doi(pname):
           None
     """
     tbl = 'publishing-doi'
-    key = pname if is_light(pname) else full_body_id()
+    key = pname if ARG.SAMPLE else full_body_id()
     LOGGER.info(f"Searching {DDBASE}-{tbl} for {key}")
     response = DB[tbl].query(KeyConditionExpression=Key('name').eq(key))
     if 'Count' not in response or not response['Count']:
@@ -512,7 +535,9 @@ def s3_cdm(area):
         LOGGER.debug(f"Deleting {key}")
         try:
             obj = S3['resource'].Object(ARG.BUCKET, key)
-            if ARG.WRITE:
+            if ARG.DEFER:
+                ORDER.append(f"{ARG.BUCKET}/{key}")
+            elif ARG.WRITE:
                 response = obj.delete()
                 if response['ResponseMetadata']['HTTPStatusCode'] in (200, 204):
                     COUNT[AREA[area]] += 1
@@ -541,7 +566,9 @@ def s3_thumbnail(area):
         LOGGER.debug(f"Deleting {key}")
         try:
             obj = S3['resource'].Object(ARG.BUCKET + '-thumbnails', key)
-            if ARG.WRITE:
+            if ARG.DEFER:
+                ORDER.append(f"{ARG.BUCKET}-thumbnails/{key}")
+            elif ARG.WRITE:
                 response = obj.delete()
                 if response['ResponseMetadata']['HTTPStatusCode'] in (200, 204):
                     COUNT[AREA[area]] += 1
@@ -721,7 +748,7 @@ def delete_from_published(area):
             terminate_program("Couldn't delete {key} from {area}: {response['Error']['Message']}")
         except Exception as err:
             terminate_program(err)
-        if not is_light(key):
+        if ARG.BODY:
             for ktype in ('neuronType', 'neuronInstance'):
                 if ktype in OTHER and OTHER[ktype]:
                     remove_from_bidlist(area, tbl, ktype, key)
@@ -765,8 +792,11 @@ def delete_items():
         AREA[f"published-{ARG.VERSION}"] = f"DynamoDB {DDBASE}-published-{ARG.VERSION}"
     choices = []
     accepted = []
+    S3_DELETE = False
     for key, val in AREA.items():
         if TARGET[key]:
+            if 's3' in key:
+                S3_DELETE = True
             choices.append((f"{val}: {len(TARGET[key])} item(s)", key))
             accepted.append(key)
     if not choices:
@@ -776,6 +806,8 @@ def delete_items():
         answers = {}
         answers['area'] = accepted
     else:
+        if S3_DELETE and not ARG.DEFER:
+            LOGGER.warning("Objects will be deleted from S3 if selected")
         question = [inquirer.Checkbox("area", message="Where should items be deleted from",
                                       choices=choices)]
         answers = inquirer.prompt(question)
@@ -802,22 +834,22 @@ def process_slide():
         Returns:
           None
     """
-    if is_light(ARG.ITEM):
+    if ARG.SAMPLE:
         _, publishing = get_sage_info()
     else:
         TARGET['sage'] = False
-        publishing = ARG.ITEM
+        publishing = ARG.BODY
     # AWS S3
     check_manifest()
     # MongoDB
-    if is_light(ARG.ITEM):
+    if ARG.SAMPLE:
         check_neuronmetadata_lm()
-        check_publishedlmimage()
     else:
         check_neuronmetadata_em()
     check_publishedurl()
     # DynamoDB
-    if is_light(ARG.ITEM):
+    if ARG.SAMPLE:
+        check_publishedlmimage()
         check_published_stacks()
     if not TARGET['sage']:
         check_published(publishing)
@@ -828,6 +860,11 @@ def process_slide():
         with open("cdm_deletions.txt", "w", encoding="ascii") as outstream:
             for line in LINES:
                 outstream.write(f"{line}\n")
+    if ARG.DEFER and ORDER:
+        LOGGER.info("Writing aws_cdm_deletion.order")
+        with open("aws_cdm_deletion.order", "w", encoding="ascii") as outstream:
+            for line in ORDER:
+                outstream.write(f"{line}\n")
     maxlen = 0
     for area in COUNT:
         if len(area) > maxlen:
@@ -836,27 +873,34 @@ def process_slide():
         print("Deletions/updates:" if ARG.WRITE else "Simulated deletions/updates:")
         for key, val in COUNT.items():
             print(f"{key+':':<{maxlen+1}} {val}")
+    if ARG.DEFER and ORDER:
+        print("Deletions have been deferred. To perform the deletions, run:")
+        print(f"python3 s3cp.py --profile FlyLightPDSAdmin --order aws_cdm_deletion.order --delete")
 
 
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
-        description="Delete a slide code from NeuronBridge")
+        description="Delete a sample/body from NeuronBridge")
     PARSER.add_argument('--bucket', dest='BUCKET', action='store',
                         default='janelia-flylight-color-depth', help='AWS S3 bucket')
     PARSER.add_argument('--template', dest='TEMPLATE', action='store',
                         default='', help='Alignment template')
     PARSER.add_argument('--library', dest='LIBRARY', action='store',
                         default='', help='Color depth library')
-    PARSER.add_argument('--item', dest='ITEM', action='store',
-                        required=True, help='Slide code')
+    PARSER.add_argument('--sample', dest='SAMPLE', action='store',
+                        help='Workstation sample ID')
+    PARSER.add_argument('--body', dest='BODY', action='store',
+                        help='Body ID')
     PARSER.add_argument('--version', dest='VERSION',
                         help='DynamoDB NeuronBridge version')
     PARSER.add_argument('--accept', dest='ACCEPT', action='store_true',
                         default=False, help='Accept all deletion choices')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         default='prod', choices=MANIFOLDS, help='S3 manifold')
+    PARSER.add_argument('--defer', dest='DEFER', action='store_true',
+                        default=False, help='Defer AWS S3 deletions (write to order file)')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',
-                        default=False, help='Perform deletions')
+                        default=False, help='Perform database changes/deletions')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
                         default=False, help='Flag, Chatty')
     PARSER.add_argument('--debug', dest='DEBUG', action='store_true',
@@ -866,3 +910,8 @@ if __name__ == '__main__':
     initialize_program()
     process_slide()
     terminate_program()
+
+''' Problems for 2498210587956215906
+Nothing found in manifest
+published-stacks might be wrong
+'''

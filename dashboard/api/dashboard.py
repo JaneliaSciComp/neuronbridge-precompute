@@ -31,6 +31,9 @@ NAV = {"Labels": None,
                  "View publishedURL tags": "url_tags",
                 },
        "EM bodies": None,
+       "Potential issues": {"Samples in multiple releases": "multiple_releases",
+                            "Missing from publishedURL": "missing_publishedurl",
+                           },
        "Search": None,
       }
 
@@ -43,7 +46,7 @@ def before_request():
     ''' Set transaction start time and increment counters.
         If needed, initilize global variables.
     '''
-    if "neuronbridge" not in DB or not DB['neuronbridge']['conn']:
+    if "neuronbridge" not in DB or DB['neuronbridge']['conn'] is not None:
         try:
             dbconfig = JRC.get_config("databases")
         except Exception as err:
@@ -152,6 +155,39 @@ def render_error(title, msg):
     '''
     return render_template('error.html', urlroot=request.url_root,
                            title=title, message=msg)
+
+
+def render_warning(msg, severity='error', size='lg'):
+    ''' Render warning HTML
+        Keyword arguments:
+          msg: message
+          severity: severity (warning, error, info, na, missing, or success)
+          size: glyph size
+        Returns:
+          HTML rendered warning
+    '''
+    icon = 'exclamation-triangle'
+    color = 'goldenrod'
+    if severity == 'error':
+        color = 'red'
+    elif severity == 'success':
+        icon = 'check-circle'
+        color = 'darkgreen'
+    elif severity == 'info':
+        icon = 'circle-info'
+        color = 'blue'
+    elif severity == 'na':
+        icon = 'minus-circle'
+        color = 'gray'
+    elif severity == 'missing':
+        icon = 'minus-circle'
+    elif severity == 'no':
+        icon = 'times-circle'
+        color = 'red'
+    elif severity == 'warning':
+        icon = 'exclamation-circle'
+    return f"<span class='fas fa-{icon} fa-{size}' style='color:{color}'></span>" \
+           + f"&nbsp;<span style='color:{color}'>{msg}</span>"
 
 # ******************************************************************************
 # * Database functions                                                         *
@@ -297,8 +333,6 @@ def show_tags():
     else:
         results = get_tag_report()
     for row in results:
-        if not re.search(r"^\d\.", row['_id']['tag']) and row['_id']['tag'] != 'unreleased':
-            continue
         field = [row['_id'][k] for k in ['lib', 'template', 'tag']]
         field.append(f"{row['count']:,}")
         html += wtemplate % tuple(field)
@@ -424,9 +458,15 @@ def show_embodies():
 
 @app.route('/search', methods=['GET'])
 def show_search():
+    ''' Show the search page
+        Keyword arguments:
+          None
+        Returns:
+          HTML page
+    '''
     return make_response(render_template('search.html', urlroot=request.url_root,
                                          navbar=generate_navbar('Search')))
-    
+
 
 @app.route('/pname/<string:key>', methods=['GET'])
 def show_pname(key=""):
@@ -480,6 +520,86 @@ def show_pname(key=""):
                                          navbar=generate_navbar('EM bodies'),
                                          title=title, content=html))
 
+# *****************************************************************************
+# * Issues                                                                    *
+# *****************************************************************************
+
+@app.route('/multiple_releases')
+def show_multiple_releases():
+    ''' Endpoint to display multiple releases report
+        Keyword arguments:
+          None
+        Returns:
+          HTML page
+    '''
+    title = "<h2 class='hhmigreen3'>Samples in multiple releases</h2>"
+    payload = {"libraryName": {"$regex": "flylight"},
+               "datasetLabels": {"$exists": True},
+               "$expr": {"$gt": [{"$size": "$datasetLabels" }, 1]}}
+    try:
+        rows = DB['neuronbridge']['neuronMetadata'].find(payload)
+    except Exception as err:
+        return database_error(err)
+    html = "<table id='items' class='tablesorter standard'><thead><tr><th>Sample</th>" \
+           + "<th>Dataset labels</th></tr></thead><tbody>"
+    found = False
+    for row in rows:
+        html += f"<tr><td>{row['sourceRefId']}</td><td>{', '.join(row['datasetLabels'])}</td></tr>"
+        found = True
+    if not found:
+        return render_template('warning.html', urlroot=request.url_root,
+                                title=render_warning("No issues found", 'success'),
+                                message="No samples with multiple releases found")
+    html += "</tbody></table>"
+    return make_response(render_template('general.html', urlroot=request.url_root,
+                                         navbar=generate_navbar('Tags'),
+                                         title=title, content=html))
+
+
+@app.route('/missing_publishedurl')
+def show_missing_publishedurl():
+    ''' Endpoint to display missing from publishedURL report
+        Keyword arguments:
+          None
+        Returns:
+          HTML page
+    '''
+    title = "<h2 class='hhmigreen3'>FlyLight samples missing from publishedURL</h2>"
+    payload = {"libraryName": {"$regex": "flylight"}}
+    nprojection = ['sourceRefId', 'libraryName', 'publishedName', 'datasetLabels', 'tags']
+    pprojection = ['sampleRef']
+    try:
+        nrows = DB['neuronbridge']['neuronMetadata'].find(payload, projection=nprojection)
+        prows = DB['neuronbridge']['publishedURL'].find(payload, projection=pprojection)
+    except Exception as err:
+        return database_error(err)
+    nmd = {}
+    purl = {}
+    for row in nrows:
+        if 'tags' in row and ('validationError' in row['tags']):
+            continue
+        nmd[row['sourceRefId']] = row
+    for row in prows:
+        purl[row['sampleRef']] = row
+    html = "<table id='items' class='tablesorter standard'><thead><tr><th>Library</th>" \
+           + "<th>Release</th><th>Sample</th><th>Published name</th></tr></thead><tbody>"
+    found = 0
+    for rid, val in nmd.items():
+        if rid not in purl:
+            if 'datasetLabels' not in val:
+                val['datasetLabels'] = ['']
+            html += f"<tr><td>{val['libraryName']}</td><td>{val['datasetLabels'][0]}</td>" \
+                    + f"<td>{val['sourceRefId']}</td><td>{val['publishedName']}</td></tr>"
+            found += 1
+    if not found:
+        return render_template('warning.html', urlroot=request.url_root,
+                                title=render_warning("No issues found", 'success'),
+                                message="No samples missing from publishedURL found")
+    html += "</tbody></table>"
+    html = f"{found:,} samples are missing from publishedURL<br>{html}"
+    return make_response(render_template('general.html', urlroot=request.url_root,
+                                         navbar=generate_navbar('Tags'),
+                                         title=title, content=html))
 # *****************************************************************************
 
 if __name__ == '__main__':

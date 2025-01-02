@@ -254,13 +254,6 @@ def process_annotations():
         COUNT['entries'] += 1
         line = row['Line Name']
         cell = row['Cell types']
-        #if not (line == 'MB018B' or (cell in ['KCg-d', 'KCg-m', 'MBON13', 'IN00A011',
-        #                                      'IN00A019', 'IN00A026'])): #PLUG
-        #    continue
-        if not (line == 'MB018B' or (cell in ['KCg-d'])): #PLUG
-            continue
-        #if line != 'MB018B': #PLUG
-        #    continue
         # Line
         if line not in lines:
             lines[line] = {'entryType': 'searchString',

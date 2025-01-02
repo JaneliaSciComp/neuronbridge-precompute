@@ -93,8 +93,9 @@ def initialize_program():
         dbs.extend(PUBLISHING_DATABASE)
     for source in dbs:
         rwp = 'write' if (ARG.WRITE and dbs == 'neuronbridge') else 'read'
-        dbo = attrgetter(f"{source}.{ARG.MANIFOLD}.{rwp}")(dbconfig)
-        LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, ARG.MANIFOLD, dbo.host, dbo.user)
+        manifold = 'prod' if source == 'neuronbridge' else ARG.MANIFOLD
+        dbo = attrgetter(f"{source}.{manifold}.{rwp}")(dbconfig)
+        LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, manifold, dbo.host, dbo.user)
         try:
             DB[source] = JRC.connect_database(dbo)
         except Exception as err:
@@ -380,9 +381,6 @@ if __name__ == '__main__':
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         choices=['staging', 'prod'], default='prod',
                         help='MySQL manifold (staging, [prod])')
-    PARSER.add_argument('--mongo', dest='MONGO', action='store',
-                        default='prod', choices=['dev', 'prod'],
-                        help='MongoDB manifold (dev, [prod])')
     PARSER.add_argument('--write', action='store_true', dest='WRITE',
                         default=False, help='Write to DynamoDB')
     PARSER.add_argument('--verbose', action='store_true', dest='VERBOSE',

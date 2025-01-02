@@ -1,9 +1,10 @@
 ''' This program will use JSON data to update neuronbridge.publishedURL and create
     an order file to upload imagery to AWS S3.
 '''
-__version__ = '2.2.4'
+__version__ = '2.4.0'
 
 import argparse
+import collections
 from copy import deepcopy
 from datetime import datetime
 import json
@@ -41,12 +42,7 @@ CURSOR = {}
 S3_CLIENT = S3_RESOURCE = ''
 S3_SECONDS = 60 * 60 * 12
 # Counters
-COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'Missing consensus': 0,
-         'No sampleRef': 0, 'No publishing name': 0, 'No driver': 0, 'Sample not published': 0,
-         'Line not published': 0, 'Already in Mongo': 0, 'Not in Mongo': 0,
-         'Bad driver': 0, 'Duplicate objects': 0, 'Unparsable files': 0, 'Updated on JACS': 0,
-         'Mongo insertions': 0, 'Mongo upserts': 0,
-         'FlyEM flips': 0, 'Images processed': 0, 'Missing release': 0, 'Skipped release': 0}
+COUNT = collections.defaultdict(lambda: 0, {})
 # Searchable neurons
 SUBDIVISION = {'prefix': 1, 'counter': 0, 'limit': 100}
 # File naming
@@ -602,7 +598,13 @@ def get_smp_info(smp):
         if sid not in RELEASE:
             COUNT['Sample not published'] += 1
             err_text = f"Sample {sid} was not published"
-            LOGGER.error(err_text)
+            LOGGER.warning(err_text)
+            ERR.write(err_text + "\n")
+            return None, None
+        if 'datasetLabels' in smp and len(smp['datasetLabels']) > 1:
+            COUNT['Multiple releases'] += 1
+            err_text = f"Sample {sid} has multiple releases ({smp['datasetLabels']})"
+            LOGGER.warning(err_text)
             ERR.write(err_text + "\n")
             return None, None
     if 'publishedName' not in smp or not smp['publishedName']:
@@ -1019,7 +1021,7 @@ def read_json():
     coll = DBM.neuronMetadata
     payload = {"libraryName": ARG.LIBRARY,
                "$and": [{"tags": ARG.TAG},
-                        {"tags": {"$nin": ["unreleased"]}}],
+                        {"tags": {"$nin": ["unreleased", "validationError"]}}],
                "publishedName": {"$exists": True}}
     if ARG.PUBLISHED:
         payload["publishedName"] = ARG.PUBLISHED
@@ -1170,13 +1172,12 @@ def upload_cdms():
     for smp in tqdm(data):
         if 'flylight' in ARG.LIBRARY and smp['slideCode'] in NON_PUBLIC:
             COUNT['Sample not published'] += 1
-            #LOGGER.warning("Sample %s is in non-public release %s", smp['sourceRefId'],
-            #               NON_PUBLIC[smp['slideCode']])
+            LOGGER.warning("Sample %s is in non-public release %s", smp['sourceRefId'],
+                           NON_PUBLIC[smp['slideCode']])
             continue
         if 'flylight' in ARG.LIBRARY and smp['sourceRefId'] not in published_sample:
             COUNT['Sample not published'] += 1
             LOGGER.warning("Sample %s is not published in publishedLMImage", smp['sourceRefId'])
-            continue
         remap_sample(smp)
         if ARG.SAMPLES and COUNT['Samples'] >= ARG.SAMPLES:
             break
