@@ -79,7 +79,7 @@ def crosses_boundary(reldict):
         Keyword arguments:
           reldict: release dictionary in the form {'old': 'old release', 'new': 'new release'}
         Returns:
-          True if boundary crossed
+          New dataset if boundary crossed else None
     """
     dataset = {'old': '', 'new': ''}
     for reltype in ('old', 'new'):
@@ -89,7 +89,8 @@ def crosses_boundary(reldict):
             dataset[reltype] = "flylight_raw_published"
         else:
             dataset[reltype] = "flylight_split_gal4_published"
-    return dataset['old'] != dataset['new']
+    return dataset['new'] if (dataset['old'] != dataset['new']) else None
+    #return dataset['old'] != dataset['new']
 
 
 def process_nmd(scode, pname, coll):
@@ -123,6 +124,8 @@ def process_nmd(scode, pname, coll):
             if crossed:
                 COUNT['nmd_crossed'] += 1
                 BOUND['neuronMetadata'].append(msg)
+                payload['libraryName'] = crossed
+                BATCH['neuronMetadata'].append(payload)
             else:
                 COUNT['nmd_changed'] += 1
                 AUDIT['neuronMetadata'].append(msg)
@@ -208,10 +211,11 @@ def update_database(collection, recs):
           None
     """
     LOGGER.info(f"Updating {collection}")
-    if not ARG.WRITE:
-        return
     coll = DB["nb"][collection]
     for rec in recs:
+        if not ARG.WRITE:
+            print(f"{rec['_id']}: {rec}")
+            continue
         try:
             result = coll.update_one({"_id": rec['_id']}, {"$set": rec}, upsert=True)
         except Exception as err:
