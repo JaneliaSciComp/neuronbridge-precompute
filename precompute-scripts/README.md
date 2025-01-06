@@ -170,7 +170,8 @@ Upload the MIPs with:
 nextflow run workflows/step9-upload.nf \
          --dry_run false \
          --upload_anatomical_areas brain+vnc \
-         --upload_type "EM_MIPS,LM_MIPS"
+         --upload_type "EM_MIPS,LM_MIPS" \
+         --upload_bucket janelia-neuronbridge-data-dev
 ```
 
 Upload the matches with:
@@ -178,5 +179,6 @@ Upload the matches with:
 nextflow run workflows/step9-upload.nf \
          --dry_run false \
          --upload_anatomical_areas "brain,vnc" \
-         --upload_type "EM_CD_MATCHES,LM_CD_MATCHES,EM_PPP_MATCHES"
+         --upload_type "EM_CD_MATCHES,LM_CD_MATCHES,EM_PPP_MATCHES" \
+         --upload_bucket janelia-neuronbridge-data-dev
 ```
