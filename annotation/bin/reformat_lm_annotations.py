@@ -149,7 +149,7 @@ if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
         description="Parse annotation spreadsheet")
     PARSER.add_argument('--file', dest='FILE', action='store',
-                        help='Excel file')
+                        required=True, help='Excel file')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         default='prod', choices=['dev', 'prod'], help='Manifold ([prod], dev)')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
