@@ -1,12 +1,26 @@
 ''' update_dynamodb_annotations.py
-    Update the DynamoDB janelia-neuronbridge-custom-annotations table
-    and write a copy of the input file to S3
+    Given and Excel file, update the DynamoDB janelia-neuronbridge-custom-annotations table
+    and write a copy of the input file to S3.
+    The Excel file contains annotations for lines and cell types/body IDs. The following columns are required:
+      Line Name: publishing name
+      Region: brain region
+      Term: cell type or body ID
+      Term type: "cell_type" or "body_id"
+      Annotation: annotation ("Candidate", "Probable", or "Confident")
+      Annotator: annotator
+    One or more output files are created:
+        manifest_YYYYMMDDTHHMMSS.json: manifest of updated annotations
+        replacements_YYYYMMDDTHHMMSS.txt: list of replaced annotations
+        new_cells_YYYYMMDDTHHMMSS.txt: list of new cell types/body IDs
+        new_lines_YYYYMMDDTHHMMSS.txt: list of new lines
 '''
 
 import argparse
 import collections
+import json
 import os
 import sys
+from time import strftime
 import boto3
 import pandas as pd
 from tqdm import tqdm
@@ -19,10 +33,13 @@ DB = {}
 # AWS
 DYNAMO = {}
 S3 = {}
-# Cache
-CACHE = {'lines': {}, 'cells': {}}
 # Counters
 COUNT = collections.defaultdict(lambda: 0, {})
+# General
+ADD_CELL = []
+ADD_LINE = []
+MANIFEST = []
+REPLACEMENTS = []
 
 def terminate_program(msg=None):
     ''' Terminate the program gracefully
@@ -79,7 +96,7 @@ def initialize_program():
         dynamodb_client = boto3.client('dynamodb', region_name='us-east-1')
     except Exception as err:
         terminate_program(err)
-    table = 'janelia-neuronbridge-custom-annotations'
+    table = 'janelia-neuronbridge-custom-annotations2'
     try:
         _ = dynamodb_client.describe_table(TableName=table)
     except dynamodb_client.exceptions.ResourceNotFoundException:
@@ -120,10 +137,12 @@ def add_existing_cell_types(lines, line):
     if 'Item' in response:
         for ann in response['Item']['matches']:
             lines[line]['matches'].append(ann)
-            lines[line]['present'].append(ann['cell_type'])
-        if line not in CACHE['lines']:
-            CACHE['lines'][line] = response['Item']
+            if 'cell_type' in ann:
+                lines[line]['present'].append(ann['cell_type'])
+            elif 'body_id' in ann:
+                lines[line]['present'].append(ann['body_id'])
     else:
+        ADD_LINE.append(line)
         COUNT['new_lines'] += 1
 
 
@@ -138,8 +157,20 @@ def replace_lines_annotation(lines, line, ann):
     '''
     new_record = []
     for cell_ann in lines[line]['matches']:
-        if ann['cell_type'] != cell_ann['cell_type']:
-            new_record.append(cell_ann)
+        if 'cell_type' in ann and 'cell_type' in cell_ann:
+            if ann['cell_type'] != cell_ann['cell_type']:
+                new_record.append(cell_ann)
+            else:
+                new_record.append(ann)
+        if 'body_id' in ann and 'body_id' in cell_ann:
+            if ann['body_id'] != cell_ann['body_id']:
+                new_record.append(cell_ann)
+            else:
+                new_record.append(ann)
+    if not new_record:
+        print(json.dumps(lines[line], indent=2))
+        print(json.dumps(ann, indent=2))
+        terminate_program(f"Annotation not found for {line}")
     lines[line]['matches'] = new_record
 
 
@@ -162,6 +193,7 @@ def add_existing_lines(cells, cell):
             cells[cell]['matches'].append(ann)
             cells[cell]['present'].append(ann['line'])
     else:
+        ADD_CELL.append(cell)
         COUNT['new_cells'] += 1
 
 
@@ -178,7 +210,60 @@ def replace_cells_annotation(cells, cell, ann):
     for line_ann in cells[cell]['matches']:
         if ann['line'] != line_ann['line']:
             new_record.append(line_ann)
+        else:
+            new_record.append(ann)
+    if not new_record:
+        print(json.dumps(cells[cell], indent=2))
+        print(json.dumps(ann, indent=2))
+        terminate_program(f"Annotation not found for {cell} in {ann['line']}")
     cells[cell]['matches'] = new_record
+
+
+def cell_annotation_by_line(cellrec, line):
+    ''' Get cell annotation by line
+        Keyword arguments:
+          cellrec: cell record in dictionary
+          line: line
+        Returns:
+          annotation
+    '''
+    for ann in cellrec['matches']:
+        if ann['line'] == line:
+            return ann['annotation']
+    terminate_program(f"Annotation not found for {line} in {cellrec}")
+
+
+def line_annotation_by_cell(linerec, cell):
+    ''' Get line annotation by cell
+        Keyword arguments:
+          linerec: line record in dictionary
+          cell: cell type
+        Returns:
+          annotation
+    '''
+    for ann in linerec['matches']:
+        if 'cell_type' in ann and ann['cell_type'] == cell:
+            return ann['annotation']
+        if 'body_id' in ann and ann['body_id'] == cell:
+            return ann['annotation']
+    terminate_program(f"Annotation not found for {cell} in {linerec}")
+
+
+def higher_confidence(new_confidence, old_confidence):
+    """ Determine if new confidence is higher than old confidence
+        Keyword arguments:
+          new_confidence: new confidence level
+          old_confidence: old confidence level
+        Returns:
+          True if new confidence is higher, False otherwise
+    """
+    if new_confidence == 'Confident':
+        return not old_confidence == 'Confident'
+    if new_confidence == 'Probable':
+        return not old_confidence in ('Probable', 'Confident')
+    if new_confidence == 'Candidate':
+        return False
+    terminate_program(f"Unknown confidence level: {new_confidence}")
 
 
 def update_dynamodb(lines, cells):
@@ -193,6 +278,7 @@ def update_dynamodb(lines, cells):
     for _, ann in tqdm(lines.items(), desc="Updating lines"):
         if 'present' in ann:
             del ann['present']
+        MANIFEST.append(ann)
         if ARG.WRITE:
             try:
                 DB["DYN"].put_item(Item=ann)
@@ -204,6 +290,7 @@ def update_dynamodb(lines, cells):
     for _, ann in tqdm(cells.items(), desc="Updating cell types"):
         if 'present' in ann:
             del ann['present']
+        MANIFEST.append(ann)
         if ARG.WRITE:
             try:
                 DB["DYN"].put_item(Item=ann)
@@ -215,7 +302,7 @@ def update_dynamodb(lines, cells):
 
 
 def upload_input(df):
-    ''' Upload input file to S3
+    ''' Upload input file (as tab-separated values) to S3
         Keyword arguments:
           None
         Returns:
@@ -237,6 +324,27 @@ def upload_input(df):
         terminate_program(err)
 
 
+def generate_output_files():
+    ''' Generate output files
+        Keyword arguments:
+          None
+        Returns:
+          None
+    '''
+    timestamp = strftime('%Y%m%dT%H%M%S')
+    with open(f"manifest_{timestamp}.json", "w", encoding="utf-8") as fobj:
+        fobj.write(JRC.json.dumps(MANIFEST, indent=2))
+    if REPLACEMENTS:
+        with open(f"replacements_{timestamp}.txt", "w", encoding="utf-8") as fobj:
+            fobj.write("\n".join(REPLACEMENTS))
+    if ADD_CELL:
+        with open(f"new_cells_{timestamp}.txt", "w", encoding="utf-8") as fobj:
+            fobj.write("\n".join(ADD_CELL))
+    if ADD_LINE:
+        with open(f"new_lines_{timestamp}.txt", "w", encoding="utf-8") as fobj:
+            fobj.write("\n".join(ADD_LINE))
+
+
 def process_annotations():
     ''' Process annotations
         Keyword arguments:
@@ -249,13 +357,15 @@ def process_annotations():
     except Exception as err:
         terminate_program(err)
     lines = {}
-    cells = {}
+    cells = {} # Stores both cell types and body IDs
     for _, row in tqdm(df.iterrows(), total=df.shape[0], desc="Processing annotations"):
         COUNT['entries'] += 1
         line = row['Line Name']
-        cell = row['Cell types']
+        cell = str(row['Term'])
         # Line
         if line not in lines:
+            # matches will contain annotation dict (annotation, cell type, region)
+            # present will contain dict of cell types
             lines[line] = {'entryType': 'searchString',
                            'searchKey': line.lower(),
                            'itemType': 'line_name',
@@ -265,41 +375,59 @@ def process_annotations():
                            'present': []}
             add_existing_cell_types(lines, line)
         ann = {'region': row['Region'],
-               'cell_type': cell,
-               'annotation': row['Annotation'].capitalize()
+               row['Term type']: cell,
+               'annotation': row['Annotation'].capitalize(),
+               'annotator': row['Annotator']
               }
         if cell in lines[line]['present']:
-            LOGGER.debug(f"Cell type {cell} already present for {line}")
-            replace_lines_annotation(lines, line, ann)
-        lines[line]['matches'].append(ann)
+            LOGGER.debug(f"{cell} already present for {line} ({ann})")
+            annlist = line_annotation_by_cell(lines[line], cell)
+            higher = higher_confidence(row['Annotation'], annlist)
+            if higher:
+                REPLACEMENTS.append(f"Replace lines {annlist} with {row['Annotation']} " \
+                                    + f"annotation for {line} {cell}")
+                replace_lines_annotation(lines, line, ann)
+        else:
+            lines[line]['matches'].append(ann)
         # Cell type
         if cell not in cells:
+            # matches will contain annotation dict (annotation, line, region)
+            # present will contain dict of lines
             cells[cell] = {'entryType': 'searchString',
                            'searchKey': cell.lower(),
-                           'itemType': 'cell_type',
-                           'filterKey': cell.lower(),
-                           'name': cell,
-                           'matches': [],
-                           'present': []}
+                            'itemType': row['Term type'],
+                            'filterKey': cell.lower(),
+                            'name': cell,
+                            'matches': [],
+                            'present': []}
             add_existing_lines(cells, cell)
         ann = {'region': row['Region'],
                'line': line,
-               'annotation': row['Annotation'].capitalize()
+               'annotation': row['Annotation'].capitalize(),
+               'annotator': row['Annotator']
               }
+        higher = True
         if line in cells[cell]['present']:
-            LOGGER.debug(f"Line {line} already present for {cell}")
-            replace_cells_annotation(cells, cell, ann)
+            LOGGER.debug(f"Line {line} already present for {cell} ({ann})")
+            annlist = cell_annotation_by_line(cells[cell], line)
+            higher = higher_confidence(row['Annotation'], annlist)
+            if higher:
+                REPLACEMENTS.append(f"Replace cells {annlist} with {row['Annotation']} " \
+                                    + f"annotation for {line} {cell}")
+                replace_cells_annotation(cells, cell, ann)
+            continue
         cells[cell]['matches'].append(ann)
     update_dynamodb(lines, cells)
-    upload_input(df)
+    if ARG.WRITE:
+        upload_input(df)
     print(f"File rows:      {COUNT['entries']:,} entries")
     print(f"Lines:          {len(lines):,}")
     print(f"Cell types:     {len(cells):,}")
-    print(f"New lines:      {COUNT['new_lines']:,}")
-    print(f"New cell types: {COUNT['new_cells']:,}")
+    print(f"New lines:      {COUNT['new_lines']:,} ({COUNT['new_lines']/len(lines)*100:.2f}%)")
+    print(f"New cell types: {COUNT['new_cells']:,} ({COUNT['new_cells']/len(cells)*100:.2f}%)")
     print(f"DynamoDB reads: {COUNT['dynamo_reads']:,}")
     print(f"Rows updated:   {COUNT['updates']:,}")
-
+    generate_output_files()
 
 # --------------------------------------------------------------------------------
 
@@ -307,7 +435,7 @@ if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
         description="Parse annotation spreadsheet")
     PARSER.add_argument('--file', dest='FILE', action='store',
-                        help='Excel file')
+                        required=True, help='Excel file')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',
                         default=False, help='Write to DynamoDB')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
