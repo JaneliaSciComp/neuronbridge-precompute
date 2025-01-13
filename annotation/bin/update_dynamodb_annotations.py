@@ -15,6 +15,8 @@
         new_lines_YYYYMMDDTHHMMSS.txt: list of new lines
 '''
 
+__version__ = '1.0.0'
+
 import argparse
 import collections
 import json
@@ -75,7 +77,7 @@ def create_dynamodb_table(dynamodb, table):
                         {"Key": "DEVELOPER", "Value": "svirskasr"},
                         {"Key": "STAGE", "Value": 'prod'},
                         {"Key": "DESCRIPTION",
-                         "Value": "Stores line and cell type custom annotations"}
+                         "Value": "Stores line and body ID and cell type custom annotations"}
                        ]
               }
     LOGGER.warning(f"Creating {table}")
@@ -308,17 +310,22 @@ def upload_input(df):
         Returns:
           None
     '''
+    timestamp = strftime('%Y%m%dT%H%M%S')
     filename, _ = os.path.splitext(os.path.basename(ARG.FILE))
-    filename = f"{filename}.txt"
+    filename = f"{filename}_{timestamp}.txt"
     filepath = f"/tmp/{filename}"
     try:
         df.to_csv(filepath, sep="\t", index=False)
     except Exception as err:
         terminate_program(err)
+    desc = f"Uploaded {filepath} to S3"
+    tags = f"PROJECT=NeuronBridge&STAGE=prod&DEVELOPER=svirskasr&DESCRIPTION={desc}" \
+           + f"&VERSION={__version__}"
     try:
         S3['CLIENT'].upload_file(filepath, 'janelia-neuronbridge-annotation',
                                  f"input/{filename}",
-                                 ExtraArgs={'ContentType': 'text/tab-separated-values'})
+                                 ExtraArgs={'ContentType': 'text/tab-separated-values',
+                                            'Tagging': tags})
         LOGGER.info(f"Uploaded {filename} to S3")
     except Exception as err:
         terminate_program(err)
