@@ -15,7 +15,7 @@
         new_lines_YYYYMMDDTHHMMSS.txt: list of new lines
 '''
 
-__version__ = '1.0.0'
+__version__ = '1.1.0'
 
 import argparse
 import collections
@@ -413,6 +413,8 @@ def process_annotations():
                'annotation': row['Annotation'].capitalize(),
                'annotator': row['Annotator']
               }
+        if 'Dataset' in row:
+            ann['dataset'] = row['Dataset']
         higher = True
         if line in cells[cell]['present']:
             LOGGER.debug(f"Line {line} already present for {cell} ({ann})")

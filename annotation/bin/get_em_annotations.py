@@ -124,9 +124,9 @@ def generate_output_file():
         for term, ann in aline.items():
             short = ann['dataset'].split(':')[0]
             wtp = attrgetter(f"{short}.anatomicalArea")(dsets).lower()
-            outlist.append({'Line Name': line, 'Region': wtp, 'Term': term,
-                            'Term type': ann['term_type'], 'Annotator': ann['annotator'],
-                            'Annotation': ann['confidence']})
+            outlist.append({'Line Name': line, 'Dataset': ann['dataset'], 'Region': wtp,
+                            'Term': term, 'Term type': ann['term_type'],
+                            'Annotator': ann['annotator'], 'Annotation': ann['confidence']})
     pdf = pd.DataFrame(outlist)
     pdf.sort_values(['Line Name', 'Region', 'Term'],
                     ascending=[True, True, True], inplace=True)
