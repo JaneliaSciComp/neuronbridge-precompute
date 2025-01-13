@@ -8,6 +8,6 @@
     "targets_library": "flylight_annotator_gen1_mcfo_published",
     "targets_published_names": "",
     "targets_tags": "",
-    "mip_excluded_tags": "validationError",
+    "mip_excluded_tags": "validationError,junk",
     "cds_processing_tag": "cds-manc-vs-annmcfo"
 }
