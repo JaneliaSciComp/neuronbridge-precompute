@@ -5,6 +5,7 @@
 
 import argparse
 import collections
+import json
 import sys
 import boto3
 import jrc_common.jrc_common as JRC
@@ -65,6 +66,9 @@ def find_item():
                                            'searchKey': ARG.ITEM.lower()})
     except Exception as err:
         terminate_program(err)
+    if ARG.RAW:
+        print(json.dumps(response, indent=4, default=str))
+        terminate_program()
     if 'Item' in response:
         print(f"Name:       {response['Item']['name']}")
         print(f"Search key: {response['Item']['searchKey']}")
@@ -105,6 +109,8 @@ if __name__ == '__main__':
         description="Find an item in janelia-neuronbridge-custom-annotations")
     PARSER.add_argument('--item', dest='ITEM', action='store',
                         required=True, help='Line, cell type, or body ID')
+    PARSER.add_argument('--raw', dest='RAW', action='store_true',
+                        default=False, help='Display output as raw JSON response')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
                         default=False, help='Flag, Chatty')
     PARSER.add_argument('--debug', dest='DEBUG', action='store_true',
