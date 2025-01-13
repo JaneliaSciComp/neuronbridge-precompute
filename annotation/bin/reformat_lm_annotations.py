@@ -98,9 +98,14 @@ def process_annotations():
     pname = get_publishing_names()
     LOGGER.info("Getting neuron types")
     ntype = get_neuron_types()
-    # Proces the spreadsheet
+    # Process the spreadsheet
     pdf = pd.read_excel(ARG.FILE, sheet_name=0)
     pdf = pdf.fillna('')
+    pdf.rename(columns={"Cell types": "Term"}, inplace=True)
+    if 'Annotator' not in pdf.columns:
+        pdf['Annotator'] = 'Proofreader'
+    if 'Term type' not in pdf.columns:
+        pdf['Term type'] = 'cell_type'
     #pdf = pdf.reset_index()
     for col in ('Random Sample', 'Comment', 'Expert annotation'):
         pdf.drop(col, axis=1, inplace=True)
@@ -120,19 +125,19 @@ def process_annotations():
             all_lines_found = False
             LOGGER.warning(f"Line {row.loc['Line Name']} not in NeuronBridge")
             line_in_nb.append(False)
-        if row.loc['Cell types'] in ntype:
-            ntype_found[row.loc['Cell types']] = True
+        if row.loc['Term'] in ntype:
+            ntype_found[row.loc['Term']] = True
             ntype_in_nb.append(True)
         else:
-            LOGGER.warning(f"Cell type {row.loc['Cell types']} not in JACS")
-            ntype_not_found[row.loc['Cell types']] = True
+            LOGGER.warning(f"Cell type {row.loc['Term']} not in JACS")
+            ntype_not_found[row.loc['Term']] = True
             ntype_in_nb.append(False)
     pdf['Annotation'] = confidence
     if not all_lines_found:
         pdf['Line in NeuronBridge'] = line_in_nb
     if ntype_not_found:
         pdf['Neuron type in JACS'] = ntype_in_nb
-    pdf.sort_values(['Line Name', 'Region', 'Cell types'],
+    pdf.sort_values(['Line Name', 'Region', 'Term'],
                     ascending=[True, True, True], inplace=True)
     print(f"Neuron types found in JACS: {len(ntype_found.keys()):,}")
     print(f"Neuron types not found in JACS: {len(ntype_not_found.keys()):,}")
@@ -144,7 +149,7 @@ if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
         description="Parse annotation spreadsheet")
     PARSER.add_argument('--file', dest='FILE', action='store',
-                        help='Excel file')
+                        required=True, help='Excel file')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         default='prod', choices=['dev', 'prod'], help='Manifold ([prod], dev)')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
