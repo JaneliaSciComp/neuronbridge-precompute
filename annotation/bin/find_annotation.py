@@ -6,6 +6,7 @@
 import argparse
 import collections
 import json
+from operator import itemgetter
 import sys
 import boto3
 import jrc_common.jrc_common as JRC
@@ -74,28 +75,34 @@ def find_item():
         print(f"Search key: {response['Item']['searchKey']}")
         print(f"Filter key: {response['Item']['filterKey']}")
         print(f"Item type:  {response['Item']['itemType']}")
-        for preset in ('annotation', 'region', 'annotator'):
+        for preset in ('annotation', 'dataset', 'region', 'annotator'):
             MAXLEN[preset] = len(preset)
         MAXLEN['cell_type'] = MAXLEN['body_id'] = 17
         for mtch in response['Item']['matches']:
             for key, val in mtch.items():
                 if len(val) > MAXLEN[key]:
                     MAXLEN[key] = len(val)
+            if 'line' not in mtch:
+                mtch['line'] = ''
         header = f"{'Line':<{MAXLEN['line']}}  " if 'line' in MAXLEN \
                  else "Cell type/Body ID  "
-        header += f"{'Region':<{MAXLEN['region']}}  " \
+        header += f"{'Dataset':<{MAXLEN['dataset']}}  " \
+                  + f"{'Region':<{MAXLEN['region']}}  " \
                   + f"{'Annotation':<{MAXLEN['annotation']}}  " \
                   + f"{'Annotator':<{MAXLEN['annotator']}}"
         print(f"Matches:\n  {header}")
-        for mtch in response['Item']['matches']:
+        for mtch in sorted(response['Item']['matches'], key=itemgetter('line')):
             out = '  '
-            if 'line' in mtch:
+            if 'line' in mtch and mtch['line']:
                 out += f"{mtch['line']:<{MAXLEN['line']}}  "
             elif 'cell_type' in mtch:
                 out += f"{mtch['cell_type']:<{MAXLEN['cell_type']}}  "
             else:
                 out += f"{mtch['body_id']:<{MAXLEN['body_id']}}  "
-            out += f"{mtch['region']:<{MAXLEN['region']}}  " \
+            if 'dataset' not in mtch:
+                mtch['dataset'] = ''
+            out += f"{mtch['dataset']:<{MAXLEN['dataset']}}  " \
+                   + f"{mtch['region']:<{MAXLEN['region']}}  " \
                    + f"{mtch['annotation']:<{MAXLEN['annotation']}}  " \
                    + f"{mtch['annotator']:<{MAXLEN['annotator']}}"
             print(out)
