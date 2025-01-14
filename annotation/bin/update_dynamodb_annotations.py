@@ -444,7 +444,7 @@ def process_annotations():
     for _, row in tqdm(df.iterrows(), total=df.shape[0], desc="Processing annotations"):
         COUNT['entries'] += 1
         cell = str(row['Term'])
-        if not cell_type_in_neuprint(row['Dataset'], cell):
+        if row['Term type'] == 'cell_type' and not cell_type_in_neuprint(row['Dataset'], cell):
             COUNT['neuprint'] += 1
             continue
         line = row['Line Name']
@@ -465,6 +465,8 @@ def process_annotations():
                'annotation': row['Annotation'].capitalize(),
                'annotator': row['Annotator']
               }
+        if 'Dataset' in row:
+            ann['dataset'] = row['Dataset']
         if cell in lines[line]['present']:
             LOGGER.debug(f"{cell} already present for {line} ({ann})")
             annlist = line_annotation_by_cell(lines[line], cell)
