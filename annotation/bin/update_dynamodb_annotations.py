@@ -1,7 +1,8 @@
 ''' update_dynamodb_annotations.py
     Given and Excel file, update the DynamoDB janelia-neuronbridge-custom-annotations table
     and write a copy of the input file to S3.
-    The Excel file contains annotations for lines and cell types/body IDs. The following columns are required:
+    The Excel file contains annotations for lines and cell types/body IDs.
+    The following columns are required:
       Line Name: publishing name
       Region: brain region
       Term: cell type or body ID
@@ -15,11 +16,12 @@
         new_lines_YYYYMMDDTHHMMSS.txt: list of new lines
 '''
 
-__version__ = '1.1.0'
+__version__ = '1.2.0'
 
 import argparse
 import collections
 import json
+from operator import attrgetter
 import os
 import sys
 from time import strftime
@@ -42,6 +44,7 @@ ADD_CELL = []
 ADD_LINE = []
 MANIFEST = []
 REPLACEMENTS = []
+NEUPRINT = {}
 
 def terminate_program(msg=None):
     ''' Terminate the program gracefully
@@ -92,6 +95,44 @@ def initialize_program():
         Returns:
           None
     '''
+    # Databases
+    try:
+        dbconfig = JRC.get_config("databases")
+    except Exception as err:
+        terminate_program(err)
+    for source in ("jacs", ):
+        dbo = attrgetter(f"{source}.{ARG.MANIFOLD}.read")(dbconfig)
+        LOGGER.info(f"Connecting to {dbo.name} {ARG.MANIFOLD} on {dbo.host} as {dbo.user}")
+        try:
+            DB[source] = JRC.connect_database(dbo)
+        except Exception as err:
+            terminate_program(err)
+    payload = {"published": True}
+    try:
+        rows = DB['jacs'].emDataSet.find(payload)
+    except Exception as err:
+        terminate_program(err)
+    published = []
+    for row in rows:
+        if 'version' in row and row['version']:
+            published.append(f"{row['name']}:v{row['version']}")
+        else:
+            published.append(row['name'])
+    payload = [{"$match": {"status": "Traced", "neuronType": {"$ne": None},
+                           "dataSetIdentifier": {"$in": published}}},
+               {"$group": {"_id": {"dataSetIdentifier": "$dataSetIdentifier",
+                                   "neuronType": "$neuronType"},
+                           "count": {"$sum": 1}}}]
+    try:
+        rows = DB['jacs'].emBody.aggregate(payload)
+    except Exception as err:
+        terminate_program(err)
+    for row in rows:
+        if row['_id']['dataSetIdentifier'] not in NEUPRINT:
+            NEUPRINT[row['_id']['dataSetIdentifier']] = {}
+        NEUPRINT[row['_id']['dataSetIdentifier']][row['_id']['neuronType']] = True
+    for dset, val in dict(sorted(NEUPRINT.items())).items():
+        LOGGER.info(f"{dset}: {len(val):,} cell types")
     # DynamoDB
     try:
         dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
@@ -120,6 +161,20 @@ def initialize_program():
         S3['CLIENT'] = boto3.client('s3')
     except Exception as err:
         terminate_program(err)
+
+
+def cell_type_in_neuprint(dataset, cell):
+    ''' Check if cell type is in Neuprint
+        Keyword arguments:
+          dataset: NeuPrint dataset
+          cell: cell type
+        Returns:
+          True if cell type is in Neuprint, False otherwise
+    '''
+    if cell not in NEUPRINT[dataset]:
+        NEUPRINT[dataset][cell] = False
+        LOGGER.warning(f"{cell} not found in {dataset}")
+    return NEUPRINT[dataset][cell]
 
 
 def add_existing_cell_types(lines, line):
@@ -352,6 +407,27 @@ def generate_output_files():
             fobj.write("\n".join(ADD_LINE))
 
 
+def statistics():
+    ''' Print statistics
+        Keyword arguments:
+          None
+        Returns:
+          None
+    '''
+    print(f"File rows:                  {COUNT['entries']:,} entries")
+    print(f"Lines:                      {COUNT['lines']:,}")
+    print(f"Cell types:                 {COUNT['cells']:,}")
+    print(f"Cell types not in neuPrint: {COUNT['neuprint']:,} " \
+          + f"({COUNT['neuprint']/COUNT['cells']*100:.2f}%)")
+    print(f"New lines:                  {COUNT['new_lines']:,} " \
+          + f"({COUNT['new_lines']/COUNT['lines']*100:.2f}%)")
+    print(f"New cell types:             {COUNT['new_cells']:,} " \
+          + f"({COUNT['new_cells']/COUNT['cells']*100:.2f}%)")
+    print(f"DynamoDB reads:             {COUNT['dynamo_reads']:,}")
+    print(f"Rows updated:               {COUNT['updates']:,}")
+    generate_output_files()
+
+
 def process_annotations():
     ''' Process annotations
         Keyword arguments:
@@ -367,8 +443,11 @@ def process_annotations():
     cells = {} # Stores both cell types and body IDs
     for _, row in tqdm(df.iterrows(), total=df.shape[0], desc="Processing annotations"):
         COUNT['entries'] += 1
-        line = row['Line Name']
         cell = str(row['Term'])
+        if row['Term type'] == 'cell_type' and not cell_type_in_neuprint(row['Dataset'], cell):
+            COUNT['neuprint'] += 1
+            continue
+        line = row['Line Name']
         # Line
         if line not in lines:
             # matches will contain annotation dict (annotation, cell type, region)
@@ -386,6 +465,8 @@ def process_annotations():
                'annotation': row['Annotation'].capitalize(),
                'annotator': row['Annotator']
               }
+        if 'Dataset' in row:
+            ann['dataset'] = row['Dataset']
         if cell in lines[line]['present']:
             LOGGER.debug(f"{cell} already present for {line} ({ann})")
             annlist = line_annotation_by_cell(lines[line], cell)
@@ -429,14 +510,9 @@ def process_annotations():
     update_dynamodb(lines, cells)
     if ARG.WRITE:
         upload_input(df)
-    print(f"File rows:      {COUNT['entries']:,} entries")
-    print(f"Lines:          {len(lines):,}")
-    print(f"Cell types:     {len(cells):,}")
-    print(f"New lines:      {COUNT['new_lines']:,} ({COUNT['new_lines']/len(lines)*100:.2f}%)")
-    print(f"New cell types: {COUNT['new_cells']:,} ({COUNT['new_cells']/len(cells)*100:.2f}%)")
-    print(f"DynamoDB reads: {COUNT['dynamo_reads']:,}")
-    print(f"Rows updated:   {COUNT['updates']:,}")
-    generate_output_files()
+    COUNT['lines'] = len(lines)
+    COUNT['cells'] = len(cells)
+    statistics()
 
 # --------------------------------------------------------------------------------
 
@@ -445,6 +521,8 @@ if __name__ == '__main__':
         description="Parse annotation spreadsheet")
     PARSER.add_argument('--file', dest='FILE', action='store',
                         required=True, help='Excel file')
+    PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
+                        choices=["dev", "prod"], default="prod", help='MongoDB manifold')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',
                         default=False, help='Write to DynamoDB')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
@@ -453,6 +531,10 @@ if __name__ == '__main__':
                         default=False, help='Flag, Very chatty')
     ARG = PARSER.parse_args()
     LOGGER = JRC.setup_logging(ARG)
+    try:
+        REST = JRC.get_config("rest_services")
+    except Exception as err:
+        terminate_program(err)
     initialize_program()
     process_annotations()
     terminate_program()

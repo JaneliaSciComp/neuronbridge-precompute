@@ -94,7 +94,7 @@ def process_annotations():
           None
     """
     # Get publishing names and neuron types
-    LOGGER.info("Gettting publishing names")
+    LOGGER.info("Getting publishing names")
     pname = get_publishing_names()
     LOGGER.info("Getting neuron types")
     ntype = get_neuron_types()
@@ -113,12 +113,19 @@ def process_annotations():
     all_lines_found = True
     ntype_in_nb = []
     confidence = []
+    dataset = []
     ntype_found = {}
     ntype_not_found = {}
     for _, row in tqdm(pdf.iterrows(), desc="Reading file"):
         annotation = str(row.loc['Annotation'])
         normalized = 'Confident' if 'true' in annotation.lower() else 'Candidate'
         confidence.append(normalized)
+        if row.loc['Region'] == 'brain':
+            dataset.append('hemibrain:v1.2.1')
+        elif row.loc['Region'] == 'vnc':
+            dataset.append('manc:v1.2.1')
+        else:
+            terminate_program(f"Unknown region {row.loc['Region']}")
         if row.loc['Line Name'] in pname:
             line_in_nb.append(True)
         else:
@@ -132,6 +139,7 @@ def process_annotations():
             LOGGER.warning(f"Cell type {row.loc['Term']} not in JACS")
             ntype_not_found[row.loc['Term']] = True
             ntype_in_nb.append(False)
+    pdf['Dataset'] = dataset
     pdf['Annotation'] = confidence
     if not all_lines_found:
         pdf['Line in NeuronBridge'] = line_in_nb
