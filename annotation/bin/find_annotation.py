@@ -45,7 +45,7 @@ def initialize_program():
         dynamodb_client = boto3.client('dynamodb', region_name='us-east-1')
     except Exception as err:
         terminate_program(err)
-    table = 'janelia-neuronbridge-custom-annotations2'
+    table = 'janelia-neuronbridge-custom-annotations'
     try:
         _ = dynamodb_client.describe_table(TableName=table)
     except dynamodb_client.exceptions.ResourceNotFoundException:
