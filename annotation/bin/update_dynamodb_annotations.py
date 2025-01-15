@@ -1,9 +1,10 @@
 ''' update_dynamodb_annotations.py
-    Given and Excel file, update the DynamoDB janelia-neuronbridge-custom-annotations table
+    Given an Excel file, update the DynamoDB janelia-neuronbridge-custom-annotations table
     and write a copy of the input file to S3.
     The Excel file contains annotations for lines and cell types/body IDs.
     The following columns are required:
       Line Name: publishing name
+      Dataset: NeuPrint dataset
       Region: brain region
       Term: cell type or body ID
       Term type: "cell_type" or "body_id"
@@ -14,15 +15,17 @@
         replacements_YYYYMMDDTHHMMSS.txt: list of replaced annotations
         new_cells_YYYYMMDDTHHMMSS.txt: list of new cell types/body IDs
         new_lines_YYYYMMDDTHHMMSS.txt: list of new lines
+    Output files are also loaded to S3.
 '''
 
-__version__ = '1.2.0'
+__version__ = '2.0.0'
 
 import argparse
 import collections
 import json
 from operator import attrgetter
 import os
+from pathlib import Path
 import sys
 from time import strftime
 import boto3
@@ -35,6 +38,7 @@ import jrc_common.jrc_common as JRC
 # Database
 DB = {}
 # AWS
+DDB_TABLE = 'janelia-neuronbridge-custom-annotations'
 DYNAMO = {}
 S3 = {}
 # Counters
@@ -139,17 +143,16 @@ def initialize_program():
         dynamodb_client = boto3.client('dynamodb', region_name='us-east-1')
     except Exception as err:
         terminate_program(err)
-    table = 'janelia-neuronbridge-custom-annotations2'
     try:
-        _ = dynamodb_client.describe_table(TableName=table)
+        _ = dynamodb_client.describe_table(TableName=DDB_TABLE)
     except dynamodb_client.exceptions.ResourceNotFoundException:
-        LOGGER.warning("Table %s doesn't exist", table)
-        create_dynamodb_table(dynamodb, table)
+        LOGGER.warning(f"Table {DDB_TABLE} doesn't exist")
+        create_dynamodb_table(dynamodb, DDB_TABLE)
     except Exception as err:
         terminate_program(err)
-    DB["DYN"] = dynamodb.Table(table)
+    DB["DYN"] = dynamodb.Table(DDB_TABLE)
     try:
-        ddt = dynamodb_client.describe_table(TableName=table)
+        ddt = dynamodb_client.describe_table(TableName=DDB_TABLE)
         DYNAMO['client'] = dynamodb_client
         DYNAMO['arn'] = ddt['Table']['TableArn']
     except dynamodb_client.exceptions.ResourceNotFoundException:
@@ -356,6 +359,50 @@ def update_dynamodb(lines, cells):
                 terminate_program(err)
         else:
             COUNT['updates'] += 1
+        if ann['itemType'] != 'body_id':
+            continue
+        # Add an additional fully-qualified search key for body IDs
+        # e.g. 100186 -> manc:v1.0:100186
+        dataset = ann['matches'][0]['dataset']
+        if len(ann['matches']) > 1:
+            for match in ann['matches']:
+                if match['dataset'] != dataset:
+                    terminate_program(f"Multiple datasets for {ann['name']}")
+        ann2 = ann.copy()
+        ann2['searchKey'] = f"{dataset}:{ann2['searchKey']}"
+        ann2['filterKey'] = ann2['searchKey']
+        MANIFEST.append(ann2)
+        if ARG.WRITE:
+            try:
+                DB["DYN"].put_item(Item=ann2)
+                COUNT['body_updates'] += 1
+            except Exception as err:
+                terminate_program(err)
+        else:
+            COUNT['body_updates'] += 1
+
+
+def upload_file_to_s3(filepath, prefix, content='text/plain'):
+    ''' Upload file to S3
+        Keyword arguments:
+          filepath: file path
+          prefix: S3 prefix
+          content: content type
+        Returns:
+          None
+    '''
+    desc = f"Upload {filepath} to S3"
+    tags = f"PROJECT=NeuronBridge&STAGE=prod&DEVELOPER=svirskasr&DESCRIPTION={desc}" \
+           + f"&VERSION={__version__}"
+    try:
+        filename = Path(filepath).name
+        S3['CLIENT'].upload_file(filepath, 'janelia-neuronbridge-annotation',
+                                 f"{prefix}/{filename}",
+                                 ExtraArgs={'ContentType': content,
+                                            'Tagging': tags})
+        LOGGER.info(f"Uploaded {filename} to S3")
+    except Exception as err:
+        terminate_program(err)
 
 
 def upload_input(df):
@@ -365,25 +412,14 @@ def upload_input(df):
         Returns:
           None
     '''
-    timestamp = strftime('%Y%m%dT%H%M%S')
     filename, _ = os.path.splitext(os.path.basename(ARG.FILE))
-    filename = f"{filename}_{timestamp}.txt"
+    filename = f"{filename}_{TIMESTAMP}.txt"
     filepath = f"/tmp/{filename}"
     try:
         df.to_csv(filepath, sep="\t", index=False)
     except Exception as err:
         terminate_program(err)
-    desc = f"Uploaded {filepath} to S3"
-    tags = f"PROJECT=NeuronBridge&STAGE=prod&DEVELOPER=svirskasr&DESCRIPTION={desc}" \
-           + f"&VERSION={__version__}"
-    try:
-        S3['CLIENT'].upload_file(filepath, 'janelia-neuronbridge-annotation',
-                                 f"input/{filename}",
-                                 ExtraArgs={'ContentType': 'text/tab-separated-values',
-                                            'Tagging': tags})
-        LOGGER.info(f"Uploaded {filename} to S3")
-    except Exception as err:
-        terminate_program(err)
+    upload_file_to_s3(filepath, 'input', 'text/tab-separated-values')
 
 
 def generate_output_files():
@@ -393,18 +429,25 @@ def generate_output_files():
         Returns:
           None
     '''
-    timestamp = strftime('%Y%m%dT%H%M%S')
-    with open(f"manifest_{timestamp}.json", "w", encoding="utf-8") as fobj:
+    filepath = f"manifest_{TIMESTAMP}.json"
+    with open(filepath, "w", encoding="utf-8") as fobj:
         fobj.write(JRC.json.dumps(MANIFEST, indent=2))
+    upload_file_to_s3(filepath, 'output', 'application/json')
     if REPLACEMENTS:
-        with open(f"replacements_{timestamp}.txt", "w", encoding="utf-8") as fobj:
+        filepath = f"replacements_{TIMESTAMP}.txt"
+        with open(filepath, "w", encoding="utf-8") as fobj:
             fobj.write("\n".join(REPLACEMENTS))
+        upload_file_to_s3(filepath, 'output')
     if ADD_CELL:
-        with open(f"new_cells_{timestamp}.txt", "w", encoding="utf-8") as fobj:
+        filepath = f"new_cells_{TIMESTAMP}.txt"
+        with open(filepath, "w", encoding="utf-8") as fobj:
             fobj.write("\n".join(ADD_CELL))
+        upload_file_to_s3(filepath, 'output')
     if ADD_LINE:
-        with open(f"new_lines_{timestamp}.txt", "w", encoding="utf-8") as fobj:
+        filepath = f"new_lines_{TIMESTAMP}.txt"
+        with open(filepath, "w", encoding="utf-8") as fobj:
             fobj.write("\n".join(ADD_LINE))
+        upload_file_to_s3(filepath, 'output')
 
 
 def statistics():
@@ -414,17 +457,18 @@ def statistics():
         Returns:
           None
     '''
-    print(f"File rows:                  {COUNT['entries']:,} entries")
-    print(f"Lines:                      {COUNT['lines']:,}")
-    print(f"Cell types:                 {COUNT['cells']:,}")
-    print(f"Cell types not in neuPrint: {COUNT['neuprint']:,} " \
+    print(f"File rows:                   {COUNT['entries']:,} entries")
+    print(f"Lines:                       {COUNT['lines']:,}")
+    print(f"Cell types:                  {COUNT['cells']:,}")
+    print(f"Cell types not in neuPrint:  {COUNT['neuprint']:,} " \
           + f"({COUNT['neuprint']/COUNT['cells']*100:.2f}%)")
-    print(f"New lines:                  {COUNT['new_lines']:,} " \
+    print(f"New lines:                   {COUNT['new_lines']:,} " \
           + f"({COUNT['new_lines']/COUNT['lines']*100:.2f}%)")
-    print(f"New cell types:             {COUNT['new_cells']:,} " \
+    print(f"New cell types:              {COUNT['new_cells']:,} " \
           + f"({COUNT['new_cells']/COUNT['cells']*100:.2f}%)")
-    print(f"DynamoDB reads:             {COUNT['dynamo_reads']:,}")
-    print(f"Rows updated:               {COUNT['updates']:,}")
+    print(f"DynamoDB reads:              {COUNT['dynamo_reads']:,}")
+    print(f"Rows updated:                {COUNT['updates']:,}")
+    print(f"Additional Body IDs updated: {COUNT['body_updates']:,}")
     generate_output_files()
 
 
@@ -450,7 +494,7 @@ def process_annotations():
         line = row['Line Name']
         # Line
         if line not in lines:
-            # matches will contain annotation dict (annotation, cell type, region)
+            # matches will contain annotation dict (annotation, cell type, region, dataset)
             # present will contain dict of cell types
             lines[line] = {'entryType': 'searchString',
                            'searchKey': line.lower(),
@@ -479,7 +523,7 @@ def process_annotations():
             lines[line]['matches'].append(ann)
         # Cell type
         if cell not in cells:
-            # matches will contain annotation dict (annotation, line, region)
+            # matches will contain annotation dict (annotation, line, region, dataset)
             # present will contain dict of lines
             cells[cell] = {'entryType': 'searchString',
                            'searchKey': cell.lower(),
@@ -536,5 +580,6 @@ if __name__ == '__main__':
     except Exception as err:
         terminate_program(err)
     initialize_program()
+    TIMESTAMP = strftime('%Y%m%dT%H%M%S')
     process_annotations()
     terminate_program()
