@@ -64,29 +64,15 @@ def get_datasets():
         Returns:
           None
     """
-    # Get data sets from neuronbridge
+    # Get data sets from NeuronBridge publishedURL
     LOGGER.info("Getting libraries from NeuronBridge")
-    coll = DB['neuronbridge'].neuronMetadata
+    coll = DB['neuronbridge'].publishedURL
     payload = [{"$group": {"_id": {"lib": "$libraryName"},
                            "count": {"$sum": 1}}}]
     rows = coll.aggregate(payload)
     nblib = {}
     for row in rows:
         nblib[row['_id']['lib'].replace('flyem_', '')] = row['count']
-    print(nblib)
-    # Get data sets from jacs
-    LOGGER.info("Getting libraries from NeuronBridge")
-    coll = DB['jacs'].emDataSet
-    payload = [{"$group": {"_id": {"lib": "$name", "ver": "$version"},
-                           "count": {"$sum": 1}}}]
-    rows = coll.aggregate(payload)
-    nblib = {}
-    for row in rows:
-        libname = row['_id']['lib']
-        if row['_id']['ver']:
-            libname += '_' + row['_id']['ver'].replace('.', '_')
-        nblib[libname] = 0
-    print(nblib)
     # Get data sets from jacs
     LOGGER.info("Getting datasets from JACS")
     coll = DB['jacs'].emDataSet
