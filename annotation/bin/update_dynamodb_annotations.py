@@ -46,6 +46,7 @@ COUNT = collections.defaultdict(lambda: 0, {})
 # General
 ADD_CELL = []
 ADD_LINE = []
+ERROR = {}
 MANIFEST = []
 REPLACEMENTS = []
 NEUPRINT = {}
@@ -104,7 +105,7 @@ def initialize_program():
         dbconfig = JRC.get_config("databases")
     except Exception as err:
         terminate_program(err)
-    for source in ("jacs", ):
+    for source in ("jacs", "neuronbridge"):
         dbo = attrgetter(f"{source}.{ARG.MANIFOLD}.read")(dbconfig)
         LOGGER.info(f"Connecting to {dbo.name} {ARG.MANIFOLD} on {dbo.host} as {dbo.user}")
         try:
@@ -125,8 +126,7 @@ def initialize_program():
     payload = [{"$match": {"status": "Traced", "neuronType": {"$ne": None},
                            "dataSetIdentifier": {"$in": published}}},
                {"$group": {"_id": {"dataSetIdentifier": "$dataSetIdentifier",
-                                   "neuronType": "$neuronType"},
-                           "count": {"$sum": 1}}}]
+                                   "neuronType": "$neuronType"}}}]
     try:
         rows = DB['jacs'].emBody.aggregate(payload)
     except Exception as err:
@@ -135,8 +135,21 @@ def initialize_program():
         if row['_id']['dataSetIdentifier'] not in NEUPRINT:
             NEUPRINT[row['_id']['dataSetIdentifier']] = {}
         NEUPRINT[row['_id']['dataSetIdentifier']][row['_id']['neuronType']] = True
+    payload = [{"$group": {"_id": "$libraryName"}}]
+    try:
+        rows = DB['neuronbridge'].publishedURL.aggregate(payload)
+    except Exception as err:
+        terminate_program(err)
+    available = []
+    for row in rows:
+        available.append(row['_id'])
     for dset, val in dict(sorted(NEUPRINT.items())).items():
-        LOGGER.info(f"{dset}: {len(val):,} cell types")
+        cmp = 'flyem_' + dset.replace(":v", "_").replace(".", "_")
+        if cmp in available or ARG.OVERRIDE:
+            LOGGER.info(f"{dset}: {len(val):,} cell types")
+        else:
+            del NEUPRINT[dset]
+            LOGGER.debug(f"{dset} is not available in NeuronBridge")
     # DynamoDB
     try:
         dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
@@ -174,9 +187,16 @@ def cell_type_in_neuprint(dataset, cell):
         Returns:
           True if cell type is in Neuprint, False otherwise
     '''
+    if dataset not in NEUPRINT:
+        msg = f"{dataset} not found in NeuronBridge"
+        if msg not in ERROR:
+            LOGGER.error(msg)
+            ERROR[msg] = True
+        return None
     if cell not in NEUPRINT[dataset]:
         NEUPRINT[dataset][cell] = False
         LOGGER.warning(f"{cell} not found in {dataset}")
+        return None
     return NEUPRINT[dataset][cell]
 
 
@@ -432,22 +452,26 @@ def generate_output_files():
     filepath = f"manifest_{TIMESTAMP}.json"
     with open(filepath, "w", encoding="utf-8") as fobj:
         fobj.write(JRC.json.dumps(MANIFEST, indent=2))
-    upload_file_to_s3(filepath, 'output', 'application/json')
+    if ARG.WRITE:
+        upload_file_to_s3(filepath, 'output', 'application/json')
     if REPLACEMENTS:
         filepath = f"replacements_{TIMESTAMP}.txt"
         with open(filepath, "w", encoding="utf-8") as fobj:
             fobj.write("\n".join(REPLACEMENTS))
-        upload_file_to_s3(filepath, 'output')
+        if ARG.WRITE:
+            upload_file_to_s3(filepath, 'output')
     if ADD_CELL:
         filepath = f"new_cells_{TIMESTAMP}.txt"
         with open(filepath, "w", encoding="utf-8") as fobj:
             fobj.write("\n".join(ADD_CELL))
-        upload_file_to_s3(filepath, 'output')
+        if ARG.WRITE:
+            upload_file_to_s3(filepath, 'output')
     if ADD_LINE:
         filepath = f"new_lines_{TIMESTAMP}.txt"
         with open(filepath, "w", encoding="utf-8") as fobj:
             fobj.write("\n".join(ADD_LINE))
-        upload_file_to_s3(filepath, 'output')
+        if ARG.WRITE:
+            upload_file_to_s3(filepath, 'output')
 
 
 def statistics():
@@ -567,6 +591,8 @@ if __name__ == '__main__':
                         required=True, help='Excel file')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         choices=["dev", "prod"], default="prod", help='MongoDB manifold')
+    PARSER.add_argument('--override', dest='OVERRIDE', action='store_true',
+                        default=False, help='Allow usage of datasets not in NeuronBridge')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',
                         default=False, help='Write to DynamoDB')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
