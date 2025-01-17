@@ -331,7 +331,7 @@ def process_release():
         rows = DB['sage']['cursor'].fetchall()
     except MySQLdb.Error as err:
         terminate_program(JRC.sql_error(err))
-    print(f"Found {len(rows):,} images in {ARG.RELEASE}")
+    print(f"Found {len(rows):,} images in {ARG.RELEASE} on SAGE")
     # Get known slide codes
     slides = {}
     coll = DB["nb"].neuronMetadata
@@ -340,18 +340,21 @@ def process_release():
         slides[row] = True
     # Process slides in release
     item = {}
+    sample = {}
     for row in tqdm(rows, desc='Images'):
         if ARG.SAMPLE and row['workstation_sample_id'] != ARG.SAMPLE:
             continue
         if row['slide_code'] not in slides:
             COUNT['nmd_missing'] += 1
             continue
+        sample[row['workstation_sample_id']] = True
         if row['slide_code'] not in item:
             item[row['slide_code']] = {}
         item[row['slide_code']]['line'] = row['publishing_name']
         item[row['slide_code']]['template'] = row['alignment_space_cdm'].lower() \
             if row['alignment_space_cdm'] else ''
     LOGGER.info(f"Slide codes: {len(item):,}")
+    LOGGER.info(f"Samples: {len(sample):,}")
     coll = DB["nb"].neuronMetadata
     for scode, val in tqdm(item.items(), desc='neuronMetadata'):
         process_nmd(scode, val['line'], coll)
