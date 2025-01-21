@@ -27,13 +27,15 @@ COUNT = {"write": 0}
 # pylint: disable=W0703,E1101
 
 def terminate_program(msg=None):
-    """ Log an optional error to output, close files, and exit
+    ''' Terminate the program gracefully
         Keyword arguments:
-          err: error message
+          msg: error message or object
         Returns:
-           None
-    """
+          None
+    '''
     if msg:
+        if not isinstance(msg, str):
+            msg = f"An exception of type {type(msg).__name__} occurred. Arguments:\n{msg.args}"
         LOGGER.critical(msg)
     sys.exit(-1 if msg else 0)
 

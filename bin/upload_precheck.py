@@ -30,11 +30,13 @@ SLIDES = []
 def terminate_program(msg=None):
     ''' Terminate the program gracefully
         Keyword arguments:
-          msg: error message
+          msg: error message or object
         Returns:
           None
     '''
     if msg:
+        if not isinstance(msg, str):
+            msg = f"An exception of type {type(msg).__name__} occurred. Arguments:\n{msg.args}"
         LOGGER.critical(msg)
     sys.exit(-1 if msg else 0)
 

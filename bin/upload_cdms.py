@@ -75,6 +75,8 @@ def terminate_program(msg=None):
             if os.path.exists(fpath) and not os.path.getsize(fpath):
                 os.remove(fpath)
     if msg:
+        if not isinstance(msg, str):
+            msg = f"An exception of type {type(msg).__name__} occurred. Arguments:\n{msg.args}"
         LOGGER.critical(msg)
     sys.exit(-1 if msg else 0)
 
