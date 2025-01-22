@@ -1,5 +1,6 @@
 ''' release_report.py
     Compare the number of samples in SAGE to counts in MongoDB by release.
+    A file (releases_missing_samples.txt) is created with the list of missing samples.
 '''
 
 import argparse
@@ -12,9 +13,9 @@ import jrc_common.jrc_common as JRC
 
 # Database
 DB = {}
-READ = {"releases": "SELECT alps_release,COUNT(DISTINCT workstation_sample_id) AS cnt FROM "
-                    "image_data_mv WHERE alps_release IS NOT NULL GROUP BY 1",
-}
+READ = {"releases": "SELECT DISTINCT alps_release,workstation_sample_id FROM "
+                    "image_data_mv WHERE alps_release IS NOT NULL",
+       }
 
 # -----------------------------------------------------------------------------
 
@@ -70,10 +71,21 @@ def process():
         Returns:
           None
     """
+    # Get samples from SAGE
     DB['sage']['cursor'].execute(READ['releases'])
-    releases = DB['sage']['cursor'].fetchall()
+    rows = DB['sage']['cursor'].fetchall()
+    releases = {}
+    samples = {"sage": {}, "neuronMetadata": {}, "publishedURL": {}}
+    for row in rows:
+        if row['alps_release'] not in releases:
+            releases[row['alps_release']] = 0
+        releases[row['alps_release']] += 1
+        if row['alps_release'] not in samples['sage']:
+            samples['sage'][row['alps_release']] = {}
+        if row['workstation_sample_id'] not in samples['sage'][row['alps_release']]:
+            samples['sage'][row['alps_release']][row['workstation_sample_id']] = True
     LOGGER.info(f"Found {len(releases)} releases in SAGE")
-
+    # Get samples from MongoDB
     mongo = {}
     for coll in ("neuronMetadata", "publishedURL"):
         mongo[coll] = {}
@@ -89,25 +101,52 @@ def process():
             if row['_id']['release'] not in mongo[coll]:
                 mongo[coll][row['_id']['release']] = 0
             mongo[coll][row['_id']['release']] += 1
+            if row['_id']['release'] not in samples[coll]:
+                samples[coll][row['_id']['release']] = {}
+            smp = row['_id']['sample'].replace("Sample#", "")
+            if smp not in samples[coll][row['_id']['release']]:
+                samples[coll][row['_id']['release']][smp] = True
         LOGGER.info(f"Found {len(mongo[coll])} datasets in {coll}")
     colsize = {'nmd': len('neuronMetadata'), 'purl': len('publishedURL'), 'rel': 0, 'sage': 11}
-    for rel in releases:
-        if len(rel['alps_release']) > colsize['rel']:
-            colsize['rel'] = len(rel['alps_release'])
-        if len(str(rel['cnt'])) > colsize['sage']:
-            colsize['sage'] = len(f"{rel['cnt']:,}")
-    print(f"{'Release':<{colsize['rel']}}  {'Slide codes':>{colsize['sage']}}  " \
+    for rel, val in releases.items():
+        if len(rel) > colsize['rel']:
+            colsize['rel'] = len(rel)
+        if len(str(val)) > colsize['sage']:
+            colsize['sage'] = len(f"{val:,}")
+    if ARG.VERBOSE:
+        for rel, val in samples.items():
+            print(f"{rel}: {len(val)}")
+    print(f"{'Release':<{colsize['rel']}}  {'Samples':>{colsize['sage']}}  " \
           + f"{'neuronMetadata':>{colsize['nmd']}}  {'publishedURL':>{colsize['purl']}}")
-    for row in releases:
-        rel = row['alps_release']
-        sage = f"{row['cnt']:,}"
+    # Compare sample counts
+    missing = {}
+    for rel, val in releases.items():
+        sage = f"{val:,}"
         nmd = f"{mongo['neuronMetadata'][rel]:,}" if rel in mongo['neuronMetadata'] else '0'
+        if nmd != sage and rel in samples['neuronMetadata']:
+            if rel not in missing:
+                missing[rel] = {}
+            for smp in samples['sage'][rel]:
+                if smp not in samples['neuronMetadata'][rel]:
+                    missing[rel][smp] = True
         purl = f"{mongo['publishedURL'][rel]:,}" if rel in mongo['publishedURL'] else '0'
+        if purl != sage and rel in samples['publishedURL']:
+            if rel not in missing:
+                missing[rel] = {}
+            for smp in samples['sage'][rel]:
+                if smp not in samples['publishedURL'][rel]:
+                    missing[rel][smp] = True
         if ARG.SKIP and sage == nmd and nmd == purl:
             continue
         nmd = color(nmd, sage, colsize['nmd'])
         purl = color(purl, sage, colsize['purl'])
         print(f"{rel:<{colsize['rel']}}  {sage:>{colsize['sage']}}  {nmd}  {purl}")
+    if missing:
+        LOGGER.info(f"Found {len(missing)} releases with missing samples")
+        with open("releases_missing_samples.txt", "w", encoding="ascii") as file:
+            for rel, smps in missing.items():
+                for smp in smps:
+                    file.write(f"{rel}\t{smp}\n")
 
 # -----------------------------------------------------------------------------
 
