@@ -120,7 +120,7 @@ def process():
           + f"{'neuronMetadata':>{colsize['nmd']}}  {'publishedURL':>{colsize['purl']}}")
     # Compare sample counts
     missing = {}
-    for rel, val in releases.items():
+    for rel, val in sorted(releases.items()):
         sage = f"{val:,}"
         nmd = f"{mongo['neuronMetadata'][rel]:,}" if rel in mongo['neuronMetadata'] else '0'
         if nmd != sage and rel in samples['neuronMetadata']:
@@ -128,14 +128,14 @@ def process():
                 missing[rel] = {}
             for smp in samples['sage'][rel]:
                 if smp not in samples['neuronMetadata'][rel]:
-                    missing[rel][smp] = True
+                    missing[rel][smp] = 'neuronMetadata'
         purl = f"{mongo['publishedURL'][rel]:,}" if rel in mongo['publishedURL'] else '0'
         if purl != sage and rel in samples['publishedURL']:
             if rel not in missing:
                 missing[rel] = {}
             for smp in samples['sage'][rel]:
                 if smp not in samples['publishedURL'][rel]:
-                    missing[rel][smp] = True
+                    missing[rel][smp] = 'publishedURL'
         if ARG.SKIP and sage == nmd and nmd == purl:
             continue
         nmd = color(nmd, sage, colsize['nmd'])
@@ -145,8 +145,8 @@ def process():
         LOGGER.info(f"Found {len(missing)} releases with missing samples")
         with open("releases_missing_samples.txt", "w", encoding="ascii") as file:
             for rel, smps in missing.items():
-                for smp in smps:
-                    file.write(f"{rel}\t{smp}\n")
+                for smp, where in smps.items():
+                    file.write(f"{rel}\t{smp}\t{where}\n")
 
 # -----------------------------------------------------------------------------
 
