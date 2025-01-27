@@ -9,12 +9,14 @@ import sys
 from colorama import Fore, Style
 import jrc_common.jrc_common as JRC
 
-#pylint: disable=broad-exception-caught,logging-fstring-interpolation
+#pylint: disable=broad-exception-caught,logging-fstring-interpolation,logging-not-lazy
 
 # Database
 DB = {}
 READ = {"releases": "SELECT DISTINCT alps_release,workstation_sample_id FROM "
                     "image_data_mv WHERE alps_release IS NOT NULL",
+        "single": "SELECT DISTINCT alps_release,workstation_sample_id FROM "
+                  "image_data_mv WHERE alps_release=%s",
        }
 
 # -----------------------------------------------------------------------------
@@ -51,6 +53,50 @@ def initialize_program():
         DB[dbname] = JRC.connect_database(dbo)
 
 
+def process_sage_samples(releases, samples):
+    ''' Process the samples from SAGE
+        Keyword arguments:
+          releases: dictionary of releases
+          samples: dictionary of samples
+        Returns:
+          None
+    '''
+    LOGGER.info("Getting samples from SAGE")
+    if ARG.RELEASE:
+        DB['sage']['cursor'].execute(READ['single'], (ARG.RELEASE,))
+    else:
+        DB['sage']['cursor'].execute(READ['releases'])
+    rows = DB['sage']['cursor'].fetchall()
+    scnt = 0
+    for row in rows:
+        if row['alps_release'] not in releases:
+            releases[row['alps_release']] = 0
+        releases[row['alps_release']] += 1
+        if row['alps_release'] not in samples['sage']:
+            samples['sage'][row['alps_release']] = {}
+        if row['workstation_sample_id'] not in samples['sage'][row['alps_release']]:
+            samples['sage'][row['alps_release']][row['workstation_sample_id']] = True
+        scnt += 1
+    LOGGER.info(f"Found {len(releases)} release{'' if len(releases) ==1 else 's'} " \
+                + f"with {scnt:,} samples in SAGE")
+
+
+def get_mongo_payload(coll):
+    ''' Get the payload for MongoDB query
+        Keyword arguments:
+            coll: collection name
+        Returns:
+            payload
+    '''
+    field = "datasetLabels" if coll == "neuronMetadata" else "alpsRelease"
+    field2 = "sourceRefId" if coll == "neuronMetadata" else "sampleRef"
+    return [{"$match": {field: {"$exists": True},
+             "libraryName": {"$regex": "^flylight_"}}},
+            {"$unwind": f"${field}"},
+            {"$group": {"_id": {"release": f"${field}", "sample": f"${field2}"}}},
+           ]
+
+
 def color(text, prev, colsize):
     """ Color Yes/No text
         Keyword arguments:
@@ -64,61 +110,16 @@ def color(text, prev, colsize):
            else Fore.YELLOW + f"{text:>{colsize}}" + Style.RESET_ALL
 
 
-def process():
-    """ Process the data
+def compare_sample_counts(releases, samples, mongo, colsize):
+    ''' Compare the sample counts
         Keyword arguments:
-          None
+          releases: dictionary of releases
+          samples: dictionary of samples
+          mongo: dictionary of MongoDB data
+          colsize: dictionary of column sizes
         Returns:
-          None
-    """
-    # Get samples from SAGE
-    DB['sage']['cursor'].execute(READ['releases'])
-    rows = DB['sage']['cursor'].fetchall()
-    releases = {}
-    samples = {"sage": {}, "neuronMetadata": {}, "publishedURL": {}}
-    for row in rows:
-        if row['alps_release'] not in releases:
-            releases[row['alps_release']] = 0
-        releases[row['alps_release']] += 1
-        if row['alps_release'] not in samples['sage']:
-            samples['sage'][row['alps_release']] = {}
-        if row['workstation_sample_id'] not in samples['sage'][row['alps_release']]:
-            samples['sage'][row['alps_release']][row['workstation_sample_id']] = True
-    LOGGER.info(f"Found {len(releases)} releases in SAGE")
-    # Get samples from MongoDB
-    mongo = {}
-    for coll in ("neuronMetadata", "publishedURL"):
-        mongo[coll] = {}
-        field = "datasetLabels" if coll == "neuronMetadata" else "alpsRelease"
-        field2 = "sourceRefId" if coll == "neuronMetadata" else "sampleRef"
-        payload = [{"$match": {field: {"$exists": True},
-                    "libraryName": {"$regex": "^flylight_"}}},
-                   {"$unwind": f"${field}"},
-                   {"$group": {"_id": {"release": f"${field}", "sample": f"${field2}"}}},
-                  ]
-        rows = DB['neuronbridge'][coll].aggregate(payload)
-        for row in rows:
-            if row['_id']['release'] not in mongo[coll]:
-                mongo[coll][row['_id']['release']] = 0
-            mongo[coll][row['_id']['release']] += 1
-            if row['_id']['release'] not in samples[coll]:
-                samples[coll][row['_id']['release']] = {}
-            smp = row['_id']['sample'].replace("Sample#", "")
-            if smp not in samples[coll][row['_id']['release']]:
-                samples[coll][row['_id']['release']][smp] = True
-        LOGGER.info(f"Found {len(mongo[coll])} datasets in {coll}")
-    colsize = {'nmd': len('neuronMetadata'), 'purl': len('publishedURL'), 'rel': 0, 'sage': 11}
-    for rel, val in releases.items():
-        if len(rel) > colsize['rel']:
-            colsize['rel'] = len(rel)
-        if len(str(val)) > colsize['sage']:
-            colsize['sage'] = len(f"{val:,}")
-    if ARG.VERBOSE:
-        for rel, val in samples.items():
-            print(f"{rel}: {len(val)}")
-    print(f"{'Release':<{colsize['rel']}}  {'Samples':>{colsize['sage']}}  " \
-          + f"{'neuronMetadata':>{colsize['nmd']}}  {'publishedURL':>{colsize['purl']}}")
-    # Compare sample counts
+          Dictionary of missing samples by release
+    '''
     missing = {}
     for rel, val in sorted(releases.items()):
         sage = f"{val:,}"
@@ -141,18 +142,79 @@ def process():
         nmd = color(nmd, sage, colsize['nmd'])
         purl = color(purl, sage, colsize['purl'])
         print(f"{rel:<{colsize['rel']}}  {sage:>{colsize['sage']}}  {nmd}  {purl}")
+    return missing
+
+
+def produce_output_file(missing):
+    ''' Produce the output file
+        Keyword arguments:
+          missing: dictionary of missing samples
+        Returns:
+          None
+    '''
     if missing:
-        LOGGER.info(f"Found {len(missing)} releases with missing samples")
+        LOGGER.info(f"Found {len(missing)} release{'' if len(missing) == 1 else 's'} " \
+                    + "with missing samples")
         with open("releases_missing_samples.txt", "w", encoding="ascii") as file:
+            file.write("Release\tSample\tMissing from\n")
             for rel, smps in missing.items():
                 for smp, where in smps.items():
                     file.write(f"{rel}\t{smp}\t{where}\n")
+
+
+def process():
+    """ Process the data
+        Keyword arguments:
+          None
+        Returns:
+          None
+    """
+    # Get samples from SAGE
+    releases = {}
+    samples = {"sage": {}, "neuronMetadata": {}, "publishedURL": {}}
+    process_sage_samples(releases, samples)
+    # Get samples from MongoDB
+    mongo = {}
+    for coll in ("neuronMetadata", "publishedURL"):
+        LOGGER.info(f"Getting samples from {coll}")
+        mongo[coll] = {}
+        payload = get_mongo_payload(coll)
+        rows = DB['neuronbridge'][coll].aggregate(payload)
+        scnt = 0
+        for row in rows:
+            if row['_id']['release'] not in mongo[coll]:
+                mongo[coll][row['_id']['release']] = 0
+            mongo[coll][row['_id']['release']] += 1
+            if row['_id']['release'] not in samples[coll]:
+                samples[coll][row['_id']['release']] = {}
+            smp = row['_id']['sample'].replace("Sample#", "")
+            if smp not in samples[coll][row['_id']['release']]:
+                samples[coll][row['_id']['release']][smp] = True
+            scnt += 1
+        LOGGER.info(f"Found {len(mongo[coll])} releases with {scnt:,} samples in {coll}")
+    colsize = {'nmd': len('neuronMetadata'), 'purl': len('publishedURL'), 'rel': 0, 'sage': 11}
+    for rel, val in releases.items():
+        if len(rel) > colsize['rel']:
+            colsize['rel'] = len(rel)
+        if len(str(val)) > colsize['sage']:
+            colsize['sage'] = len(f"{val:,}")
+    if ARG.VERBOSE:
+        for rel, val in samples.items():
+            print(f"{rel}: {len(val)}")
+    print(f"{'Release':<{colsize['rel']}}  {'Samples':>{colsize['sage']}}  " \
+          + f"{'neuronMetadata':>{colsize['nmd']}}  {'publishedURL':>{colsize['purl']}}")
+    # Compare sample counts
+    missing = compare_sample_counts(releases, samples, mongo, colsize)
+    # Produce output file
+    produce_output_file(missing)
 
 # -----------------------------------------------------------------------------
 
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
         description="Report on LM releases in MongoDB")
+    PARSER.add_argument('--release', dest='RELEASE', action='store',
+                        default='', help='ALPS release')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         choices=['dev', 'prod', 'local'], default='prod', help='Manifold')
     PARSER.add_argument('--skip', dest='SKIP', action='store_true',
