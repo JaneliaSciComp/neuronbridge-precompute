@@ -13,9 +13,9 @@ import jrc_common.jrc_common as JRC
 
 # Database
 DB = {}
-READ = {"releases": "SELECT DISTINCT alps_release,workstation_sample_id FROM "
+READ = {"releases": "SELECT DISTINCT alps_release,slide_code,workstation_sample_id FROM "
                     "image_data_mv WHERE alps_release IS NOT NULL",
-        "single": "SELECT DISTINCT alps_release,workstation_sample_id FROM "
+        "single": "SELECT DISTINCT alps_release,slide_code,workstation_sample_id FROM "
                   "image_data_mv WHERE alps_release=%s",
        }
 
@@ -53,11 +53,12 @@ def initialize_program():
         DB[dbname] = JRC.connect_database(dbo)
 
 
-def process_sage_samples(releases, samples):
+def process_sage_samples(releases, samples, slides):
     ''' Process the samples from SAGE
         Keyword arguments:
           releases: dictionary of releases
           samples: dictionary of samples
+          slides: dictionary of slide codes
         Returns:
           None
     '''
@@ -76,6 +77,8 @@ def process_sage_samples(releases, samples):
             samples['sage'][row['alps_release']] = {}
         if row['workstation_sample_id'] not in samples['sage'][row['alps_release']]:
             samples['sage'][row['alps_release']][row['workstation_sample_id']] = True
+        if row['workstation_sample_id'] not in slides:
+            slides[row['workstation_sample_id']] = row['slide_code']
         scnt += 1
     LOGGER.info(f"Found {len(releases)} release{'' if len(releases) ==1 else 's'} " \
                 + f"with {scnt:,} samples in SAGE")
@@ -123,20 +126,20 @@ def compare_sample_counts(releases, samples, mongo, colsize):
     missing = {}
     for rel, val in sorted(releases.items()):
         sage = f"{val:,}"
-        nmd = f"{mongo['neuronMetadata'][rel]:,}" if rel in mongo['neuronMetadata'] else '0'
-        if nmd != sage and rel in samples['neuronMetadata']:
-            if rel not in missing:
-                missing[rel] = {}
-            for smp in samples['sage'][rel]:
-                if smp not in samples['neuronMetadata'][rel]:
-                    missing[rel][smp] = 'neuronMetadata'
         purl = f"{mongo['publishedURL'][rel]:,}" if rel in mongo['publishedURL'] else '0'
         if purl != sage and rel in samples['publishedURL']:
             if rel not in missing:
                 missing[rel] = {}
             for smp in samples['sage'][rel]:
                 if smp not in samples['publishedURL'][rel]:
-                    missing[rel][smp] = 'publishedURL'
+                    missing[rel][smp] = "publishedURL"
+        nmd = f"{mongo['neuronMetadata'][rel]:,}" if rel in mongo['neuronMetadata'] else '0'
+        if nmd != sage and rel in samples['neuronMetadata']:
+            if rel not in missing:
+                missing[rel] = {}
+            for smp in samples['sage'][rel]:
+                if smp not in samples['neuronMetadata'][rel]:
+                    missing[rel][smp] = "neuronMetadata"
         if ARG.SKIP and sage == nmd and nmd == purl:
             continue
         nmd = color(nmd, sage, colsize['nmd'])
@@ -145,10 +148,11 @@ def compare_sample_counts(releases, samples, mongo, colsize):
     return missing
 
 
-def produce_output_file(missing):
+def produce_output_file(missing, slides):
     ''' Produce the output file
         Keyword arguments:
           missing: dictionary of missing samples
+          slides: dictionary of slide codes
         Returns:
           None
     '''
@@ -156,10 +160,13 @@ def produce_output_file(missing):
         LOGGER.info(f"Found {len(missing)} release{'' if len(missing) == 1 else 's'} " \
                     + "with missing samples")
         with open("releases_missing_samples.txt", "w", encoding="ascii") as file:
-            file.write("Release\tSample\tMissing from\n")
+            file.write("Release\tSample\tSlide code\tMissing from\n")
             for rel, smps in missing.items():
                 for smp, where in smps.items():
-                    file.write(f"{rel}\t{smp}\t{where}\n")
+                    if smp not in slides:
+                        terminate_program(f"Slide code not found for sample {smp}")
+                    slide = slides[smp]
+                    file.write(f"{rel}\t{smp}\t{slide}\t{where}\n")
 
 
 def process():
@@ -171,8 +178,9 @@ def process():
     """
     # Get samples from SAGE
     releases = {}
+    slides = {}
     samples = {"sage": {}, "neuronMetadata": {}, "publishedURL": {}}
-    process_sage_samples(releases, samples)
+    process_sage_samples(releases, samples, slides)
     # Get samples from MongoDB
     mongo = {}
     for coll in ("neuronMetadata", "publishedURL"):
@@ -206,7 +214,7 @@ def process():
     # Compare sample counts
     missing = compare_sample_counts(releases, samples, mongo, colsize)
     # Produce output file
-    produce_output_file(missing)
+    produce_output_file(missing, slides)
 
 # -----------------------------------------------------------------------------
 
