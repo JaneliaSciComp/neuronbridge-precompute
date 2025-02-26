@@ -118,6 +118,8 @@ def process_annotations():
     ntype_not_found = {}
     for _, row in tqdm(pdf.iterrows(), desc="Reading file"):
         annotation = str(row.loc['Annotation'])
+        if 'false' in annotation.lower():
+            continue
         normalized = 'Confident' if 'true' in annotation.lower() else 'Candidate'
         confidence.append(normalized)
         if row.loc['Region'] == 'brain':
