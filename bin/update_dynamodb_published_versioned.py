@@ -20,6 +20,7 @@ import neuronbridge_common.neuronbridge_common as NB
 # pylint: disable=broad-exception-caught,logging-fstring-interpolation
 # Configuration
 NEURON_DATA = ["neuronInstance", "neuronType"]
+NEURON_MAP = {}
 # Database
 DATABASE = {}
 DYNAMO = {}
@@ -258,10 +259,15 @@ def add_neuron(neuron, ntype):
     nmatch = {"cdm": False, "ppp": False}
     coll = DATABASE["NB"]["neuronMetadata"]
     # Allow a body ID from any library
-    payload = {ntype: neuron}
     #payload = {ntype: neuron, "libraryName": row["libraryName"]}
-    results = coll.find(payload, {"publishedName": 1, "processedTags": 1,
-                                  "libraryName": 1})
+    payload = {ntype: neuron}
+    cnt = coll.count_documents(payload)
+    if cnt > 10000:
+        LOGGER.warning(f"{cnt:,} bodies for {ntype} {neuron}")
+        return
+    else:
+        results = coll.find(payload, {"publishedName": 1, "processedTags": 1,
+                                      "libraryName": 1})
     bids = {}
     for brow in results:
         if brow["publishedName"] in bids or "processedTags" not in brow:
@@ -274,8 +280,33 @@ def add_neuron(neuron, ntype):
         if "PPPMatch" in brow["processedTags"] \
            and brow["processedTags"]["PPPMatch"]:
             nmatch["ppp"] = True
-    NBODY.append(f"{ntype} {neuron} matches {','.join(list(bids.keys()))}")
+    llen = len(list(bids.keys()))
+    if llen > 50:
+        NBODY.append(f"{ntype} {neuron} matches {llen} bodies")
+    else:
+        NBODY.append(f"{ntype} {neuron} matches {','.join(list(bids.keys()))}")
     batch_row(neuron, ntype, nmatch, list(bids.keys()))
+
+
+def add_neuron_type(neuron):
+    ''' Add a single neuron (Type) to the list of items to be stored in DynamoDB
+        Keyword arguments:
+          neuron: neuronType or neuronTerms
+        Returns:
+          None
+    '''
+    nmatch = {"cdm": True, "ppp": False}
+    if neuron not in NEURON_MAP:
+        return
+    llen = len(NEURON_MAP[neuron])
+    if llen > 10000:
+        LOGGER.warning(f"{llen:,} bodies for neuronType {neuron}")
+        return
+    if llen > 50:
+        NBODY.append(f"neuronType {neuron} matches {llen} bodies")
+    else:
+        NBODY.append(f"neuronType{neuron} matches {','.join(NEURON_MAP[neuron])}")
+    batch_row(neuron, "neuronType", nmatch, NEURON_MAP[neuron])
 
 
 def match_count(matches):
@@ -315,7 +346,10 @@ def update_neuron_matches(neurons):
     '''
     for ntype in NEURON_DATA:
         for neuron in tqdm(neurons[ntype], desc=ntype):
-            add_neuron(neuron, ntype)
+            if ntype == "neuronType":
+                add_neuron_type(neuron)
+            else:
+                add_neuron(neuron, ntype)
 
 
 def write_dynamodb():
@@ -325,7 +359,7 @@ def write_dynamodb():
         Returns:
           None
     '''
-    LOGGER.info(f"Batch writing {len(ITEMS)} items to DynamoDB")
+    LOGGER.info(f"Batch writing {len(ITEMS):,} items to DynamoDB")
     with DATABASE["DYN"].batch_writer() as writer:
         for item in tqdm(ITEMS, desc="DynamoDB"):
             if ARG.THROTTLE and (not COUNT["insertions"] % ARG.THROTTLE):
@@ -353,6 +387,40 @@ def display_counts():
     print(f"  neuronInstance:          {COUNT['neuronInstance']:,}")
     print(f"  neuronType:              {COUNT['neuronType']:,}")
     print(f"  publishingName:          {COUNT['publishingName']:,}")
+
+
+def update_neuron_map():
+    ''' Update the neuron map
+        Keyword arguments:
+          None
+        Returns:
+          None
+    '''
+    payload = [{"$unwind": "$neuronTerms"},
+               {"$match": {"neuronTerms": {"$ne": None}}},
+               {"$group": {"_id": "$neuronTerms", "bodies": {"$push": "$publishedName"},
+                           "count": {"$sum": 1}}}]
+    coll = DATABASE["NB"]["neuronMetadata"]
+    try:
+        rows = coll.aggregate(payload)
+    except Exception as err:
+        terminate_program(err)
+    for row in tqdm(rows, desc="Adding neuronTerms bodies"):
+        NEURON_MAP[row["_id"]] = row["bodies"]
+    payload = [{"$unwind": "$neuronType"},
+               {"$match": {"neuronType": {"$ne": None}}},
+               {"$group": {"_id": "$neuronType", "bodies": {"$push": "$publishedName"},
+                           "count": {"$sum": 1}}}]
+    try:
+        rows = coll.aggregate(payload)
+    except Exception as err:
+        terminate_program(err)
+    for row in tqdm(rows, desc="Adding neuronType bodies"):
+        for body in row["bodies"]:
+            if row["_id"] not in NEURON_MAP:
+                NEURON_MAP[row["_id"]] = row["bodies"]
+            elif body not in NEURON_MAP[row["_id"]]:
+                NEURON_MAP[row["_id"]].append(body)
 
 
 def process_results(count, results, publishedurl):
@@ -396,12 +464,17 @@ def process_results(count, results, publishedurl):
             for ntype in NEURON_DATA:
                 if ntype in row and row[ntype]:
                     neurons[ntype][row[ntype]] = True
+            # FlyWire uses neuronTerms instead of neuronType/neuronInstance
+            if 'neuronTerms' in row:
+                for term in row['neuronTerms']:
+                    neurons['neuronType'][term] = True
     if not_released:
         for pname in not_released:
             LOGGER.warning(f"Published name {pname} is not in publishedURL")
     # matches: key=publishing name, value={cdm: boolean, ppp: boolean}
     # rlist: list of rows from neuronMetadata (distinct publishing names)
     # neurons: key=data type, value={neuron name or instance: boolean}
+    update_neuron_map()
     if len(rlist) != len(matches):
         terminate_program(f"Unique primary list ({len(rlist)}) != match list({len(matches)})")
     print("Libraries:")
@@ -488,7 +561,7 @@ def update_dynamo():
     else:
         terminate_program("No libraries were chosen")
     project = {"libraryName": 1, "publishedName": 1, "slideCode": 1,
-               "processedTags": 1, "neuronInstance": 1, "neuronType": 1}
+               "processedTags": 1, "neuronInstance": 1, "neuronType": 1, "neuronTerms": 1}
     count = coll.count_documents(payload)
     if not count:
         LOGGER.error("There are no processed tags for version %s", ARG.VERSION)
