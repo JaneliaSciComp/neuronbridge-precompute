@@ -4,6 +4,7 @@
     "import_library": "flyem_male_cns_brain_0_8",
     "import_tag": "import-male-cns-0.8",
     "variants_input_dir": "/nrs/scicompsoft/emlm/public_release_2025/Male_CNS",
+    "ignore_source_cdms": false,
     "display_cdm_location": "Male_CNS_v08_Brain_JRC2018U_CDM_For_Visualization",
     "searchable_cdm_location": "Male_CNS_v08_Brain_JRC2018U_CDM_For_Search",
     "grad_location": "Male_CNS_v08_Brain_JRC2018U_gradient",
