@@ -9,6 +9,7 @@ include {
 
 process DBQUERY {
     container { task.ext.container ?: 'docker.io/mongo:7.0.17' }
+    label 'process_low'
     label 'prefer_local'
 
     input:
