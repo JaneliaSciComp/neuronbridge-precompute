@@ -8,7 +8,7 @@ include {
 } from '../../../nfutils/utils'
 
 process DBQUERY {
-    container { task.ext.container ?: 'mongo:7.0.6' }
+    container { task.ext.container ?: 'docker.io/mongo:7.0.17' }
     label 'prefer_local'
 
     input:
