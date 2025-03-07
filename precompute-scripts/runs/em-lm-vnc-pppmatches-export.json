@@ -3,8 +3,8 @@
     "anatomical_area": "vnc",
     "export_type": "EM_PPP_MATCHES",
     "db_config": "mylocal/proddb-config.properties",
-    "data_version": "3.4.0",
     "exported_mask_mips": "",
+    "exported_mask_names": "",
     "jacs_url": "",
     "jacs_authorization": "",
     "java_opts": ""

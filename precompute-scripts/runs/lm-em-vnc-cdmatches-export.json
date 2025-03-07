@@ -3,7 +3,6 @@
     "anatomical_area": "vnc",
     "export_type": "LM_CD_MATCHES",
     "db_config": "mylocal/proddb-config.properties",
-    "data_version": "3.4.0",
     "exported_mask_mips": "",
     "jacs_url": "",
     "jacs_authorization": "",

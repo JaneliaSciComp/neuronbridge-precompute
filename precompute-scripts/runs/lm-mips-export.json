@@ -3,7 +3,7 @@
     "anatomical_area": "brain+vnc",
     "export_type": "LM_MIPS",
     "db_config": "mylocal/proddb-config.properties",
-    "data_version": "3.4.0",
+    "exported_mask_names": "",
     "exported_mask_mips": "",
     "jacs_url": "",
     "jacs_authorization": "",
