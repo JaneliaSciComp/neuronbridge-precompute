@@ -18,7 +18,7 @@
     Output files are also loaded to S3.
 '''
 
-__version__ = '2.0.0'
+__version__ = '2.1.0'
 
 import argparse
 import collections
@@ -514,7 +514,8 @@ def process_annotations():
         cell = str(row['Term'])
         if row['Term type'] == 'cell_type' and not cell_type_in_neuprint(row['Dataset'], cell):
             COUNT['neuprint'] += 1
-            continue
+            if not ARG.OVERRIDE:
+                continue
         line = row['Line Name']
         # Line
         if line not in lines:
@@ -592,7 +593,7 @@ if __name__ == '__main__':
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         choices=["dev", "prod"], default="prod", help='MongoDB manifold')
     PARSER.add_argument('--override', dest='OVERRIDE', action='store_true',
-                        default=False, help='Allow usage of datasets not in NeuronBridge')
+                        default=False, help='Allow usage of terms/datasets not in NeuronBridge')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',
                         default=False, help='Write to DynamoDB')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
