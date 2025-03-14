@@ -16,9 +16,64 @@
         new_cells_YYYYMMDDTHHMMSS.txt: list of new cell types/body IDs
         new_lines_YYYYMMDDTHHMMSS.txt: list of new lines
     Output files are also loaded to S3.
+    Records stored in DynamoDB will be in one of five forms:
+    1) Body ID (unqualified)
+       entryType: "searchString"
+       searchKey: numeric body ID (example: 100186)
+       filterKey: numeric body ID (example: 100186)
+       itemType: "body_id"
+       matches: list of annotations (line)
+       name: body ID
+    2) Body ID (fully-qualified)
+       entryType: "searchString"
+       searchKey: fully-qualified dataset:body ID (example: manc:v1.0:100186)
+       filterKey: fully-qualified dataset:body ID (example: manc:v1.0:100186)
+       itemType: "body_id"
+       matches: list of annotations (line)
+       name: body ID
+    3) Body ID (partially-qualified)
+       entryType: "searchString"
+       searchKey: partially-qualified dataset:body ID (example: manc:100186)
+       filterKey: partially-qualified dataset:body ID (example: manc:100186)
+       itemType: "body_id"
+       matches: list of annotations (line)
+       name: body ID
+    4) Cell type
+       entryType: "searchString"
+       searchKey: lowercase cell type (example: "pam01")
+       filterKey: lowercase cell type (example: "pam01")
+       itemType: "cell_type"
+       matches: list of annotations (line)
+       name: cell type (example: "PAM01")
+    5) Line
+       entryType: "searchString"
+       searchKey: lowercase line name (example: "ss52832")
+       filterKey: lowercase line name (example: "ss52832")
+       itemType: "line_name"
+       matches: list of annotations (body_id or cell_type)
+       name: line name (example: "SS52832")
+    The "matches" indicated above are one of three types:
+    1) body_id
+       annotation: "Candidate", "Probable", or "Confident"
+       annotator: name of annotator (example: "Lillvis, Joshua")
+       body_id: numeric body ID (example: 13787)
+       dataset: fully-qualified dataset name (example: "manc:v1.0")
+       region: "brain" or "vnc"
+    2) cell_type
+       annotation: "Candidate", "Probable", or "Confident"
+       annotator: name of annotator (example: "Lillvis, Joshua")
+       cell_type: cell type (example: "PAM01_b")
+       dataset: fully-qualified dataset name (example: "hemibrain:v1.2.1")
+       region: "brain" or "vnc"
+    3) line
+       annotation: "Candidate", "Probable", or "Confident"
+       annotator: name of annotator (example: "Lillvis, Joshua")
+       dataset: fully-qualified dataset name (example: "hemibrain:v1.2.1")
+       line: line name (example: "MB313C")
+       region: "brain" or "vnc"
 '''
 
-__version__ = '2.1.0'
+__version__ = '3.0.0'
 
 import argparse
 import collections
@@ -43,9 +98,12 @@ DYNAMO = {}
 S3 = {}
 # Counters
 COUNT = collections.defaultdict(lambda: 0, {})
+# Globals
+ARG = LOGGER = None
 # General
 ADD_CELL = []
 ADD_LINE = []
+DATASET = []
 ERROR = {}
 MANIFEST = []
 REPLACEMENTS = []
@@ -169,7 +227,7 @@ def initialize_program():
         DYNAMO['client'] = dynamodb_client
         DYNAMO['arn'] = ddt['Table']['TableArn']
     except dynamodb_client.exceptions.ResourceNotFoundException:
-        terminate_program(f"Table {table} doesn't exist")
+        terminate_program(f"Table {DDB_TABLE} doesn't exist")
     except Exception as err:
         terminate_program(err)
     # S3
@@ -387,9 +445,24 @@ def update_dynamodb(lines, cells):
         if len(ann['matches']) > 1:
             for match in ann['matches']:
                 if match['dataset'] != dataset:
+                    # If this happens, there's something seriously wrong
                     terminate_program(f"Multiple datasets for {ann['name']}")
         ann2 = ann.copy()
         ann2['searchKey'] = f"{dataset}:{ann2['searchKey']}"
+        ann2['filterKey'] = ann2['searchKey']
+        MANIFEST.append(ann2)
+        if ARG.WRITE:
+            try:
+                DB["DYN"].put_item(Item=ann2)
+                COUNT['body_updates'] += 1
+            except Exception as err:
+                terminate_program(err)
+        else:
+            COUNT['body_updates'] += 1
+        # Add an additional partially-qualified search key for body IDs
+        # e.g. 100186 -> manc:100186
+        dataset = ann['matches'][0]['dataset'].split(":")[0]
+        ann2['searchKey'] = f"{dataset}:{ann['searchKey']}"
         ann2['filterKey'] = ann2['searchKey']
         MANIFEST.append(ann2)
         if ARG.WRITE:
@@ -493,6 +566,9 @@ def statistics():
     print(f"DynamoDB reads:              {COUNT['dynamo_reads']:,}")
     print(f"Rows updated:                {COUNT['updates']:,}")
     print(f"Additional Body IDs updated: {COUNT['body_updates']:,}")
+    if DATASET:
+        print("Datasets")
+        print("\n".join([f"  {dset}" for dset in sorted(DATASET)]))
     generate_output_files()
 
 
@@ -507,8 +583,8 @@ def process_annotations():
         df = pd.read_excel(ARG.FILE)
     except Exception as err:
         terminate_program(err)
-    lines = {}
-    cells = {} # Stores both cell types and body IDs
+    lines = {} # Stores Line annotations
+    cells = {} # Stores both Cell type and Body ID annotations
     for _, row in tqdm(df.iterrows(), total=df.shape[0], desc="Processing annotations"):
         COUNT['entries'] += 1
         cell = str(row['Term'])
@@ -517,7 +593,7 @@ def process_annotations():
             if not ARG.OVERRIDE:
                 continue
         line = row['Line Name']
-        # Line
+        # Line annotation
         if line not in lines:
             # matches will contain annotation dict (annotation, cell type, region, dataset)
             # present will contain dict of cell types
@@ -536,6 +612,8 @@ def process_annotations():
               }
         if 'Dataset' in row:
             ann['dataset'] = row['Dataset']
+            if ann['dataset'] not in DATASET:
+                DATASET.append(ann['dataset'])
         if cell in lines[line]['present']:
             LOGGER.debug(f"{cell} already present for {line} ({ann})")
             annlist = line_annotation_by_cell(lines[line], cell)
@@ -565,6 +643,8 @@ def process_annotations():
               }
         if 'Dataset' in row:
             ann['dataset'] = row['Dataset']
+            if ann['dataset'] not in DATASET:
+                DATASET.append(ann['dataset'])
         higher = True
         if line in cells[cell]['present']:
             LOGGER.debug(f"Line {line} already present for {cell} ({ann})")
