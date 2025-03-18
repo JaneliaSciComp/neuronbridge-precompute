@@ -88,6 +88,8 @@ process CDS {
         LOG_CONFIG_ARG=
     fi
 
+    echo "Log config arg: \${LOG_CONFIG_ARG}"
+
     ${app_runner} java \
         ${java_opts} ${java_mem_opts} \
         \${LOG_CONFIG_ARG} \
