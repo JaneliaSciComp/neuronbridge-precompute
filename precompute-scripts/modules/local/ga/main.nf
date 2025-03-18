@@ -7,7 +7,7 @@ include {
 process GA {
     container { task.ext.container }
     cpus { cpus }
-    memory "${mem_gb} GB"
+    memory { "${mem_gb} GB" }
     label 'neuronbridgeTools'
 
     input:
