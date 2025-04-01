@@ -13,7 +13,8 @@ import jrc_common.jrc_common as JRC
 
 #pylint:disable=broad-exception-caught,logging-fstring-interpolation
 
-# Database
+# General
+ARG = LOGGER = None
 DB = {}
 READ = {'RELEASE': "SELECT DISTINCT value FROM image_property_vw WHERE "
                    + "type='alps_release' AND value != '' ORDER BY 1",
@@ -321,30 +322,19 @@ def display_stats():
     print(f"publishedLMImage updates:             {clr}{COUNT['publishedLMImage_update']:,}{rst}")
 
 
-def process_release():
-    """ Process the release
+def process_slides(sample, rows, slides):
+    """ Process slides/samples in release
         Keyword arguments:
-          None
+          sample: sample to process (optional)
+          rows: rows from SAGE to process
+          slides: slides to process
         Returns:
           None
     """
-    try:
-        DB['sage']['cursor'].execute(READ['MAIN'], (ARG.RELEASE,))
-        rows = DB['sage']['cursor'].fetchall()
-    except MySQLdb.Error as err:
-        terminate_program(JRC.sql_error(err))
-    print(f"Found {len(rows):,} images in {ARG.RELEASE} on SAGE")
-    # Get known slide codes
-    slides = {}
-    coll = DB["nb"].neuronMetadata
-    result = coll.distinct("slideCode")
-    for row in result:
-        slides[row] = True
-    # Process slides in release
     item = {}
     sample = {}
     for row in tqdm(rows, desc='Images'):
-        if ARG.SAMPLE and row['workstation_sample_id'] != ARG.SAMPLE:
+        if sample and row['workstation_sample_id'] != sample:
             continue
         if row['slide_code'] not in slides:
             COUNT['nmd_missing'] += 1
@@ -366,6 +356,35 @@ def process_release():
     coll = DB["nb"].publishedLMImage
     for scode, val in tqdm(item.items(), desc='publishedLMImage'):
         process_pli(scode, val['line'], coll)
+
+
+def process_release():
+    """ Process the release
+        Keyword arguments:
+          None
+        Returns:
+          None
+    """
+    try:
+        DB['sage']['cursor'].execute(READ['MAIN'], (ARG.RELEASE,))
+        rows = DB['sage']['cursor'].fetchall()
+    except MySQLdb.Error as err:
+        terminate_program(JRC.sql_error(err))
+    print(f"Found {len(rows):,} images in {ARG.RELEASE} on SAGE")
+    # Get known slide codes
+    slides = {}
+    coll = DB["nb"].neuronMetadata
+    result = coll.distinct("slideCode")
+    for row in result:
+        slides[row] = True
+    # Process slides/samples in release
+    if ARG.FILE:
+        with open(ARG.FILE, 'r', encoding='ascii') as fh:
+            samples = fh.readlines()
+        for sample in samples:
+            process_slides(sample.strip(), rows, slides)
+    else:
+        process_slides(ARG.SAMPLE, rows, slides)
     show_report()
     display_stats()
 
@@ -376,6 +395,8 @@ if __name__ == '__main__':
         description='Modify ALPS release in NeuronBridge MongoDB tables')
     PARSER.add_argument('--release', dest='RELEASE', action='store',
                         help='New ALPS release')
+    PARSER.add_argument('--file', dest='FILE', action='store',
+                        help='File containing samples to process')
     PARSER.add_argument('--sample', dest='SAMPLE', action='store',
                         help='Sample (optional)')
     PARSER.add_argument('--write', action='store_true', dest='WRITE',
