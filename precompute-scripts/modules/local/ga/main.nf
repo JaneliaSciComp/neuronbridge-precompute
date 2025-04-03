@@ -1,5 +1,6 @@
 include {
     area_to_alignment_space;
+    get_concurrency_arg;
     get_lib_arg;
     get_values_as_map;
 } from '../../../nfutils/utils'
@@ -38,7 +39,6 @@ process GA {
           val(top_best_sample_matches_per_line),
           val(top_best_matches_per_sample),
           val(processing_size),
-          val(process_partitions_concurrently),
           val(matches_tags),
           val(masks_processing_tags),
           val(targets_processing_tags),
@@ -66,7 +66,6 @@ process GA {
     def target_excluded_terms_arg = target_excluded_terms ? "--excluded-targets-terms ${target_excluded_terms}" : ''
     def mirror_flag_arg = mirror_flag ? '--mirrorMask' : ''
     def processing_size_arg = processing_size ? "-ps ${processing_size}" : ''
-    def process_partitions_concurrently_arg = process_partitions_concurrently ? '--process-partitions-concurrently' : ''
     def matches_tags_arg = matches_tags ? "--match-tags ${matches_tags}" : ''
     def masks_processing_tags_arg = masks_processing_tags ? "--masks-processing-tags ${get_processing_tags_arg(masks_processing_tags)}" : ''
     def targets_processing_tags_arg = targets_processing_tags ? "--targets-processing-tags ${get_processing_tags_arg(targets_processing_tags)}" : ''
@@ -104,7 +103,6 @@ process GA {
         ${target_terms_arg} \
         ${target_excluded_terms_arg} \
         ${processing_size_arg} \
-        ${process_partitions_concurrently_arg} \
         ${mirror_flag_arg} \
         --processing-tag ${ga_processing_tag} \
         ${matches_tags_arg} \
@@ -130,14 +128,4 @@ def get_processing_tags_arg(ptags_as_str) {
         .inject('') { arg, item ->
             arg ? "${arg},${item}" : item
         }
-}
-
-def get_concurrency_arg(concurrency, cpus) {
-    if (concurrency > 0) {
-        "--task-concurrency ${concurrency}"
-    } else if (cpus > 0) {
-        "--task-concurrency ${2 * cpus - 1}"
-    } else {
-        ''
-    }
 }

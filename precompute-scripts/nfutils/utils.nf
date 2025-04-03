@@ -33,6 +33,16 @@ def partition_work(total_work_size_param, job_size_param) {
         }
 }
 
+def get_concurrency_arg(concurrency, cpus) {
+    if (concurrency > 0) {
+        "--task-concurrency ${concurrency}"
+    } else if (cpus > 0) {
+        "--task-concurrency ${2 * cpus - 1}"
+    } else {
+        ''
+    }
+}
+
 def get_lib_arg(lib, offset, length) {
     def offset_arg = offset > 0 ? "${offset}" : "0"
     def length_arg = length > 0 ? "${length}" : ""

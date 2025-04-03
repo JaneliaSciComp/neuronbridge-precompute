@@ -76,7 +76,6 @@ workflow {
             params.top_best_sample_matches_per_line,
             params.top_best_matches_per_sample,
             params.ga_processing_size,
-            params.process_partitions_concurrently,
             params.matches_tags,
             params.masks_processing_tags,
             params.targets_processing_tags,
