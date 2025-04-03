@@ -25,6 +25,7 @@ process GA {
     val(mem_gb)
     val(java_opts)
     tuple val(ga_processing_tag),
+          val(concurrency),
           val(cache_size),
           val(masks_published_names),
           val(mask_terms),
@@ -53,7 +54,7 @@ process GA {
     def log_config_arg = log_config ? "-Dlog4j.configuration=file://\$(readlink -e ${log_config})" : ''
     def java_mem_opts = "-Xmx${mem_gb-1}G -Xms${mem_gb-1}G"
     def cache_size_arg = cache_size ? "--cacheSize ${cache_size}" : ''
-    def concurrency_arg = cpus ? "--task-concurrency ${2 * cpus -1}" : ''
+    def concurrency_arg = get_concurrency_arg(concurrency, cpus)
     def alignment_space = area_to_alignment_space(anatomical_area)
     def masks_arg = get_lib_arg(masks_library, masks_offset, masks_length)
     def masks_published_names_arg = masks_published_names ? "--masks-published-names ${masks_published_names}" : ''
@@ -129,4 +130,14 @@ def get_processing_tags_arg(ptags_as_str) {
         .inject('') { arg, item ->
             arg ? "${arg},${item}" : item
         }
+}
+
+def get_concurrency_arg(concurrency, cpus) {
+    if (concurrency > 0) {
+        "--task-concurrency ${concurrency}"
+    } else if (cpus > 0) {
+        "--task-concurrency ${2 * cpus - 1}"
+    } else {
+        ''
+    }
 }

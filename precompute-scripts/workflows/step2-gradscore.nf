@@ -63,6 +63,7 @@ workflow {
        params.java_opts,
        [
             params.gradscore_processing_tag,
+            params.gradscore_concurrency,
             params.gradscore_cache_size,
             params.masks_published_names,
             params.mask_terms,
