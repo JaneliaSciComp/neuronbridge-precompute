@@ -89,6 +89,7 @@ workflow {
         params.java_opts,
         [
             params.cds_processing_tag,
+            params.cds_concurrency,
             params.cds_cache_size,
             params.masks_published_names,
             params.masks_tags,

@@ -1,5 +1,7 @@
 include { 
     area_to_alignment_space;
+    get_concurrency_arg;
+    get_java_mem_opts;
     get_lib_arg;
 } from '../../../nfutils/utils'
 
@@ -26,6 +28,7 @@ process CDS {
     val(mem_gb)
     val(java_opts)
     tuple val(cds_processing_tag),
+          val(concurrency),
           val(cache_size),
           val(masks_published_names),
           val(masks_tags),
@@ -53,9 +56,9 @@ process CDS {
     script:
     def java_app = app_jar ?: '/app/colormipsearch-3.1.0-jar-with-dependencies.jar'
     def log_config_arg = log_config ? "-Dlog4j.configuration=file://\$(readlink -e ${log_config})" : ''
-    def java_mem_opts = "-Xmx${mem_gb-1}G -Xms${mem_gb-1}G"
+    def java_mem_opts = get_java_mem_opts(mem_gb)
     def cache_size_arg = cache_size ? "--cacheSize ${cache_size}" : ''
-    def concurrency_arg = cpus ? "--task-concurrency ${2 * cpus -1}" : ''
+    def concurrency_arg = get_concurrency_arg(concurrency, cpus)
     def masks_arg = get_lib_arg(masks_library, masks_offset, masks_length)
     def masks_published_names_arg = masks_published_names ? "--masks-published-names ${masks_published_names}" : ''
     def masks_tags_arg = masks_tags ? "--masks-tags ${masks_tags}" : ''
