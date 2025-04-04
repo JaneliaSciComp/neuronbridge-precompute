@@ -1,6 +1,7 @@
 include {
     area_to_alignment_space;
     get_concurrency_arg;
+    get_java_mem_opts;
     get_lib_arg;
     get_values_as_map;
 } from '../../../nfutils/utils'
@@ -52,7 +53,7 @@ process GA {
     script:
     def java_app = app_jar ?: '/app/colormipsearch-3.1.0-jar-with-dependencies.jar'
     def log_config_arg = log_config ? "-Dlog4j.configuration=file://\$(readlink -e ${log_config})" : ''
-    def java_mem_opts = "-Xmx${mem_gb-1}G -Xms${mem_gb-1}G"
+    def java_mem_opts = get_java_mem_opts(mem_gb)
     def cache_size_arg = cache_size ? "--cacheSize ${cache_size}" : ''
     def concurrency_arg = get_concurrency_arg(concurrency, cpus)
     def alignment_space = area_to_alignment_space(anatomical_area)
