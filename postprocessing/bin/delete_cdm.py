@@ -360,15 +360,14 @@ def check_neuronmetadata_lm():
 
 
 def check_publishedlmimage():
-    """ Check for images with a template/sample in the publishedLMImage collection
+    """ Check for images with a sample in the publishedLMImage collection
         Keyword arguments:
           None
         Returns:
           None
     """
     coll = DB['NB']['publishedLMImage']
-    payload = {"alignmentSpace": ARG.TEMPLATE,
-               "sampleRef": 'Sample#' + ARG.SAMPLE}
+    payload = {"sampleRef": 'Sample#' + ARG.SAMPLE}
     LOGGER.info(f"Searching publishedLMImage for {ARG.TEMPLATE} {ARG.SAMPLE}")
     try:
         results = coll.find(payload)
