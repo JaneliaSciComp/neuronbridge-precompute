@@ -492,7 +492,8 @@ def check_published(pname):
         response = DB[tbl].query(KeyConditionExpression= \
                                  Key('itemType').eq('searchString') & Key('searchKey').eq(key))
     except DB['DYNAMOCLIENT'].exceptions.ResourceNotFoundException:
-        terminate_program(f"DynamoDB table {tbl} does not exist")
+        LOGGER.warning(f"DynamoDB table {tbl} does not exist")
+        return
     except Exception as err:
         terminate_program(err)
     if 'Count' not in response or not response['Count']:
