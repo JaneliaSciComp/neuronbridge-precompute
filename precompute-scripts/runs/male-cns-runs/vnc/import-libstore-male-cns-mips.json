@@ -9,5 +9,6 @@
     "searchable_cdm_location": "Male-CNS-VNC_CDM_radius2_for_search",
     "grad_location": "Male-CNS-VNC_gradient",
     "zgap_location": "Male-CNS-VNC_RGB20px",
+    "junk_location": "junk",
     "libstore_dir": "/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs"
 }
