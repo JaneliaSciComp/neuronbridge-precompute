@@ -1,0 +1,21 @@
+{
+    "job_list": "",
+    "anatomical_area": "vnc",
+    "db_config": "mylocal/proddb-config.properties",
+    "masks_library": "flyem_male_cns_vnc_0_8",
+    "masks_published_names": "",
+    "mask_excluded_terms": "",
+    "targets_library": "flylight_split_gal4_published",
+    "targets_published_names": "",
+    "targets_tags": "",
+    "mip_excluded_tags": "junk,validationError,junk",
+    "with_bidirectional_matching": false,
+    "process_partitions_concurrently": false,
+    "gradscore_batch_size": 100,
+    "top_best_line_matches": 300,
+    "top_best_sample_matches_per_line": 0,
+    "top_best_matches_per_sample": 0,
+    "pct_pos_pixels": 2,
+    "gradscore_processing_tag": "gradscore-male-vnc-cns-vs-sgal4",
+    "lsf_opts": "-P scicompsoft"
+}
