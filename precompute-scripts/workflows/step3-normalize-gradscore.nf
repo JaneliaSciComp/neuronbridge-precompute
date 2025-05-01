@@ -63,8 +63,13 @@ workflow {
        params.java_opts,
        [
             params.normalize_score_processing_tag,
+            params.normalizescore_concurrency,
             params.masks_published_names,
+            params.mask_terms,
+            params.mask_excluded_terms,
             params.targets_published_names,
+            params.target_terms,
+            params.target_excluded_terms,
             params.normalize_score_batch_size,
        ],
     )
