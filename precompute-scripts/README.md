@@ -114,6 +114,18 @@ nextflow run workflows/step2-gradscore.nf \
     --first_job 1 --last_job 1
 ```
 
+## Step 3. Normalize color depth search scores
+
+Typically the shape scoring algorithm also normalizes the score, so this step is needed when we only compute the shape scores for a subset of a library. If only a subset of a library MIPs is selected (based on command line parameters) than these may skew the normalized score because the scores have to be normalized with respect to the entire library.
+
+```
+nextflow run workflows/step6-normalize-gradscore.nf \
+    --db_config db-config.properties \
+    --anatomical_area brain \
+    --masks_library flyem_hemibrain_1_2_1 \
+    --targets_library "flylight_gen1_mcfo_published,flylight_annotator_gen1_mcfo_published"
+```
+
 ## Step 4: Tag data
 
 Tagging will help us track NeuronBridge data versions. To tag simply run:
@@ -129,17 +141,7 @@ nextflow run workflow/step4-tag.nf \
     --db_config db-config.properties
 ```
 
-## Step 6. Normalize color depth search scores
-
-Typically the shape scoring algorithm also normalizes the score, so this step is needed when we only compute the shape scores for a subset of a library. If only a subset of a library MIPs is selected (based on command line parameters) than these may skew the normalized score because the scores have to be normalized with respect to the entire library.
-
-```
-nextflow run workflows/step6-normalize-gradscore.nf \
-    --db_config db-config.properties \
-    --anatomical_area brain \
-    --masks_library flyem_hemibrain_1_2_1 \
-    --targets_library "flylight_gen1_mcfo_published,flylight_annotator_gen1_mcfo_published"
-```
+## Step 6: Import PPP matches
 
 ## Step 7: Export color depth matches
 
