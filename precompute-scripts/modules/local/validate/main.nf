@@ -35,7 +35,7 @@ process VALIDATE {
     path(mips_base_dir)
 
     script:
-    def java_app = app_jar ?: '/app/colormipsearch-3.1.0-jar-with-dependencies.jar'
+    def java_app = app_jar ?: '/app/colormipsearch-jar-with-dependencies.jar'
     def log_config_arg = log_config ? "-Dlog4j.configuration=file://\$(readlink -e ${log_config})" : ''
     def java_mem_opts = "-Xmx${mem_gb-1}G -Xms${mem_gb-1}G"
     def concurrency_arg = cpus ? "--task-concurrency ${2 * cpus -1}" : ''

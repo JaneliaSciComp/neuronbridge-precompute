@@ -51,7 +51,7 @@ process GA {
     task.ext.when == null || task.ext.when
 
     script:
-    def java_app = app_jar ?: '/app/colormipsearch-3.1.0-jar-with-dependencies.jar'
+    def java_app = app_jar ?: '/app/colormipsearch-jar-with-dependencies.jar'
     def log_config_arg = log_config ? "-Dlog4j.configuration=file://\$(readlink -e ${log_config})" : ''
     def java_mem_opts = get_java_mem_opts(mem_gb)
     def cache_size_arg = cache_size ? "--cacheSize ${cache_size}" : ''
