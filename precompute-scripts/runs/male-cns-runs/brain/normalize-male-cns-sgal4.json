@@ -9,7 +9,7 @@
     "targets_published_names": "",
     "targets_tags": "",
     "mip_excluded_tags": "junk,validationError,junk",
-    "normalize_score_batch_size": 10000,
+    "normalize_score_batch_size": 2000,
     "pct_pos_pixels": 2,
     "normalize_score_processing_tag": "normalize-male-cns-vs-sgal4",
     "lsf_opts": "-P scicompsoft"
