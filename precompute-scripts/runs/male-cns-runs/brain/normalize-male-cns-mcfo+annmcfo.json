@@ -10,6 +10,7 @@
     "targets_tags": "",
     "mip_excluded_tags": "junk,validationError,junk",
     "normalize_score_batch_size": 2000,
+    "normalize_score_processing_size": 100,
     "pct_pos_pixels": 2,
     "normalize_score_processing_tag": "normalize-male-cns-vs-mcfo+annmcfo",
     "lsf_opts": "-P scicompsoft"
