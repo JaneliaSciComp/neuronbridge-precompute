@@ -70,7 +70,7 @@ workflow {
             params.targets_published_names,
             params.target_terms,
             params.target_excluded_terms,
-            params.normalize_score_batch_size,
+            params.normalize_score_processing_size,
        ],
     )
 }
