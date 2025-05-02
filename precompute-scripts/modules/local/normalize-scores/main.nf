@@ -5,7 +5,7 @@ include {
     get_lib_arg;
 } from '../../../nfutils/utils'
 
-process NORMALIZE_GA {
+process NORMALIZE_SCORES {
     container { task.ext.container }
     cpus { cpus }
     memory "${mem_gb} GB"

@@ -1,4 +1,4 @@
-include { NORMALIZE_GA           } from '../modules/local/normalize-ga/main'
+include { NORMALIZE_SCORES       } from '../modules/local/normalize-scores/main'
 include { DBQUERY as COUNT_MASKS } from '../modules/local/dbquery/main'
 
 include {
@@ -51,7 +51,7 @@ workflow {
     normalize_gradscore_inputs.subscribe {
         log.debug "Normalize grad score: $it"
     }
-    NORMALIZE_GA(normalize_gradscore_inputs,
+    NORMALIZE_SCORES(normalize_gradscore_inputs,
        [
            params.app ? file(params.app) : [],
            params.log_config ? file(params.log_config) : [],

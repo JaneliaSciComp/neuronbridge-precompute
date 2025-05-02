@@ -119,7 +119,7 @@ nextflow run workflows/step2-gradscore.nf \
 Typically the shape scoring algorithm also normalizes the score, so this step is needed when we only compute the shape scores for a subset of a library. If only a subset of a library MIPs is selected (based on command line parameters) than these may skew the normalized score because the scores have to be normalized with respect to the entire library.
 
 ```
-nextflow run workflows/step6-normalize-gradscore.nf \
+nextflow run workflows/step6-normalize-scores.nf \
     --db_config db-config.properties \
     --anatomical_area brain \
     --masks_library flyem_hemibrain_1_2_1 \
