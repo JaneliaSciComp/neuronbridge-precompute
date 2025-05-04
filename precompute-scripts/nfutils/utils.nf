@@ -36,7 +36,7 @@ def partition_work(total_work_size_param, job_size_param) {
 def get_java_mem_opts(mem_gb) {
     def mem = mem_gb as int
     if (mem > 0) {
-        "-Xmx${mem-1}G -Xms${mem/2}G"
+        "-Xmx${mem-3}G -Xms${mem/2}G"
     } else {
         ''
     }
