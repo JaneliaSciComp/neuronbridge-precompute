@@ -2,7 +2,7 @@
     "job_list": "",
     "anatomical_area": "vnc",
     "db_config": "mylocal/proddb-config.properties",
-    "masks_library": "flyem_male_cns_brain_0_8",
+    "masks_library": "flyem_male_cns_vnc_0_8",
     "masks_published_names": "",
     "mask_excluded_terms": "",
     "targets_library": "flylight_split_gal4_published",
