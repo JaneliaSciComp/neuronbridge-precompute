@@ -8,7 +8,7 @@
     "targets_library": "flylight_annotator_gen1_mcfo_published",
     "targets_published_names": "",
     "targets_tags": "",
-    "mip_excluded_tags": "junk,validationError,junk",
+    "mip_excluded_tags": "validationError,junk",
     "with_bidirectional_matching": false,
     "gradscore_batch_size": 100,
     "top_best_line_matches": 300,

@@ -8,7 +8,7 @@
     "targets_library": "flylight_split_gal4_published",
     "targets_published_names": "",
     "targets_tags": "",
-    "mip_excluded_tags": "junk,validationError,junk",
+    "mip_excluded_tags": "validationError,junk",
     "normalize_score_batch_size": 2000,
     "normalize_score_processing_size": 100,
     "pct_pos_pixels": 2,
