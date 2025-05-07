@@ -4,7 +4,7 @@
     "import_tag": "import-ss-batch1",
     "jacs_url": "",
     "jacs_authorization": "",
-    "db_config": "mylocal/devdb-config.properties",
+    "db_config": "mylocal/proddb-config.properties",
     "searchable_cdm_location": "segmentation",
     "grad_location": "grad",
     "zgap_location": "zgap",
