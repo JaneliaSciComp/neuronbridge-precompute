@@ -8,6 +8,7 @@
     "searchable_cdm_location": "Omunibus_v1_2_CDM",
     "grad_location": "Omunibus_v1_2_Gradient",
     "zgap_location": "Omunibus_v1_2_RGB20px",
+    "junk_location": "",
     "vol_segmentation_location": "Omunibus_v1_2_Neuron_segmented_nrrd/Done",
     "searchable_cdm_dest": "segmentation",
     "libstore_dir": "/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs",
