@@ -53,11 +53,12 @@ workflow {
             params.searchable_cdm_dest,
             params.grad_dest,
             params.zgap_dest,
+            params.vol_segmentation_dest,
             params.junk_dest,
             params.ignore_source_cdms,
             params.dry_run,
         ]
-        log.debug "Prepare variants input: $r"
+        log.debug "Variants to copy input: $r"
         r
     }
 

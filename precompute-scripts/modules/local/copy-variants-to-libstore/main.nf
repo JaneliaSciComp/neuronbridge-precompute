@@ -17,6 +17,7 @@ process COPY_VARIANTS_TO_LIBSTORE {
           val(searchable_cdm_location),
           val(grad_location),
           val(zgap_location),
+          val(vol_segmentation_location),
           val(junk_location),
           val(ignore_source_cdms),
           val(dry_run)
@@ -41,10 +42,11 @@ process COPY_VARIANTS_TO_LIBSTORE {
     def alignment_space = area_to_alignment_space(anatomical_area)
     def libstore_dir = "${libstore_base_dir}/${alignment_space}/${library_name}"
     def source_cdm_mapping_arg = !ignore_source_cdms ? "--surjective-variants-mappingcdm=${display_cdm_location}" : ''
-    def grad_mapping_arg = "--surjective-variants-mappinggrad=${grad_location}"
     def searchable_mapping_arg = "--surjective-variants-mappingsegmentation=${searchable_cdm_location}"
-    def zgap_mapping_arg = "--surjective-variants-mappingzgap=${zgap_location}"
-    def junk_mapping_arg = "--surjective-variants-mappingjunk=${junk_location}"
+    def grad_mapping_arg = grad_location ? "--surjective-variants-mappinggrad=${grad_location}" : ''
+    def zgap_mapping_arg = zgap_location ? "--surjective-variants-mappingzgap=${zgap_location}" : ''
+    def vol_segmentation_mapping_arg = vol_segmentation_location ? "--surjective-variants-mappingvolseg=${vol_segmentation_location}" : ''
+    def junk_mapping_arg = junk_location ? "--surjective-variants-mappingjunk=${junk_location}" : ''
 
     def dry_run_arg = dry_run ? '-n' : ''
 
@@ -73,6 +75,7 @@ process COPY_VARIANTS_TO_LIBSTORE {
         ${searchable_mapping_arg} \
         ${grad_mapping_arg} \
         ${zgap_mapping_arg} \
+        ${vol_segmentation_mapping_arg} \
         ${junk_mapping_arg} \
         ${dry_run_arg}
 
