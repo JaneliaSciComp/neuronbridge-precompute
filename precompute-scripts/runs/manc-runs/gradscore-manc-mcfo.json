@@ -10,7 +10,6 @@
     "targets_tags": "",
     "mip_excluded_tags": "validationError,junk",
     "with_bidirectional_matching": false,
-    "process_partitions_concurrently": true,
     "gradscore_batch_size": 100,
     "ga_processing_size": 20,
     "gradscore_cache_size": 50000,

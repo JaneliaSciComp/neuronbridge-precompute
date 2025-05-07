@@ -10,7 +10,6 @@
     "targets_tags": "",
     "mip_excluded_tags": "junk,validationError,junk",
     "with_bidirectional_matching": false,
-    "process_partitions_concurrently": false,
     "gradscore_batch_size": 100,
     "top_best_line_matches": 300,
     "top_best_sample_matches_per_line": 0,
