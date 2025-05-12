@@ -1,0 +1,17 @@
+{
+    "job_list": "",
+    "anatomical_area": "brain",
+    "db_config": "mylocal/proddb-config.properties",
+    "masks_library": "flyem_hemibrain_1_2_1",
+    "masks_published_names": "",
+    "mask_excluded_terms": "",
+    "targets_library": "flylight_raw_published",
+    "targets_published_names": "",
+    "targets_tags": "",
+    "mip_excluded_tags": "validationError,junk",
+    "normalize_score_batch_size": 2000,
+    "normalize_score_processing_size": 100,
+    "pct_pos_pixels": 2,
+    "normalize_score_processing_tag": "normalize-hemibrain-vs-raw",
+    "lsf_opts": "-P scicompsoft"
+}
