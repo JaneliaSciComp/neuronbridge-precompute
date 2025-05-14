@@ -33,6 +33,7 @@ process TAG {
     def log_config_arg = log_config ? "-Dlog4j.configuration=file://\$(readlink -e ${log_config})" : ''
     def java_mem_opts = "-Xmx${mem_gb-1}G -Xms${mem_gb-1}G"
     def alignment_space = area_to_alignment_space(anatomical_area)
+    def alignment_space_arg = alignment_space ? "-as ${alignment_space}" : ''
     def libraries_arg = libraries ? "-l ${libraries}" : ''
     def data_tags_arg = data_tags ? "--data-tags ${data_tags}" : ''
     def data_labels_arg = data_labels ? "--data-labels ${data_labels}" : ''
@@ -51,8 +52,8 @@ process TAG {
         -jar ${java_app} \
         tag \
         --config ${db_config_file} \
-        -as ${alignment_space} \
         --tag ${new_tag} \
+        ${alignment_space_arg} \
         ${libraries_arg} \
         ${data_tags_arg} \
         ${data_labels_arg} \

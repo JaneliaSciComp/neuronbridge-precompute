@@ -70,6 +70,7 @@ process CDS {
     def target_terms_arg = target_terms ? "--targets-terms ${target_terms}" : ''
     def target_excluded_terms_arg = target_excluded_terms ? "--excluded-targets-terms ${target_excluded_terms}" : ''
     def alignment_space = area_to_alignment_space(anatomical_area)
+    def alignment_space_arg = alignment_space ? "-as ${alignment_space}" : ''
     def mirror_flag_arg = mirror_flag ? '--mirrorMask' : ''
     def mask_th_arg = mask_th ? "--maskThreshold ${mask_th}" : ''
     def target_th_arg = target_th ? "--dataThreshold ${target_th}" : ''
@@ -101,7 +102,7 @@ process CDS {
         colorDepthSearch \
         --config ${db_config_file} \
         ${concurrency_arg} \
-        -as ${alignment_space} \
+        ${alignment_space_arg} \
         -m ${masks_arg} \
         ${masks_published_names_arg} \
         ${masks_tags_arg} \

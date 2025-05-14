@@ -57,6 +57,7 @@ process GA {
     def cache_size_arg = cache_size ? "--cacheSize ${cache_size}" : ''
     def concurrency_arg = get_concurrency_arg(concurrency, cpus)
     def alignment_space = area_to_alignment_space(anatomical_area)
+    def alignment_space_arg = alignment_space ? "-as ${alignment_space}" : ''
     def masks_arg = get_lib_arg(masks_library, masks_offset, masks_length)
     def masks_published_names_arg = masks_published_names ? "--masks-published-names ${masks_published_names}" : ''
     def mask_terms_arg = mask_terms ? "--masks-terms ${mask_terms}" : ''
@@ -94,7 +95,7 @@ process GA {
         gradientScores \
         --config ${db_config_file} \
         ${concurrency_arg} \
-        -as ${alignment_space} \
+        ${alignment_space_arg} \
         --masks-libraries ${masks_arg} \
         ${masks_published_names_arg} \
         ${mask_terms_arg} \
