@@ -50,6 +50,7 @@ REC = {'line': '', 'slide_code': '', 'gender': '', 'objective': '', 'area': ''}
 # General use
 CONF = {}
 DRIVER = {} # Driver by line
+FALLBACK = {}
 KEY_LIST = []
 MANIFEST = {}
 NON_PUBLIC = {}
@@ -497,6 +498,13 @@ def get_image_mapping(publishing_db):
     LOGGER.info("Getting image mapping (sample -> release)")
     stmt = "SELECT DISTINCT workstation_sample_id,alps_release FROM image_data_mv WHERE " \
            + "alps_release IS NOT NULL"
+    try:
+        CURSOR['sage'].execute(stmt)
+        rows = CURSOR['sage'].fetchall()
+    except MySQLdb.Error as err:
+        sql_error(err)
+    for row in rows:
+        FALLBACK[row['workstation_sample_id']] = row['alps_release']
     if ARG.RELEASE and ARG.BACKCHECK:
         stmt = stmt.replace(" IS NOT NULL", f"='{ARG.RELEASE}'")
     try:
@@ -681,7 +689,8 @@ def process_light(smp):
         if check not in smp or not smp[check]:
             missing.append(check)
     if missing:
-        terminate_program(f"Missing columns for sample {smp['sampleRef']}: {', '.join(missing)}")
+        log_error(f"Missing columns for sample {smp['sampleRef']}: {', '.join(missing)}")
+        return False
     REC['slide_code'] = smp['slideCode']
     REC['gender'] = smp['gender']
     REC['objective'] = smp['objective']
@@ -776,6 +785,9 @@ def upload_flyem_variants(smp, newname):
                                       f"searchable_neurons/{str(SUBDIVISION['prefix'])}/")
             SUBDIVISION['counter'] += 1
         url, _ = upload_aws(AWS.s3_bucket.cdm, dirpath, fname, ancname)
+        if not url:
+            LOGGER.warning(f"Skipping {variant} for {smp['name']} - no URL")
+            continue
         add_searchable_neuron(smp, url)
         if variant not in VARIANT_UPLOADS:
             VARIANT_UPLOADS[variant] = 1
@@ -844,6 +856,9 @@ def upload_flylight_variants(smp, newname):
                                       f"searchable_neurons/{str(SUBDIVISION['prefix'])}/")
             SUBDIVISION['counter'] += 1
         url, _ = upload_aws(AWS.s3_bucket.cdm, dirpath, fname, ancname)
+        if not url:
+            LOGGER.warning(f"Skipping {variant} for {smp['name']} - no URL")
+            continue
         add_searchable_neuron(smp, url)
         if variant not in VARIANT_UPLOADS:
             VARIANT_UPLOADS[variant] = 1
@@ -868,7 +883,10 @@ def check_image(smp):
         sid = (smp['sampleRef'].split('#'))[-1]
         if sid not in RELEASE:
             if sid not in NO_RELEASE:
-                LOGGER.warning("SID %s has no release", sid)
+                msg = f"SID {sid} has no release"
+                if sid in FALLBACK:
+                    msg += f" (release is {FALLBACK[sid]} in SAGE)"
+                log_error(msg)
                 NO_RELEASE[sid] = True
             COUNT['Missing release'] += 1
             return False
@@ -1196,7 +1214,7 @@ def upload_cdms():
             handle_variants(smp, newname)
             for product in REQUIRED_PRODUCTS:
                 if product not in smp['uploaded']:
-                    LOGGER.error("Missing %s for %s", product, smp['_id'])
+                    LOGGER.error(f"Missing {product} for ID {smp['_id']}")
             json_out.append(smp)
             if ARG.WRITE:
                 add_image_to_mongo(smp)
