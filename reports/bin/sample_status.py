@@ -8,7 +8,7 @@
         python3 sample_status.py --body 720575940596125868
         python3 sample_status.py --slide 20160617_24_C1
 '''
-__version__ = '3.0.0'
+__version__ = '3.1.0'
 
 import argparse
 import collections
@@ -34,6 +34,7 @@ READ = {"SC": "SELECT workstation_sample_id,slide_code,publishing_name,area,tile
 AWS = {}
 S3_SECONDS = 60 * 60 * 12
 # General
+ARG = LOGGER = None
 PNAME = {}
 
 def terminate_program(msg=None):
@@ -340,6 +341,7 @@ def show_nmd():
             elif col not in row:
                 row[col] = ''
         out.append(row)
+        PNAME[row['publishedName']] = True
     print(f"\n---------- neuronMetadata ({cnt}) ----------")
     if ARG.BODY:
         print(f"{'Published name':{colsize['publishedName']}}  " \
