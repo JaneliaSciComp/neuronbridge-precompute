@@ -1,0 +1,18 @@
+{
+    "anatomical_area": "VNC",
+    "import_library": "flylight_split_gal4_published",
+    "import_mips": "2921719427510222859",
+    "import_tag": "import-moved-samples",
+    "jacs_url": "",
+    "jacs_authorization": "",
+    "db_config": "mylocal/proddb-config.properties",
+    "searchable_cdm_location": "segmentation",
+    "grad_location": "grad",
+    "zgap_location": "zgap",
+    "junk_location": "junk",
+    "vol_segmentation_location": [
+        "/nrs/jacs/jacsData/filestore/system/EMSkeletons/JRC2018_VNC_Unisex_40x_DS/flylight_raw_published/non_is_segmented_nrrd"
+    ],
+    "excluded_libraries": "flylight_splitgal4_drivers",
+    "libstore_dir": "/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs"
+}

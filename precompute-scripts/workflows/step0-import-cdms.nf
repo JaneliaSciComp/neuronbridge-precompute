@@ -40,6 +40,7 @@ workflow {
             params.import_tag,
             params.import_mips,
             params.import_published_names,
+            params.import_releases,
             params.excluded_libraries,
             params.included_neurons,
             params.excluded_neurons,

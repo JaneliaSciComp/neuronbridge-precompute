@@ -31,6 +31,7 @@ process IMPORT_CDMS {
           val(import_tag),
           val(import_mips),
           val(import_published_names),
+          val(import_releases),
           val(excluded_libraries),
           val(included_neurons),
           val(excluded_neurons)
@@ -65,6 +66,7 @@ process IMPORT_CDMS {
     def import_tag_arg = import_tag ? "--tag ${import_tag}" : ''
     def import_mips_arg = import_mips ? "--mips ${import_mips}" : ''
     def import_published_names_arg = import_published_names ? "--included-published-names ${import_published_names}" : ''
+    def import_releases_arg = import_releases ? "--releases ${import_releases}" : ''
     def excluded_libraries_arg = excluded_libraries ? "--excluded-libraries ${excluded_libraries}" : ''
     def included_neurons_arg = included_neurons ? "--included-neurons ${included_neurons}" : ''
     def excluded_neurons_arg = excluded_neurons ? "--excluded-neurons ${excluded_neurons}" : ''
@@ -92,6 +94,7 @@ process IMPORT_CDMS {
         ${import_tag_arg} \
         ${import_mips_arg} \
         ${import_published_names_arg} \
+        ${import_releases_arg} \
         ${excluded_libraries_arg} \
         ${included_neurons_arg} \
         ${excluded_neurons_arg} \
