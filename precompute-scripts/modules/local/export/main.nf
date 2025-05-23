@@ -30,6 +30,7 @@ process EXPORT {
     val(mem_gb)
     val(java_opts)
     tuple val(export_type),  // EM_MIPS, LM_MIPS, EM_CD_MATCHES, LM_CD_MATCHES, EM_PPP_MATCHES
+          val(concurrency),
           val(mask_names),
           val(mask_mip_ids),
           val(mask_tags),

@@ -73,6 +73,7 @@ workflow {
        params.java_opts,
        [
             params.export_type,
+            params.export_concurrency,
             params.exported_mask_names,
             params.exported_mask_mips,
             params.exported_mask_tags,
