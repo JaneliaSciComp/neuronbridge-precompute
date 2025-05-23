@@ -35,6 +35,8 @@ READ = {"LINES": "SELECT DISTINCT line,value AS doi,GROUP_CONCAT(DISTINCT origin
 READ["LINESREL"] = READ["LINES"].replace("GROUP BY", "AND alps_release=%" + "s GROUP BY")
 MONGODB = 'neuronbridge-mongo'
 # General use
+ARG = EMDOI = LOGGER = SERVER = None
+DOIS = collections.defaultdict(lambda: 0, {})
 COUNT = collections.defaultdict(lambda: 0, {})
 
 def terminate_program(msg=None):
@@ -210,6 +212,8 @@ def write_dynamodb():
           None
     '''
     LOGGER.info(f"Batch writing {len(ITEMS):,} items to DynamoDB")
+    with open("publishing_dois.json", "w", encoding="utf-8") as outstream:
+        outstream.write(json.dumps(ITEMS, indent=2))
     with DB["DOI"].batch_writer() as writer:
         for item in tqdm(ITEMS, desc="DynamoDB"):
             if ARG.WRITE:
@@ -247,7 +251,7 @@ def process_em_library(coll, library, count):
             bid = str(row["publishedName"])
         else:
             if 'flywire' in prefix and 'flywire' in str(row["publishedName"]):
-                bid = ":".join([prefix, str(row["publishedName"]).split(':')[-1]])
+                bid = ":".join([prefix, str(row["publishedName"]).rsplit(':', maxsplit=1)[-1]])
             else:
                 bid = ":".join([prefix, str(row["publishedName"])])
         if bid not in MAPPING:
@@ -256,10 +260,12 @@ def process_em_library(coll, library, count):
             if isinstance(doi, str):
                 payload["doi"].append({"link": "/".join([SERVER.doi.address, doi]),
                                        "citation": get_citation(doi)})
+                DOIS[doi] += 1
             else:
                 for ref in doi:
                     payload["doi"].append({"link": "/".join([SERVER.doi.address, ref]),
                                            "citation": get_citation(ref)})
+                    DOIS[ref] += 1
             ITEMS.append(payload)
 
 
@@ -301,17 +307,20 @@ def process_single_lm_image(row, database):
             LOGGER.error("DOI %s does not match previous %s for publishing name %s",
                          row['doi'], MAPPING[row['line']], row['line'])
     else:
-        doi = row['doi']
-        MAPPING[row['line']] = doi
-        citation = get_citation(doi)
+        doi_string = row['doi']
+        MAPPING[row['line']] = doi_string
         payload = {"name": row['line'],
-                   "doi": [{"citation": citation}]
-                  }
-        if 'in prep' not in doi:
-            payload['doi'][0]['link'] = "/".join([SERVER.doi.address, doi])
-        if database == 'gen1mcfo' and doi != GEN1_MCFO_DOI:
-            payload["doi"].append({"link": "/".join([SERVER.doi.address, GEN1_MCFO_DOI]),
-                                   "citation": get_citation(GEN1_MCFO_DOI)})
+                   "doi": []}
+        for doi in re.split(r"\s*\|\s*", doi_string):
+            DOIS[doi] += 1
+            doirec = {"citation": get_citation(doi)}
+            if 'in prep' not in doi:
+                doirec['link'] = "/".join([SERVER.doi.address, doi])
+            payload['doi'].append(doirec)
+            if database == 'gen1mcfo' and doi != GEN1_MCFO_DOI:
+                payload["doi"].append({"link": "/".join([SERVER.doi.address, GEN1_MCFO_DOI]),
+                                       "citation": get_citation(GEN1_MCFO_DOI)})
+                DOIS[GEN1_MCFO_DOI] += 1
         ITEMS.append(payload)
 
 
@@ -364,7 +373,9 @@ def perform_mapping():
     print(f"Publishing names/body IDs read:   {COUNT['read']:,}")
     print(f"Unique publishing names/body IDs: {len(MAPPING):,}")
     print(f"Records written to DynamoDB:      {COUNT['dynamodb']:,}")
-
+    print(f"Unique DOIs:                      {len(DOIS):,}")
+    for doi, count in sorted(DOIS.items(), key=lambda x: x[1], reverse=True):
+        print(f" {doi+':':32} {count:,}")
 
 # -----------------------------------------------------------------------------
 
