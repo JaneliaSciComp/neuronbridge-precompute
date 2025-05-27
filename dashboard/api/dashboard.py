@@ -65,6 +65,7 @@ def before_request():
         terminate_program(err)
     for tname in (app.config['PTABLE'], 'publishing-doi'):
         fullname = f"{app.config['DDBASE']}-{tname}"
+        print(f"Connected to DynamoDB {fullname}")
         DB[tname] = dynamodb.Table(fullname)
     DB['DYNAMO'] = dynamodb
 
