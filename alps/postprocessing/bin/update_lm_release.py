@@ -66,6 +66,8 @@ def initialize_program():
             DB['nb' if source == 'neuronbridge' else source] = JRC.connect_database(dbo)
         except MySQLdb.Error as err:
             terminate_program(JRC.sql_error(err))
+        except Exception as err:
+            terminate_program(err)
     if not ARG.RELEASE:
         try:
             DB['sage']['cursor'].execute(READ['RELEASE'])
