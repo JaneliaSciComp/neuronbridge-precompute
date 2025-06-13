@@ -1,0 +1,18 @@
+{
+    "dry_run": true,
+    "anatomical_area": "brain",
+    "import_library": "flylight_split_gal4_published",
+    "import_tag": "import-2025-release",
+    "variants_input_dir": "/nrs/scicompsoft/emlm/public_release_2025/Split_2025/original_h5j/Brain",
+    "display_cdm_location": "",
+    "searchable_cdm_location": "Split_2025_Neuron_CDM",
+    "grad_location": "Split_2025_Gradient",
+    "zgap_location": "Split_2025_RGB20px",
+    "junk_location": "Split_2025_Junk_unknown_CDM",
+    "vol_segmentation_location": "Split_2025_Neuron_segmented_nrrd",
+    "searchable_cdm_dest": "segmentation",
+    "libstore_dir": "/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs",
+    "vol_segmentation_dest": "/nrs/jacs/jacsData/filestore/system/EMSkeletons/JRC2018_Unisex_20x_HR/flylight_split_gal4_published/segmented_nrrd",
+    "jacs_url": "",
+    "jacs_authorization": ""
+}
