@@ -20,6 +20,7 @@ process COPY_VARIANTS_TO_LIBSTORE {
           val(vol_segmentation_location),
           val(junk_location),
           val(ignore_source_cdms),
+          val(force_copy),
           val(dry_run)
     tuple path(app_jar),
           path(log_config),
@@ -49,6 +50,7 @@ process COPY_VARIANTS_TO_LIBSTORE {
     def junk_mapping_arg = junk_location ? "--surjective-variants-mappingjunk=${junk_location}" : ''
 
     def dry_run_arg = dry_run ? '-n' : ''
+    def force_copy_arg = force_copy ? '--force' : ''
 
     """
     echo "\$(date) Copy ${library_name} variants on \$(hostname -s)"
@@ -77,6 +79,7 @@ process COPY_VARIANTS_TO_LIBSTORE {
         ${zgap_mapping_arg} \
         ${vol_segmentation_mapping_arg} \
         ${junk_mapping_arg} \
+        ${force_copy_arg} \
         ${dry_run_arg}
 
     echo "\$(date) Completed copying ${library_name} variants on \$(hostname -s)"

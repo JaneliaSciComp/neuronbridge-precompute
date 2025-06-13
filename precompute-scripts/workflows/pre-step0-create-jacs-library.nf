@@ -56,6 +56,7 @@ workflow {
             params.vol_segmentation_dest,
             params.junk_dest,
             params.ignore_source_cdms,
+            params.force_copy,
             params.dry_run,
         ]
         log.debug "Variants to copy input: $r"
