@@ -8,7 +8,7 @@
     "searchable_cdm_location": "segmentation",
     "grad_location": "grad",
     "zgap_location": "zgap",
-    "junk_location": "",
+    "junk_location": "junk",
     "vol_segmentation_location": [
         "/nrs/jacs/jacsData/filestore/system/EMSkeletons/JRC2018_Unisex_20x_HR/flylight_split_gal4_published/segmented_nrrd"
     ],
