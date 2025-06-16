@@ -21,6 +21,7 @@ import neuronbridge_common.neuronbridge_common as NB
 # Configuration
 NEURON_DATA = ["neuronInstance", "neuronType"]
 NEURON_MAP = {}
+TYPE_BODY_LIMIT = 10000
 # Database
 DATABASE = {}
 DYNAMO = {}
@@ -262,7 +263,7 @@ def add_neuron(neuron, ntype):
     #payload = {ntype: neuron, "libraryName": row["libraryName"]}
     payload = {ntype: neuron}
     cnt = coll.count_documents(payload)
-    if cnt > 10000:
+    if cnt > TYPE_BODY_LIMIT:
         LOGGER.warning(f"{cnt:,} bodies for {ntype} {neuron}")
         return
     else:
@@ -299,7 +300,7 @@ def add_neuron_type(neuron):
     if neuron not in NEURON_MAP:
         return
     llen = len(NEURON_MAP[neuron])
-    if llen > 10000:
+    if llen > TYPE_BODY_LIMIT:
         LOGGER.warning(f"{llen:,} bodies for neuronType {neuron}")
         return
     if llen > 50:
@@ -525,10 +526,11 @@ def update_dynamo():
           None
     '''
     coll = DATABASE["NB"]["publishedURL"]
-    results = coll.distinct("publishedName")
+    results = coll.aggregate([{"$group": {"_id": "$publishedName" }}
+                             ], allowDiskUse=True)
     publishedurl = {}
     for res in results:
-        pname = res
+        pname = res["_id"]
         if ":" in pname:
             pname = pname.split(':')[-1]
         publishedurl[pname] = True

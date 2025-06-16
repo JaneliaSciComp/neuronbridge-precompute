@@ -18,7 +18,6 @@ from types import SimpleNamespace
 import boto3
 from botocore.exceptions import ClientError
 import inquirer
-from pymongo import MongoClient
 import requests
 from simple_term_menu import TerminalMenu
 from tqdm import tqdm
@@ -27,6 +26,7 @@ from PIL import Image
 import jrc_common.jrc_common as JRC
 import neuronbridge_common.neuronbridge_common as NB
 
+# pylint: disable=broad-exception-caught,logging-fstring-interpolation
 
 # Configuration
 LIBRARY = {}
@@ -35,7 +35,7 @@ REQUIRED_PRODUCTS = ['cdm', 'cdm_thumbnail']
 WILL_LOAD = []
 # Database
 MONGODB = 'neuronbridge-mongo'
-DBM = ""
+DBM = {}
 CONN = {}
 CURSOR = {}
 # AWS
@@ -171,7 +171,7 @@ def get_library():
         Returns:
             None
     """
-    coll = DBM.cdmLibraryStatus
+    coll = DBM['neuronbridge'].cdmLibraryStatus
     payload = [{"$group": {"_id": "$library",
                            "doc": {"$max": {"updateDate": "$updateDate",
                                             "library": "$library",
@@ -182,7 +182,7 @@ def get_library():
     for row in result:
         updated[row["library"]] = {"manifold": row["manifold"],
                                    "updateDate": row["updateDate"].strftime("%Y-%m-%d %H:%M:%S")}
-    coll = DBM.neuronMetadata
+    coll = DBM['neuronbridge'].neuronMetadata
     mongo_libs = coll.distinct("libraryName")
     print("Select a library:")
     cdmlist = []
@@ -217,7 +217,7 @@ def get_parms():
     if not ARG.LIBRARY:
         get_library()
     if not ARG.TAG:
-        ARG.TAG = NB.get_neuronbridge_version(DBM.neuronMetadata, ARG.LIBRARY)
+        ARG.TAG = NB.get_neuronbridge_version(DBM['neuronbridge'].neuronMetadata, ARG.LIBRARY)
         if not ARG.TAG:
             terminate_program("No NeuronBridge version tag selected")
 
@@ -232,7 +232,7 @@ def get_flyem_dataset():
     if ARG.DATASET:
         CONF['DATASET'] = ARG.DATASET
     else:
-        which = "neuprint-pre" if ARG.NEUPRINT == "pre" else "neuprint"
+        which = f"neuprint-{ARG.NEUPRINT}" if ARG.NEUPRINT else "neuprint"
         response = call_responder(which, 'dbmeta/datasets', {}, True)
         datasets = list(response.keys())
         for dset in datasets:
@@ -240,6 +240,17 @@ def get_flyem_dataset():
                 CONF['DATASET'] = dset
     if 'DATASET' not in CONF:
         terminate_program(f"Could not find NeuPrint dataset for {ARG.LIBRARY}")
+    name, version = CONF['DATASET'].split(":")
+    payload = {"name": name}
+    if version:
+        version = version.replace('v', '')
+        payload['version'] = version
+    try:
+        row = DBM['jacs'].emDataSet.find_one(payload)
+    except Exception as err:
+        terminate_program(err)
+    if not row:
+        terminate_program(f"Could not find dataset {name} {version} in emDataSet collection")
 
 
 def set_searchable_subdivision(smp):
@@ -308,7 +319,7 @@ def create_config_object(config):
 def initialize_program():
     """ Initialize
     """
-    global DBM, LIBRARY # pylint: disable=W0603
+    global LIBRARY # pylint: disable=W0603
     LIBRARY = (call_responder('config', 'config/cdm_library'))["config"]
     for tok in ['JACS_JWT', 'NEUPRINT_JWT']:
         if tok not in os.environ:
@@ -332,12 +343,13 @@ def initialize_program():
         dbconfig = JRC.get_config("databases")
     except Exception as err: # pylint: disable=broad-exception-caught
         terminate_program(err)
-    dbo = attrgetter(f"neuronbridge.{ARG.MONGO}.{rwp}")(dbconfig)
-    LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, ARG.MANIFOLD, dbo.host, dbo.user)
-    try:
-        DBM = JRC.connect_database(dbo)
-    except Exception as err: # pylint: disable=broad-exception-caught
-        terminate_program(err)
+    for source in ('jacs', 'neuronbridge'):
+        dbo = attrgetter(f"{source}.{ARG.MONGO}.{rwp}")(dbconfig)
+        LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, ARG.MANIFOLD, dbo.host, dbo.user)
+        try:
+            DBM[source] = JRC.connect_database(dbo)
+        except Exception as err: # pylint: disable=broad-exception-caught
+            terminate_program(err)
     # AWS S3
     initialize_s3()
     # Get parms
@@ -346,7 +358,7 @@ def initialize_program():
         terminate_program(f"Unknown library {ARG.LIBRARY}")
     select_uploads()
     # Get non-public slide codes
-    coll = DBM['lmRelease']
+    coll = DBM['neuronbridge']['lmRelease']
     results = coll.find({"public": False})
     non_public = [row['release'] for row in results]
     sql = "SELECT DISTINCT slide_code,alps_release FROM image_data_mv WHERE alps_release IN (%s)"
@@ -392,9 +404,15 @@ def get_s3_names(bucket, newname):
 
 
 def already_uploaded(ukey):
+    ''' Check if a file has already been uploaded
+        Keyword arguments:
+          ukey: file key
+        Returns:
+          True if file has already been uploaded, False otherwise
+    '''
     if ukey in MANIFEST:
         print(f"{ukey} in manifest")
-    return True if ukey in MANIFEST else False
+    return bool(ukey in MANIFEST)
 
 
 
@@ -712,11 +730,10 @@ def process_light(smp):
     return newname
 
 
-def produce_thumbnail(dirpath, fname, newname, url):
+def produce_thumbnail(url):
     ''' Return the thumbnail path
         Keyword arguments:
-          dirpath: source directory
-          fname: file name
+          url: file URL
         Returns:
           thumbnail url
     '''
@@ -895,7 +912,7 @@ def check_image(smp):
             return False
         smp['alpsRelease'] = RELEASE[sid]
     # Check Mongo
-    coll = DBM.publishedURL
+    coll = DBM['neuronbridge'].publishedURL
     result = coll.find_one({'_id': int(smp['_id'])})
     if result and not ARG.REWRITE:
         COUNT['Already in Mongo'] += 1
@@ -925,7 +942,7 @@ def upload_primary(smp, newname):
         if "uploaded" not in smp:
             smp['uploaded'] = {}
         smp['uploaded']['cdm'] = url
-        turl = produce_thumbnail(dirpath, fname, newname, url)
+        turl = produce_thumbnail(url)
         smp['uploaded']['cdm_thumbnail'] = turl
         if not skipped:
             if ARG.WRITE:
@@ -1038,7 +1055,7 @@ def read_json():
     '''
     stime = datetime.now()
     print(f"Loading JSON from Mongo for {ARG.LIBRARY}")
-    coll = DBM.neuronMetadata
+    coll = DBM['neuronbridge'].neuronMetadata
     payload = {"libraryName": ARG.LIBRARY,
                "$and": [{"tags": ARG.TAG},
                         {"tags": {"$nin": ["unreleased", "validationError"]}}],
@@ -1065,7 +1082,7 @@ def add_image_to_mongo(smp):
         Returns:
           None
     '''
-    coll = DBM.publishedURL
+    coll = DBM['neuronbridge'].publishedURL
     payload = {}
     for col in CLOAD.published_col:
         if col in smp:
@@ -1077,7 +1094,7 @@ def add_image_to_mongo(smp):
     payload["updateDate"] = datetime.now()
     try:
         result = coll.update_one({"_id": payload['_id']}, {"$set": payload}, upsert=True)
-    except Exception as err:
+    except Exception:
         LOGGER.error("Could not insert %s into Mongo", smp['_id'])
     if hasattr(result, 'inserted_id') and result.inserted_id == smp['_id']:
         COUNT["Mongo insertions"] += 1
@@ -1137,7 +1154,7 @@ def get_published_samples():
         Returns:
           Dictionary of published samples
     '''
-    coll = DBM.publishedLMImage
+    coll = DBM['neuronbridge'].publishedLMImage
     rows = coll.distinct("sampleRef")
     LOGGER.info(f"Found {len(rows):,} published sample IDs")
     return dict.fromkeys(rows, True)
@@ -1231,7 +1248,7 @@ def update_library_config():
     if ARG.WRITE or ARG.CONFIG:
         method = "MongoDB"
         source = "neuronMetadata"
-        if NB.update_library_status(DBM.cdmLibraryStatus,
+        if NB.update_library_status(DBM['neuronbridge'].cdmLibraryStatus,
                                     library=ARG.LIBRARY,
                                     manifold=ARG.MANIFOLD,
                                     method=method,
@@ -1293,8 +1310,7 @@ if __name__ == '__main__':
                         default='prod', choices=['dev', 'prod'],
                         help='MongoDB manifold [dev, prod]')
     PARSER.add_argument('--neuprint', dest='NEUPRINT', action='store',
-                        default='prod', choices=['pre', 'prod'],
-                        help='NeuPrint manifold [pre, prod]')
+                        help='Optional non-prod NeuPrint manifold')
     PARSER.add_argument('--mysql', dest='MYSQL', action='store',
                         default='prod', choices=['staging', 'prod'],
                         help='MySQL manifold [staging, prod]')
@@ -1340,10 +1356,9 @@ if __name__ == '__main__':
             print(f"  {key + ':' : <21} {VARIANT_UPLOADS[key]:,}")
     if ARG.LIBRARY.startswith('flylight') and len(RELPUB):
         print("Release counts:")
-        maxlen = 0
+        MAXLEN = 0
         for key in RELPUB:
-            if len(key) > maxlen:
-                maxlen = len(key)
+            MAXLEN = max(MAXLEN, len(key))
         for key, val in sorted(RELPUB.items()):
-            print(f"{key+':':<{maxlen+1}} {val:,}")
+            print(f"{key+':':<{MAXLEN+1}} {val:,}")
     terminate_program()
