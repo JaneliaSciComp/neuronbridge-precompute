@@ -1,6 +1,6 @@
 {
     "dry_run": true,
-    "anatomical_area": "vnc",
+    "anatomical_area": "brain",
     "import_library": "flywire_fafb_783",
     "import_tag": "import-flywire",
     "variants_input_dir": "/nrs/scicompsoft/emlm/public_release_2025/FlyWire",
