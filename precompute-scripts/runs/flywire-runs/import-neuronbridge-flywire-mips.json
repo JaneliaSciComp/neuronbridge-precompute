@@ -8,5 +8,6 @@
     "searchable_cdm_location": "searchable",
     "grad_location": "grad",
     "zgap_location": "zgap",
+    "junk_location": "junk",
     "libstore_dir": "/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs"
 }
