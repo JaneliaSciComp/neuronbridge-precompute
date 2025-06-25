@@ -38,6 +38,7 @@ workflow {
             params.jacs_url,
             params.jacs_authorization,
             params.import_tag,
+            params.junk_import_tag,
             params.import_mips,
             params.import_published_names,
             params.import_releases,

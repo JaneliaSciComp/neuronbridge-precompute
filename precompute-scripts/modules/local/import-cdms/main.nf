@@ -29,6 +29,7 @@ process IMPORT_CDMS {
     tuple val(jacs_url),
           val(jacs_authorization),
           val(import_tag),
+          val(junk_import_tag),
           val(import_mips),
           val(import_published_names),
           val(import_releases),
@@ -64,6 +65,7 @@ process IMPORT_CDMS {
     def jacs_url_arg = jacs_url ? "--jacs-url ${jacs_url}" : ''
     def jacs_auth_arg = jacs_authorization ? "--authorization \"${jacs_authorization}\"" : ''
     def import_tag_arg = import_tag ? "--tag ${import_tag}" : ''
+    def junk_import_tag_arg = junk_import_tag ? "--junk-tag ${junk_import_tag}" : ''
     def import_mips_arg = import_mips ? "--mips ${import_mips}" : ''
     def import_published_names_arg = import_published_names ? "--included-published-names ${import_published_names}" : ''
     def import_releases_arg = import_releases ? "--releases ${import_releases}" : ''
@@ -92,6 +94,7 @@ process IMPORT_CDMS {
         -l ${library_name} \
         ${library_variants_arg} \
         ${import_tag_arg} \
+        ${junk_import_tag_arg} \
         ${import_mips_arg} \
         ${import_published_names_arg} \
         ${import_releases_arg} \
