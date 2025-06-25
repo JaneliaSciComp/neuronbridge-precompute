@@ -1,7 +1,7 @@
 {
     "dry_run": true,
     "anatomical_area": "brain",
-    "import_library": "flywire_fafb_783",
+    "import_library": "flywire_fafb_783_realign",
     "import_tag": "import-flywire",
     "variants_input_dir": "/nrs/scicompsoft/emlm/public_release_2025/FlyWire",
     "ignore_source_cdms": false,
@@ -11,8 +11,9 @@
     "zgap_location": "FlyWire_v783_2018U_Fixed_RGB20px",
     "junk_location": "FlyWire_v783_Junk",
     "vol_segmentation_location": "FlyWire_v783__2018U_swc_after_fix_psl",
+    "searchable_cdm_dest": "searchable",
     "libstore_dir": "/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs",
-    "vol_segmentation_dest": "/nrs/jacs/jacsData/filestore/system/EMSkeletons/JRC2018_Unisex_20x_HR/flywire_fafb_783/swc",
+    "vol_segmentation_dest": "/nrs/jacs/jacsData/filestore/system/EMSkeletons/JRC2018_Unisex_20x_HR/flywire_fafb_783_realign/swc",
     "jacs_url": "",
     "jacs_authorization": ""
 }
