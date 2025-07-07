@@ -1,5 +1,6 @@
 {
     "dry_run": true,
+    "force_copy": true,
     "anatomical_area": "brain",
     "import_library": "flylight_raw_published",
     "import_tag": "import-ss-batch4",
