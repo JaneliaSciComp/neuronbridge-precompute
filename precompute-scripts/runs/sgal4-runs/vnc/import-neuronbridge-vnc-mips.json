@@ -10,7 +10,8 @@
     "zgap_location": "zgap",
     "junk_location": "junk",
     "vol_segmentation_location": [
-        "/nrs/jacs/jacsData/filestore/system/EMSkeletons/JRC2018_VNC_Unisex_40x_DS/flylight_split_gal4_published/segmented_nrrd"
+        "/nrs/jacs/jacsData/filestore/system/EMSkeletons/JRC2018_VNC_Unisex_40x_DS/flylight_split_gal4_published/segmented_nrrd",
+        "/nrs/jacs/jacsData/filestore/system/EMSkeletons/JRC2018_VNC_Unisex_40x_DS/flylight_split_gal4_published/segmented_nrrd/junk"
     ],
     "excluded_libraries": "flylight_splitgal4_drivers",
     "libstore_dir": "/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs"
