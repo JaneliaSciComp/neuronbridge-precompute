@@ -1,0 +1,19 @@
+{
+    "dry_run": true,
+    "force_copy": true,
+    "anatomical_area": "vnc",
+    "import_library": "flylight_split_gal4_published",
+    "import_tag": "import-2025-release",
+    "variants_input_dir": "/nrs/scicompsoft/emlm/public_release_2025/Split_2025/Split_2025_VNC",
+    "display_cdm_location": "",
+    "searchable_cdm_location": "Split_2025_VNC_neuron_CDM",
+    "grad_location": "Split_2025_VNC_neuron_gradient",
+    "zgap_location": "Split_2025_VNC_neuron_RGB20px",
+    "junk_location": "",
+    "vol_segmentation_location": "Split_2025_Neuron_segmented_nrrd",
+    "searchable_cdm_dest": "segmentation",
+    "libstore_dir": "/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs",
+    "vol_segmentation_dest": "/nrs/jacs/jacsData/filestore/system/EMSkeletons/JRC2018_VNC_Unisex_40x_DS/flylight_split_gal4_published/segmented_nrrd",
+    "jacs_url": "",
+    "jacs_authorization": ""
+}
