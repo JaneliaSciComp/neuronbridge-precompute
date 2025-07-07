@@ -12,6 +12,6 @@
         "/nrs/jacs/jacsData/filestore/system/EMSkeletons/JRC2018_Unisex_20x_HR/flylight_raw_published/SS_segmented_nrrd",
         "/nrs/jacs/jacsData/filestore/system/EMSkeletons/JRC2018_Unisex_20x_HR/flylight_raw_published/SS_segmented_nrrd/junk"
     ],
-    "excluded_libraries": "flylight_splitgal4_drivers",
+    "excluded_libraries": "flylight_splitgal4_drivers,flylight_split_gal4_published",
     "libstore_dir": "/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs"
 }
