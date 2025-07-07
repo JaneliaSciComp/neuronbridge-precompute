@@ -10,7 +10,7 @@
     "grad_location": "Split_2025_VNC_neuron_gradient",
     "zgap_location": "Split_2025_VNC_neuron_RGB20px",
     "junk_location": "",
-    "vol_segmentation_location": "Split_2025_Neuron_segmented_nrrd",
+    "vol_segmentation_location": "Split_2025_VNC_neuron_segmented_nrrd",
     "searchable_cdm_dest": "segmentation",
     "libstore_dir": "/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs",
     "vol_segmentation_dest": "/nrs/jacs/jacsData/filestore/system/EMSkeletons/JRC2018_VNC_Unisex_40x_DS/flylight_split_gal4_published/segmented_nrrd",
