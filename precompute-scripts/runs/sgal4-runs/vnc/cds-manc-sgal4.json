@@ -1,0 +1,13 @@
+{
+    "job_list": "",
+    "anatomical_area": "vnc",
+    "db_config": "mylocal/proddb-config.properties",
+    "masks_library": "flyem_manc_1_2_1",
+    "masks_published_names": "",
+    "mask_excluded_terms": "",
+    "targets_library": "flylight_split_gal4_published",
+    "targets_published_names": "",
+    "targets_tags": "",
+    "mip_excluded_tags": "validationError,junk",
+    "cds_processing_tag": "cds-manc-vs-sgal4"
+}
