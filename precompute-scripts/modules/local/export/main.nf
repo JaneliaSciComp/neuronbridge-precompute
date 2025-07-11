@@ -15,7 +15,7 @@ process EXPORT {
     tuple val(job_id),
           val(data_version),
           val(anatomical_area),
-          path(base_export_dir),
+          path(base_export_dir, stageAs: 'nb-export'),
           val(release_dirname),
           val(relative_output_dir),
           val(mask_libraries),
