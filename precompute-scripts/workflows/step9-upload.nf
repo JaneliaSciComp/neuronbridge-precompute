@@ -8,6 +8,7 @@ workflow {
     def upload_inputs = Channel.of(
         [
             params.base_data_dir,
+            params.release_dirname,
             params.data_version,
         ]
     )
