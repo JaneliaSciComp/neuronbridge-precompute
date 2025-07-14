@@ -42,7 +42,7 @@ process UPLOAD {
 }
 
 def get_data_dirs(upload_type, local_data_dirname, data_version, anatomical_area) {
-    log.debug "Get data locations for $upload_type"
+    log.debug "Get data locations for $upload_type, ${local_data_dirname}, ${data_version}"
     def s3_data_version = data_version.replaceAll('\\.', '_')
     switch(upload_type) {
         case 'EM_MIPS' -> [ 
