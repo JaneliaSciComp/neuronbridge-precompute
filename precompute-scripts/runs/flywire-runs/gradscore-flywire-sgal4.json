@@ -14,6 +14,6 @@
     "top_best_sample_matches_per_line": 0,
     "top_best_matches_per_sample": 0,
     "pct_pos_pixels": 2,
-    "gradscore_processing_tag": "gradscore-flywire-vs-mcfo",
+    "gradscore_processing_tag": "gradscore-flywire-vs-sgal4",
     "java_opts": ""
 }
