@@ -66,21 +66,26 @@ process COPY_VARIANTS_TO_LIBSTORE {
         mkdir -p \${full_libstore_dir}
     fi
 
-    ${app_runner} java \
-        ${java_opts} ${java_mem_opts} \
-        \${LOG_CONFIG_ARG} \
-        -jar ${java_app} \
-        copyToMipsStore \
-        -i ${variants_json_file} \
-        -od \${full_libstore_dir} \
-        ${source_cdm_mapping_arg} \
-        ${searchable_mapping_arg} \
-        ${grad_mapping_arg} \
-        ${zgap_mapping_arg} \
-        ${vol_segmentation_mapping_arg} \
-        ${junk_mapping_arg} \
-        ${force_copy_arg} \
+    CMD=(
+        ${app_runner} java
+        ${java_opts} ${java_mem_opts}
+        \${LOG_CONFIG_ARG}
+        -jar ${java_app}
+        copyToMipsStore
+        -i ${variants_json_file}
+        -od \${full_libstore_dir}
+        ${source_cdm_mapping_arg}
+        ${searchable_mapping_arg}
+        ${grad_mapping_arg}
+        ${zgap_mapping_arg}
+        ${vol_segmentation_mapping_arg}
+        ${junk_mapping_arg}
+        ${force_copy_arg}
         ${dry_run_arg}
+    )
+
+    echo "CMD: \${CMD[@]}"
+    (exec "\${CMD[@]}")
 
     echo "\$(date) Completed copying ${library_name} variants on \$(hostname -s)"
     """
