@@ -3,6 +3,7 @@
     "force_copy": true,
     "anatomical_area": "vnc",
     "import_library": "flylight_split_gal4_published",
+    "import_releases": "Descending Neurons 2025",
     "import_tag": "import-descending_neurons_2025",
     "variants_input_dir": "/nrs/scicompsoft/emlm/public_release_2025/Split_2025/Descending_2025/VNC_Neuron",
     "display_cdm_location": "",
