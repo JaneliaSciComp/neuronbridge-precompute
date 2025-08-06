@@ -1,6 +1,7 @@
 {
     "anatomical_area": "vnc",
     "import_library": "flylight_split_gal4_published",
+    "import_releases": "Descending Neurons 2025",
     "import_tag": "import-descending_neurons_2025",
     "jacs_url": "",
     "jacs_authorization": "",
