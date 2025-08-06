@@ -1,6 +1,6 @@
 {
     "dry_run": true,
-    "force_copy": false,
+    "force_copy": true,
     "anatomical_area": "brain",
     "import_library": "flylight_split_gal4_published",
     "import_tag": "import-descending_neurons_2025",
