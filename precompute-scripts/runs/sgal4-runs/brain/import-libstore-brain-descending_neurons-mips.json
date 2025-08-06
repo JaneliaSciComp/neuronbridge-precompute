@@ -1,0 +1,19 @@
+{
+    "dry_run": true,
+    "force_copy": false,
+    "anatomical_area": "brain",
+    "import_library": "flylight_split_gal4_published",
+    "import_tag": "import-descending_neurons_2025",
+    "variants_input_dir": "/nrs/scicompsoft/emlm/public_release_2025/Split_2025/Descending_2025/Brain_Neuron",
+    "display_cdm_location": "",
+    "searchable_cdm_location": "Split2025_Descending_Brain_CDM",
+    "grad_location": "Split2025_Descending_Brain_gradient",
+    "zgap_location": "Split2025_Descending_Brain_RGB20px",
+    "junk_location": "",
+    "vol_segmentation_location": "Split2025_Descending_Brain_segmented_nrrd",
+    "searchable_cdm_dest": "segmentation",
+    "libstore_dir": "/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs",
+    "vol_segmentation_dest": "/nrs/jacs/jacsData/filestore/system/EMSkeletons/JRC2018_Unisex_20x_HR/flylight_split_gal4_published/segmented_nrrd",
+    "jacs_url": "",
+    "jacs_authorization": ""
+}
