@@ -1,0 +1,18 @@
+{
+    "anatomical_area": "brain",
+    "import_library": "flylight_split_gal4_published",
+    "import_releases": "Wolff et al 2024",
+    "import_tag": "(re)import-wolfft_2024",
+    "jacs_url": "",
+    "jacs_authorization": "",
+    "db_config": "mylocal/devdb-config.properties",
+    "searchable_cdm_location": "segmentation",
+    "grad_location": "grad",
+    "zgap_location": "zgap",
+    "junk_location": "junk",
+    "vol_segmentation_location": [
+        "/nrs/jacs/jacsData/filestore/system/EMSkeletons/JRC2018_Unisex_20x_HR/flylight_split_gal4_published/segmented_nrrd"
+    ],
+    "excluded_libraries": "flylight_splitgal4_drivers",
+    "libstore_dir": "/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs"
+}
