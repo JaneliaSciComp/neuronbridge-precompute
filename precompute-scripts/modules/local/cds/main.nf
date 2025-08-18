@@ -61,12 +61,12 @@ process CDS {
     def concurrency_arg = get_concurrency_arg(concurrency, cpus)
     def masks_arg = get_lib_arg(masks_library, masks_offset, masks_length)
     def masks_published_names_arg = masks_published_names ? "--masks-published-names ${masks_published_names}" : ''
-    def masks_tags_arg = masks_tags ? "--masks-tags ${masks_tags}" : ''
+    def masks_tags_arg = masks_tags ? "--masks-tags \"${masks_tags}\"" : ''
     def mask_terms_arg = mask_terms ? "--masks-terms ${mask_terms}" : ''
     def mask_excluded_terms_arg = mask_excluded_terms ? "--excluded-masks-terms ${mask_excluded_terms}" : ''
     def targets_arg = get_lib_arg(targets_library, targets_offset, targets_length)
     def targets_published_names_arg = targets_published_names ? "--targets-published-names ${targets_published_names}" : ''
-    def targets_tags_arg = targets_tags ? "--targets-tags ${targets_tags}" : ''
+    def targets_tags_arg = targets_tags ? "--targets-tags \"${targets_tags}\"" : ''
     def target_terms_arg = target_terms ? "--targets-terms ${target_terms}" : ''
     def target_excluded_terms_arg = target_excluded_terms ? "--excluded-targets-terms ${target_excluded_terms}" : ''
     def alignment_space = area_to_alignment_space(anatomical_area)
