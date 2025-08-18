@@ -1,7 +1,7 @@
 {
     "anatomical_area": "VNC",
     "import_library": "flylight_raw_published",
-    "import_tag": "import-non-is",
+    "import_tag": "re-import-non-is",
     "jacs_url": "",
     "jacs_authorization": "",
     "db_config": "mylocal/devdb-config.properties",
