@@ -94,36 +94,41 @@ process CDS {
 
     echo "Log config arg: \${LOG_CONFIG_ARG}"
 
-    ${app_runner} java \
-        ${java_opts} ${java_mem_opts} \
-        \${LOG_CONFIG_ARG} \
-        -jar ${java_app} \
-        ${cache_size_arg} \
-        colorDepthSearch \
-        --config ${db_config_file} \
-        ${concurrency_arg} \
-        ${alignment_space_arg} \
-        -m ${masks_arg} \
-        ${masks_published_names_arg} \
-        ${masks_tags_arg} \
-        ${mask_terms_arg} \
-        ${mask_excluded_terms_arg} \
-        -i ${targets_arg} \
-        ${targets_published_names_arg} \
-        ${targets_tags_arg} \
-        ${target_terms_arg} \
-        ${target_excluded_terms_arg} \
-        --processing-tag ${cds_processing_tag} \
-        ${mirror_flag_arg} \
-        ${mask_th_arg} \
-        ${target_th_arg} \
-        ${pix_color_fluctuation_arg} \
-        ${xy_shift_arg} \
-        ${pct_pos_pixels_arg} \
-        ${processing_size_arg} \
-        --write-batch-size ${write_batch_size} \
-        ${parallelize_write_results_arg} \
+    CMD=(
+        ${app_runner} java
+        ${java_opts} ${java_mem_opts}
+        \${LOG_CONFIG_ARG}
+        -jar ${java_app}
+        ${cache_size_arg}
+        colorDepthSearch
+        --config ${db_config_file}
+        ${concurrency_arg}
+        ${alignment_space_arg}
+        -m ${masks_arg}
+        ${masks_published_names_arg}
+        ${masks_tags_arg}
+        ${mask_terms_arg}
+        ${mask_excluded_terms_arg}
+        -i ${targets_arg}
+        ${targets_published_names_arg}
+        ${targets_tags_arg}
+        ${target_terms_arg}
+        ${target_excluded_terms_arg}
+        --processing-tag ${cds_processing_tag}
+        ${mirror_flag_arg}
+        ${mask_th_arg}
+        ${target_th_arg}
+        ${pix_color_fluctuation_arg}
+        ${xy_shift_arg}
+        ${pct_pos_pixels_arg}
+        ${processing_size_arg}
+        --write-batch-size ${write_batch_size}
+        ${parallelize_write_results_arg}
         ${update_matches_arg}
+    )
+
+    echo "CMD: \${CMD[@]}"
+    (exec "\${CMD[@]}")
 
     echo "\$(date) Completed ${anatomical_area} cds job: ${job_id} on \$(hostname -s)"
     """

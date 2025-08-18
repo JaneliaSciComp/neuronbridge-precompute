@@ -87,34 +87,39 @@ process GA {
 
     echo "Log config arg: \${LOG_CONFIG_ARG}"
 
-    ${app_runner} java \
-        ${java_opts} ${java_mem_opts} \
-        \${LOG_CONFIG_ARG} \
-        -jar ${java_app} \
-        ${cache_size_arg} \
-        gradientScores \
-        --config ${db_config_file} \
-        ${concurrency_arg} \
-        ${alignment_space_arg} \
-        --masks-libraries ${masks_arg} \
-        ${masks_published_names_arg} \
-        ${mask_terms_arg} \
-        ${mask_excluded_terms_arg} \
-        ${targets_library_arg} \
-        ${targets_published_names_arg} \
-        ${target_terms_arg} \
-        ${target_excluded_terms_arg} \
-        ${processing_size_arg} \
-        ${mirror_flag_arg} \
-        --processing-tag ${ga_processing_tag} \
-        ${matches_tags_arg} \
-        ${masks_processing_tags_arg} \
-        ${targets_processing_tags_arg} \
-        ${pixel_percent_ratio_arg} \
-        ${with_bidirectional_matching_arg} \
-        --nBestLines ${top_best_line_matches} \
-        --nBestSamplesPerLine ${top_best_sample_matches_per_line} \
+    CMD=(
+        ${app_runner} java
+        ${java_opts} ${java_mem_opts}
+        \${LOG_CONFIG_ARG}
+        -jar ${java_app}
+        ${cache_size_arg}
+        gradientScores
+        --config ${db_config_file}
+        ${concurrency_arg}
+        ${alignment_space_arg}
+        --masks-libraries ${masks_arg}
+        ${masks_published_names_arg}
+        ${mask_terms_arg}
+        ${mask_excluded_terms_arg}
+        ${targets_library_arg}
+        ${targets_published_names_arg}
+        ${target_terms_arg}
+        ${target_excluded_terms_arg}
+        ${processing_size_arg}
+        ${mirror_flag_arg}
+        --processing-tag ${ga_processing_tag}
+        ${matches_tags_arg}
+        ${masks_processing_tags_arg}
+        ${targets_processing_tags_arg}
+        ${pixel_percent_ratio_arg}
+        ${with_bidirectional_matching_arg}
+        --nBestLines ${top_best_line_matches}
+        --nBestSamplesPerLine ${top_best_sample_matches_per_line}
         --nBestMatchesPerSample ${top_best_matches_per_sample}
+    )
+
+    echo "CMD: \${CMD[@]}"
+    (exec "\${CMD[@]}")
 
     echo "\$(date) Completed ${anatomical_area} gradscore job: ${job_id} on \$(hostname -s)"
     """

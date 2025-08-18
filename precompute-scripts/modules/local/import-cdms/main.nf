@@ -82,27 +82,32 @@ process IMPORT_CDMS {
         LOG_CONFIG_ARG=
     fi
 
-    ${app_runner} java \
-        ${java_opts} ${java_mem_opts} \
-        \${LOG_CONFIG_ARG} \
-        -jar ${java_app} \
-        createColorDepthSearchDataInput \
-        --config ${db_config_file} \
-        ${jacs_url_arg} \
-        ${jacs_auth_arg} \
-        -as ${alignment_space} \
-        -l ${library_name} \
-        ${library_variants_arg} \
-        ${import_tag_arg} \
-        ${junk_import_tag_arg} \
-        ${import_mips_arg} \
-        ${import_published_names_arg} \
-        ${import_releases_arg} \
-        ${excluded_libraries_arg} \
-        ${included_neurons_arg} \
-        ${excluded_neurons_arg} \
-        --results-storage DB \
+    CMD=(
+        ${app_runner} java
+        ${java_opts} ${java_mem_opts}
+        \${LOG_CONFIG_ARG}
+        -jar ${java_app}
+        createColorDepthSearchDataInput
+        --config ${db_config_file}
+        ${jacs_url_arg}
+        ${jacs_auth_arg}
+        -as ${alignment_space}
+        -l ${library_name}
+        ${library_variants_arg}
+        ${import_tag_arg}
+        ${junk_import_tag_arg}
+        ${import_mips_arg}
+        ${import_published_names_arg}
+        ${import_releases_arg}
+        ${excluded_libraries_arg}
+        ${included_neurons_arg}
+        ${excluded_neurons_arg}
+        --results-storage DB
         --for-update
+    )
+
+    echo "CMD: \${CMD[@]}"
+    (exec "\${CMD[@]}")
 
     echo "\$(date) Completed ${library_name} CDMs import on \$(hostname -s)"
     """
