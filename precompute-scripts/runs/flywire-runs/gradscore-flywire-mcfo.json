@@ -6,6 +6,7 @@
     "masks_published_names": "",
     "mask_excluded_terms": "",
     "targets_published_names": "",
+    "target_excluded_terms": "",
     "targets_library": "flylight_gen1_mcfo_published",
     "mip_excluded_tags": "validationError,junk",
     "with_bidirectional_matching": false,

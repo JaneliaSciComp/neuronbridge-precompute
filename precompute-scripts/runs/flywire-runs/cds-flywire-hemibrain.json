@@ -6,6 +6,7 @@
     "masks_published_names": "",
     "mask_excluded_terms": "",
     "targets_published_names": "",
+    "target_excluded_terms": "",
     "targets_library": "flyem_hemibrain_1_2_1",
     "mip_excluded_tags": "validationError,junk",
     "cds_processing_tag": "cds-flywire-vs-hemibrain",
