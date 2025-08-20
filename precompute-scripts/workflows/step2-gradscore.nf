@@ -45,7 +45,19 @@ workflow {
             }
             .findAll {
                 def (job_idx) = it
-                is_job_id_in_process_list(job_idx, params.job_list, params.first_job, params.last_job)
+                def first_job_idx = params.first_job > 0 ?: 1
+                def last_job_idx = params.last_job > 0 ?: gradscore_jobs.size
+
+                def excluded_first_job_idx = params.excluded_first_job > 0 ?: gradscore_jobs.size
+                def excluded_last_job_idx = params.excluded_last_job > 0 ?: 1
+
+                return is_job_id_in_process_list(job_idx, params.job_list,
+                                                 first_job_idx,
+                                                 last_job_idx) &&
+                       !is_job_id_in_process_list(job_idx, params.excluded_job_list,
+                                                 excluded_first_job_idx,
+                                                 excluded_last_job_idx)
+
             }
     }
     gradscore_inputs.subscribe {
