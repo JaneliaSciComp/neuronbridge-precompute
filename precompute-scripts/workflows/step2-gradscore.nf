@@ -51,13 +51,15 @@ workflow {
                 def excluded_first_job_idx = params.excluded_first_job > 0 ?: gradscore_jobs.size
                 def excluded_last_job_idx = params.excluded_last_job > 0 ?: 1
 
-                return is_job_id_in_process_list(job_idx, params.job_list,
-                                                 first_job_idx,
-                                                 last_job_idx) &&
-                       !is_job_id_in_process_list(job_idx, params.excluded_job_list,
-                                                 excluded_first_job_idx,
-                                                 excluded_last_job_idx)
-
+                def job_is_included = is_job_id_in_process_list(job_idx,
+                                                                params.job_list,
+                                                                first_job_idx,
+                                                                last_job_idx)
+                def job_is_excluded = is_job_id_in_process_list(job_idx,
+                                                                params.excluded_job_list,
+                                                                excluded_first_job_idx,
+                                                                excluded_last_job_idx)
+                return job_is_included && !job_is_excluded
             }
     }
     gradscore_inputs.subscribe {
