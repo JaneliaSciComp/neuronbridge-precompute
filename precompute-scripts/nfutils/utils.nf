@@ -127,7 +127,7 @@ def is_job_id_in_process_list(job_idx, job_list_arg, first_job, last_job) {
         }
     } else {
         // first_job and last_job parameters are 1-index and they are inclusive
-        return (first_job <= 0 || job_idx >= first_job) &&
-               (last_job <= 0 || job_idx <= last_job)
+        return (first_job == 0 || job_idx >= first_job) &&
+               (last_job == 0 || job_idx <= last_job)
     }
 }

@@ -51,8 +51,9 @@ workflow {
         def targets_jobs = partition_work(ntargets, params.cds_target_batch_size)
         log.info "Partition color depth search for ${nmasks} ${masks_library} masks and ${ntargets} ${targets_library} targets into ${masks_jobs.size*targets_jobs.size} jobs"
 
-        [masks_jobs, targets_jobs]
-            .combinations()
+        def all_cds_jobs = [masks_jobs, targets_jobs].combinations()
+            
+        all_cds_jobs
             .withIndex()
             .collect { mtpair, idx ->
                 def (masks_limits, targets_limits) = mtpair
@@ -72,10 +73,10 @@ workflow {
             .findAll {
                 def (job_idx) = it
                 def first_job_idx = params.first_job > 0 ? params.first_job : 1
-                def last_job_idx = params.last_job > 0 ? params.last_job : gradscore_jobs.size
+                def last_job_idx = params.last_job > 0 ? params.last_job : all_cds_jobs.size()
 
-                def excluded_first_job_idx = params.excluded_first_job > 0 ? params.excluded_first_job : gradscore_jobs.size
-                def excluded_last_job_idx = params.excluded_last_job > 0 ? params.excluded_last_job : 1
+                def excluded_first_job_idx = params.excluded_first_job > 0 ? params.excluded_first_job : all_cds_jobs.size() + 1
+                def excluded_last_job_idx = params.excluded_last_job > 0 ? params.excluded_last_job : -1
 
                 def job_is_included = is_job_id_in_process_list(job_idx,
                                                                 params.job_list,
