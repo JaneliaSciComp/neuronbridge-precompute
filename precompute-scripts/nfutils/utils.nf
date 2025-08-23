@@ -112,7 +112,7 @@ def get_values_as_map(values,
 }
 
 def is_job_id_in_process_list(job_idx, job_list_arg, first_job, last_job) {
-    if (job_list_arg) {
+    if (job_list_arg && !(job_list_arg instanceof Boolean)) {
         if (job_list_arg instanceof Integer) {
             return job_idx == job_list_arg
         } else {
