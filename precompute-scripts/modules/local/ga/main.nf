@@ -18,7 +18,8 @@ process GA {
           val(masks_library),
           val(masks_offset),
           val(masks_length),
-          val(targets_library)
+          val(targets_library),
+          val(start_delay)
     tuple path(app_jar),
           path(log_config),
           val(app_runner)
@@ -73,6 +74,7 @@ process GA {
     def targets_processing_tags_arg = targets_processing_tags ? "--targets-processing-tags ${get_processing_tags_arg(targets_processing_tags)}" : ''
     def pixel_percent_ratio_arg = pixel_percent_ratio && pixel_percent_ratio > 0 ? "--pctPositivePixels ${pixel_percent_ratio}" : ''
     def with_bidirectional_matching_arg = with_bidirectional_matching ? '--use-bidirectional-matching' : ''
+    def sleep_stmt = start_delay ? "sleep ${start_delay}" : ""
 
     """
     echo "\$(date) Run ${anatomical_area} gradscore job: ${job_id} on \$(hostname -s)"
@@ -117,6 +119,8 @@ process GA {
         --nBestSamplesPerLine ${top_best_sample_matches_per_line}
         --nBestMatchesPerSample ${top_best_matches_per_sample}
     )
+
+    ${sleep_stmt}
 
     echo "CMD: \${CMD[@]}"
     (exec "\${CMD[@]}")

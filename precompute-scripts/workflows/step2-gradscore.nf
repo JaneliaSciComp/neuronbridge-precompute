@@ -25,6 +25,8 @@ workflow {
 
     def unique_masks_count = COUNT_MASKS(masks_count_input, db_config_file)
 
+    def rand = new Random()
+
     // split the work
     def gradscore_inputs = unique_masks_count
     | flatMap { anatomical_area, masks_library, nmasks ->
@@ -34,13 +36,17 @@ workflow {
             .withIndex()
             .collect { job, idx ->
                 def (job_offset, job_size) = job
+                def start_delay = params.max_ga_start_delay 
+                                    ? rand.nextInt(params.max_ga_start_delay + 1)
+                                    : 0
                 [
                     idx+1, // jobs are 1-indexed
                     anatomical_area,
                     masks_library,
                     job_offset,
                     job_size,
-                    params.targets_library
+                    params.targets_library,
+                    start_delay,
                 ]
             }
             .findAll {
