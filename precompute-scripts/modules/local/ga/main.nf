@@ -120,6 +120,7 @@ process GA {
         --nBestMatchesPerSample ${top_best_matches_per_sample}
     )
 
+    # random delay to prevent choking the db server
     ${sleep_stmt}
 
     echo "CMD: \${CMD[@]}"
