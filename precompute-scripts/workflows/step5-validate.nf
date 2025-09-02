@@ -51,9 +51,9 @@ workflow {
             .findAll {
                 def (job_idx) = it
                 def first_job_idx = params.first_job > 0 ? params.first_job : 1
-                def last_job_idx = params.last_job > 0 ? params.last_job : gradscore_jobs.size
+                def last_job_idx = params.last_job > 0 ? params.last_job : export_jobs.size
 
-                def excluded_first_job_idx = params.excluded_first_job > 0 ? params.excluded_first_job : gradscore_jobs.size
+                def excluded_first_job_idx = params.excluded_first_job > 0 ? params.excluded_first_job : export_jobs.size
                 def excluded_last_job_idx = params.excluded_last_job > 0 ? params.excluded_last_job : 1
 
                 def job_is_included = is_job_id_in_process_list(job_idx,
