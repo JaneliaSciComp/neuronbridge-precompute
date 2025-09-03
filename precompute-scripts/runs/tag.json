@@ -1,5 +1,5 @@
 {
     "anatomical_area": "brain+vnc",
     "db_config": "mylocal/proddb-config.properties",
-    "mip_excluded_tags": "validationError,junk"
+    "mip_excluded_tags": "validationError,junk,not-released"
 }
