@@ -75,7 +75,7 @@ workflow {
     export_inputs.subscribe {
         log.debug "Run export: $it"
     }
-    EXPORT(export_inputs,
+    def export_results = EXPORT(export_inputs,
        [
            params.app ? file(params.app) : [],
            params.log_config ? file(params.log_config) : [],
@@ -108,6 +108,9 @@ workflow {
             params.max_exported_matches_per_mip,
        ]
     )
+    | count
+
+    export_results.subscribe { log.info "Completed ${params.anatomical_area} ${params.export_type} exports"}
 }
 
 def get_exported_mask_libs(export_type, exported_mask_libs) {
