@@ -5,6 +5,8 @@
     "db_config": "mylocal/proddb-config.properties",
     "exported_mask_names": "",
     "exported_mask_mips": "",
+    "excluded_from_exported_mask_terms": "",
+    "excluded_from_exported_target_terms": "",
     "jacs_url": "",
     "jacs_authorization": "",
     "java_opts": ""
