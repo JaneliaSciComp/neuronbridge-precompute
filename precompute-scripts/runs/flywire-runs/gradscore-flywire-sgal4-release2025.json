@@ -11,6 +11,12 @@
     "targets_tags": "release-2025",
     "targets_library": "flylight_split_gal4_published",
     "mip_excluded_tags": "validationError,junk,not-released",
-    "cds_processing_tag": "cds-flywire-vs-sgal4-release2025",
+    "with_bidirectional_matching": false,
+    "gradscore_batch_size": 100,
+    "top_best_line_matches": 300,
+    "top_best_sample_matches_per_line": 0,
+    "top_best_matches_per_sample": 0,
+    "pct_pos_pixels": 2,
+    "gradscore_processing_tag": "gradscore-flywire-vs-sgal4-release2025",
     "java_opts": ""
 }
