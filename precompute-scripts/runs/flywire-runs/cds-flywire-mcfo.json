@@ -8,7 +8,7 @@
     "targets_published_names": "",
     "target_excluded_terms": "",
     "targets_library": "flylight_gen1_mcfo_published",
-    "mip_excluded_tags": "validationError,junk",
+    "mip_excluded_tags": "validationError,junk,not-released",
     "cds_processing_tag": "cds-flywire-vs-mcfo",
     "java_opts": ""
 }

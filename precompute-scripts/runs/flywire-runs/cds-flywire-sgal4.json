@@ -8,7 +8,7 @@
     "targets_published_names": "",
     "target_excluded_terms": "",
     "targets_library": "flylight_split_gal4_published",
-    "mip_excluded_tags": "validationError,junk",
+    "mip_excluded_tags": "validationError,junk,not-released",
     "cds_processing_tag": "cds-flywire-vs-sgal4",
     "java_opts": ""
 }

@@ -61,7 +61,9 @@ workflow {
                                                                 params.job_list,
                                                                 first_job_idx,
                                                                 last_job_idx)
-                def job_is_excluded = is_job_id_in_process_list(job_idx,
+                // for excluded jobs we only check if the total jobs is > 1
+                def job_is_excluded = gradscore_jobs.size > 1 &&
+                                      is_job_id_in_process_list(job_idx,
                                                                 params.excluded_job_list,
                                                                 excluded_first_job_idx,
                                                                 excluded_last_job_idx)

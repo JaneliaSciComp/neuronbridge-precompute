@@ -8,7 +8,7 @@
     "targets_library": "flylight_annotator_gen1_mcfo_published",
     "targets_published_names": "",
     "target_excluded_terms": "",
-    "mip_excluded_tags": "validationError,junk",
+    "mip_excluded_tags": "validationError,junk,not-released",
     "cds_processing_tag": "cds-flywire-vs-annmcfo",
     "java_opts": ""
 }
