@@ -5,7 +5,7 @@ include {
     get_lib_arg;
 } from '../../../nfutils/utils'
 
-process NORMALIZE_SCORES {
+process ARCHIVE_CDMATCHES {
     container { task.ext.container }
     cpus { cpus }
     memory "${mem_gb} GB"
@@ -25,15 +25,15 @@ process NORMALIZE_SCORES {
     val(cpus)
     val(mem_gb)
     val(java_opts)
-    tuple val(normalize_ga_processing_tag),
-          val(concurrency),
+    tuple val(concurrency),
           val(masks_published_names),
           val(mask_terms),
           val(mask_excluded_terms),
           val(targets_published_names),
           val(target_terms),
           val(target_excluded_terms),
-          val(processing_size)
+          val(processing_size),
+          val(no_archive)
 
     when:
     task.ext.when == null || task.ext.when
@@ -54,6 +54,7 @@ process NORMALIZE_SCORES {
     def target_terms_arg = target_terms ? "--targets-terms ${target_terms}" : ''
     def target_excluded_terms_arg = target_excluded_terms ? "--excluded-targets-terms ${target_excluded_terms}" : ''
     def processing_size_arg = processing_size ? "-ps ${processing_size}" : ''
+    def no_archive_arg = no_archive ? '--no-archive' : ''
 
     """
     echo "\$(date) Run ${anatomical_area} normalize-score job: ${job_id} on \$(hostname -s)"
@@ -68,7 +69,7 @@ process NORMALIZE_SCORES {
         ${java_opts} ${java_mem_opts} \
         \${LOG_CONFIG_ARG} \
         -jar ${java_app} \
-        mormalizeGradientScores \
+        deleteCDMatches \
         --config ${db_config_file} \
         ${concurrency_arg} \
         ${alignment_space_arg} \
@@ -81,7 +82,7 @@ process NORMALIZE_SCORES {
         ${target_terms_arg} \
         ${target_excluded_terms_arg} \
         ${processing_size_arg} \
-        --processing-tag ${normalize_ga_processing_tag}
+        ${no_archive_arg}
 
     echo "\$(date) Completed ${anatomical_area} normalize-score job: ${job_id} on \$(hostname -s)"
     """
