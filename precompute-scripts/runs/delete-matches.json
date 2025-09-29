@@ -1,0 +1,13 @@
+{
+    "job_list": "",
+    "anatomical_area": "vnc",
+    "db_config": "mylocal/devdb-config.properties",
+    "masks_library": "flyem_vnc_0_9",
+    "masks_published_names": "",
+    "mask_excluded_terms": "",
+    "targets_library": "flylight_gen1_mcfo_published",
+    "targets_published_names": "",
+    "target_excluded_terms": "",
+    "mip_excluded_tags": "",
+    "java_opts": ""
+}
