@@ -1,4 +1,4 @@
-include { ARCHIVE_CDMATCHES       } from '../modules/local/archive-cdmatches/main'
+include { DELETE_CDMATCHES       } from '../modules/local/delete-cdmatches/main'
 include { DBQUERY as COUNT_MASKS } from '../modules/local/dbquery/main'
 
 include {
@@ -26,11 +26,11 @@ workflow {
     )
 
     // split the work
-    def archive_inputs = unique_masks_count
+    def delete_inputs = unique_masks_count
     | flatMap { anatomical_area, masks_library, nmasks ->
-        def archive_jobs = partition_work(nmasks, params.archive_batch_size)
-        log.info "${nmasks} masks generated ${archive_jobs.size} jobs"
-        archive_jobs
+        def delete_jobs = partition_work(nmasks, params.delete_batch_size)
+        log.info "${nmasks} masks generated ${delete_jobs.size} jobs"
+        delete_jobs
             .withIndex()
             .collect { job, idx ->
                 def (job_offset, job_size) = job
@@ -46,9 +46,9 @@ workflow {
             .findAll {
                 def (job_idx) = it
                 def first_job_idx = params.first_job > 0 ? params.first_job : 1
-                def last_job_idx = params.last_job > 0 ? params.last_job : archive_jobs.size
+                def last_job_idx = params.last_job > 0 ? params.last_job : delete_jobs.size
 
-                def excluded_first_job_idx = params.excluded_first_job > 0 ? params.excluded_first_job : archive_jobs.size
+                def excluded_first_job_idx = params.excluded_first_job > 0 ? params.excluded_first_job : delete_jobs.size
                 def excluded_last_job_idx = params.excluded_last_job > 0 ? params.excluded_last_job : 1
 
                 def job_is_included = is_job_id_in_process_list(job_idx,
@@ -56,7 +56,7 @@ workflow {
                                                                 first_job_idx,
                                                                 last_job_idx)
                 // for excluded jobs we only check if the total jobs is > 1
-                def job_is_excluded = archive_jobs.size > 1 &&
+                def job_is_excluded = delete_jobs.size > 1 &&
                                       is_job_id_in_process_list(job_idx,
                                                                 params.excluded_job_list,
                                                                 excluded_first_job_idx,
@@ -64,28 +64,30 @@ workflow {
                 return job_is_included && !job_is_excluded
             }
     }
-    archive_inputs.subscribe {
-        log.debug "Archive: $it"
+    delete_inputs.subscribe {
+        log.debug "Delete: $it"
     }
-    ARCHIVE_CDMATCHES(archive_inputs,
+    DELETE_CDMATCHES(delete_inputs,
        [
            params.app ? file(params.app) : [],
            params.log_config ? file(params.log_config) : [],
            params.tool_runner,
+           params.readlink_cmd,
        ],
        db_config_file,
        params.cpus,
        params.mem_gb,
        params.java_opts,
        [
-            params.archive_concurrency,
+            params.delete_concurrency,
             params.masks_published_names,
             params.mask_terms,
             params.mask_excluded_terms,
             params.targets_published_names,
             params.target_terms,
             params.target_excluded_terms,
-            params.archive_processing_size,
+            params.delete_processing_size,
+            params.include_matches_with_gradscore,
             params.delete_only,
        ],
     )

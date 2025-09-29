@@ -5,7 +5,7 @@ include {
     get_lib_arg;
 } from '../../../nfutils/utils'
 
-process ARCHIVE_CDMATCHES {
+process DELETE_CDMATCHES {
     container { task.ext.container }
     cpus { cpus }
     memory "${mem_gb} GB"
@@ -20,7 +20,8 @@ process ARCHIVE_CDMATCHES {
           val(targets_library)
     tuple path(app_jar),
           path(log_config),
-          val(app_runner)
+          val(app_runner),
+          val(readlink_cmd)
     path(db_config_file)
     val(cpus)
     val(mem_gb)
@@ -33,6 +34,7 @@ process ARCHIVE_CDMATCHES {
           val(target_terms),
           val(target_excluded_terms),
           val(processing_size),
+          val(include_matches_with_gradscore),
           val(no_archive)
 
     when:
@@ -40,7 +42,7 @@ process ARCHIVE_CDMATCHES {
 
     script:
     def java_app = app_jar ?: '/app/colormipsearch-jar-with-dependencies.jar'
-    def log_config_arg = log_config ? "-Dlog4j.configuration=file://\$(readlink -e ${log_config})" : ''
+    def log_config_arg = log_config ? "-Dlog4j.configuration=file://\$(${readlink_cmd} ${log_config})" : ''
     def java_mem_opts = get_java_mem_opts(mem_gb)
     def concurrency_arg = get_concurrency_arg(concurrency, cpus)
     def alignment_space = area_to_alignment_space(anatomical_area)
@@ -54,10 +56,11 @@ process ARCHIVE_CDMATCHES {
     def target_terms_arg = target_terms ? "--targets-terms ${target_terms}" : ''
     def target_excluded_terms_arg = target_excluded_terms ? "--excluded-targets-terms ${target_excluded_terms}" : ''
     def processing_size_arg = processing_size ? "-ps ${processing_size}" : ''
+    def include_matches_with_gradscore_arg = include_matches_with_gradscore ? '--include-matches-with-gradscore' : ''
     def no_archive_arg = no_archive ? '--no-archive' : ''
 
     """
-    echo "\$(date) Run ${anatomical_area} normalize-score job: ${job_id} on \$(hostname -s)"
+    echo "\$(date) Run ${anatomical_area} delete-matches job: ${job_id} on \$(hostname -s)"
 
     if [[ ${log_config} != "" && -f ${log_config} ]];  then
         LOG_CONFIG_ARG="${log_config_arg}"
@@ -82,8 +85,9 @@ process ARCHIVE_CDMATCHES {
         ${target_terms_arg} \
         ${target_excluded_terms_arg} \
         ${processing_size_arg} \
+        ${include_matches_with_gradscore_arg} \
         ${no_archive_arg}
 
-    echo "\$(date) Completed ${anatomical_area} normalize-score job: ${job_id} on \$(hostname -s)"
+    echo "\$(date) Completed ${anatomical_area} delete-matches job: ${job_id} on \$(hostname -s)"
     """
 }

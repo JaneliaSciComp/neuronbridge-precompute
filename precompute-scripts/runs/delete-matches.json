@@ -1,7 +1,9 @@
 {
     "job_list": "",
+    "tool_runner": "",
     "anatomical_area": "vnc",
     "db_config": "mylocal/devdb-config.properties",
+    "log_config": "mylocal/log4j.properties",
     "masks_library": "flyem_vnc_0_9",
     "masks_published_names": "",
     "mask_excluded_terms": "",
@@ -9,5 +11,7 @@
     "targets_published_names": "",
     "target_excluded_terms": "",
     "mip_excluded_tags": "",
+    "include_matches_with_gradscore": false,
+    "delete_only": false,
     "java_opts": ""
 }
