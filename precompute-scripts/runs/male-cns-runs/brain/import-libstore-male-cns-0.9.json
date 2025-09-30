@@ -1,0 +1,13 @@
+{
+    "dry_run": true,
+    "anatomical_area": "brain",
+    "import_library": "flyem_male_cns_brain_0_9",
+    "import_tag": "import-male-cns-0.9",
+    "variants_input_dir": "/nrs/scicompsoft/emlm/public_release_2025/Male_CNS/v09/Brain_v09",
+    "ignore_source_cdms": false,
+    "display_cdm_location": "Male_CNS_New_Brain_v09_CDM_for_visualization",
+    "searchable_cdm_location": "Male_CNS_New_Brain_v09_CDM_for_search",
+    "grad_location": "Male_CNS_New_Brain_v09_gradient",
+    "zgap_location": "Male_CNS_New_Brain_v09_RGB20px",
+    "libstore_dir": "/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs"
+}
