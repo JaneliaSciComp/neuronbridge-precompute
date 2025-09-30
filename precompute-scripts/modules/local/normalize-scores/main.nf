@@ -64,24 +64,29 @@ process NORMALIZE_SCORES {
         LOG_CONFIG_ARG=
     fi
 
-    ${app_runner} java \
-        ${java_opts} ${java_mem_opts} \
-        \${LOG_CONFIG_ARG} \
-        -jar ${java_app} \
-        mormalizeGradientScores \
-        --config ${db_config_file} \
-        ${concurrency_arg} \
-        ${alignment_space_arg} \
-        --masks-libraries ${masks_arg} \
-        ${masks_published_names_arg} \
-        ${mask_terms_arg} \
-        ${mask_excluded_terms_arg} \
-        ${targets_library_arg} \
-        ${targets_published_names_arg} \
-        ${target_terms_arg} \
-        ${target_excluded_terms_arg} \
-        ${processing_size_arg} \
+    CMD=(
+        ${app_runner} java
+        ${java_opts} ${java_mem_opts}
+        \${LOG_CONFIG_ARG}
+        -jar ${java_app}
+        mormalizeGradientScores
+        --config ${db_config_file}
+        ${concurrency_arg}
+        ${alignment_space_arg}
+        --masks-libraries ${masks_arg}
+        ${masks_published_names_arg}
+        ${mask_terms_arg}
+        ${mask_excluded_terms_arg}
+        ${targets_library_arg}
+        ${targets_published_names_arg}
+        ${target_terms_arg}
+        ${target_excluded_terms_arg}
+        ${processing_size_arg}
         --processing-tag ${normalize_ga_processing_tag}
+    )
+
+    echo "CMD: \${CMD[@]}"
+    (exec "\${CMD[@]}")
 
     echo "\$(date) Completed ${anatomical_area} normalize-score job: ${job_id} on \$(hostname -s)"
     """

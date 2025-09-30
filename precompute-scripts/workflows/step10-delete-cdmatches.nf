@@ -34,13 +34,17 @@ workflow {
             .withIndex()
             .collect { job, idx ->
                 def (job_offset, job_size) = job
+                def start_delay = params.max_delete_start_delay 
+                                    ? rand.nextInt(params.max_delete_start_delay + 1)
+                                    : 0
                 [
                     idx+1, // jobs are 1-indexed
                     anatomical_area,
                     masks_library,
                     job_offset,
                     job_size,
-                    params.targets_library
+                    params.targets_library,
+                    start_delay,
                 ]
             }
             .findAll {

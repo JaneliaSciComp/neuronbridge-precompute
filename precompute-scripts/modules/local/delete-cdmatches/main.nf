@@ -17,7 +17,8 @@ process DELETE_CDMATCHES {
           val(masks_library),
           val(masks_offset),
           val(masks_length),
-          val(targets_library)
+          val(targets_library),
+          val(start_delay)
     tuple path(app_jar),
           path(log_config),
           val(app_runner),
@@ -59,6 +60,8 @@ process DELETE_CDMATCHES {
     def include_matches_with_gradscore_arg = include_matches_with_gradscore ? '--include-matches-with-gradscore' : ''
     def no_archive_arg = no_archive ? '--no-archive' : ''
 
+    def sleep_stmt = start_delay ? "sleep ${start_delay}" : ""
+
     """
     echo "\$(date) Run ${anatomical_area} delete-matches job: ${job_id} on \$(hostname -s)"
 
@@ -68,25 +71,33 @@ process DELETE_CDMATCHES {
         LOG_CONFIG_ARG=
     fi
 
-    ${app_runner} java \
-        ${java_opts} ${java_mem_opts} \
-        \${LOG_CONFIG_ARG} \
-        -jar ${java_app} \
-        deleteCDMatches \
-        --config ${db_config_file} \
-        ${concurrency_arg} \
-        ${alignment_space_arg} \
-        --masks-libraries ${masks_arg} \
-        ${masks_published_names_arg} \
-        ${mask_terms_arg} \
-        ${mask_excluded_terms_arg} \
-        ${targets_library_arg} \
-        ${targets_published_names_arg} \
-        ${target_terms_arg} \
-        ${target_excluded_terms_arg} \
-        ${processing_size_arg} \
-        ${include_matches_with_gradscore_arg} \
+    CMD=(
+        ${app_runner} java
+        ${java_opts} ${java_mem_opts}
+        \${LOG_CONFIG_ARG}
+        -jar ${java_app}
+        deleteCDMatches
+        --config ${db_config_file}
+        ${concurrency_arg}
+        ${alignment_space_arg}
+        --masks-libraries ${masks_arg}
+        ${masks_published_names_arg}
+        ${mask_terms_arg}
+        ${mask_excluded_terms_arg}
+        ${targets_library_arg}
+        ${targets_published_names_arg}
+        ${target_terms_arg}
+        ${target_excluded_terms_arg}
+        ${processing_size_arg}
+        ${include_matches_with_gradscore_arg}
         ${no_archive_arg}
+    )
+
+    # random delay to prevent choking the db server
+    ${sleep_stmt}
+
+    echo "CMD: \${CMD[@]}"
+    (exec "\${CMD[@]}")
 
     echo "\$(date) Completed ${anatomical_area} delete-matches job: ${job_id} on \$(hostname -s)"
     """
