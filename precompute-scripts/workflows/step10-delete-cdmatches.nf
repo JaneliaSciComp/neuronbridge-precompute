@@ -92,6 +92,8 @@ workflow {
             params.target_excluded_terms,
             params.delete_processing_size,
             params.include_matches_with_gradscore,
+            params.delete_size,
+            params.fetch_size,
             params.delete_only,
        ],
     )

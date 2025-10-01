@@ -36,6 +36,8 @@ process DELETE_CDMATCHES {
           val(target_excluded_terms),
           val(processing_size),
           val(include_matches_with_gradscore),
+          val(delete_batch_size),
+          val(fetch_size),
           val(no_archive)
 
     when:
@@ -58,6 +60,8 @@ process DELETE_CDMATCHES {
     def target_excluded_terms_arg = target_excluded_terms ? "--excluded-targets-terms ${target_excluded_terms}" : ''
     def processing_size_arg = processing_size ? "-ps ${processing_size}" : ''
     def include_matches_with_gradscore_arg = include_matches_with_gradscore ? '--include-matches-with-gradscore' : ''
+    def delete_batch_size_arg = delete_batch_size ? "--delete-batch-size ${delete_batch_size}" : ''
+    def fetch_size_arg = fetch_size ? "--fetch-page-size ${fetch_size}" : ''
     def no_archive_arg = no_archive ? '--no-archive' : ''
 
     def sleep_stmt = start_delay ? "sleep ${start_delay}" : ""
@@ -90,6 +94,8 @@ process DELETE_CDMATCHES {
         ${target_excluded_terms_arg}
         ${processing_size_arg}
         ${include_matches_with_gradscore_arg}
+        ${delete_batch_size_arg}
+        ${fetch_size_arg}
         ${no_archive_arg}
     )
 

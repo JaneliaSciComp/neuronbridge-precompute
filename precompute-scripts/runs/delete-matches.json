@@ -12,8 +12,10 @@
     "target_excluded_terms": "",
     "mip_excluded_tags": "",
     "include_matches_with_gradscore": true,
-    "delete_processing_size": 5000,
-    "delete_batch_size": 10000,
+    "delete_processing_size": 200,
+    "delete_batch_size": 2000,
+    "delete_size": 500,
+    "fetch_size": 500,
     "delete_only": true,
     "java_opts": ""
 }
