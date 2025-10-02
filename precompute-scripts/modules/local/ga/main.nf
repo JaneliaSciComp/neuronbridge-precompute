@@ -22,7 +22,8 @@ process GA {
           val(start_delay)
     tuple path(app_jar),
           path(log_config),
-          val(app_runner)
+          val(app_runner),
+          val(readlink_cmd)
     path(db_config_file)
     val(cpus)
     val(mem_gb)
@@ -55,7 +56,7 @@ process GA {
 
     script:
     def java_app = app_jar ?: '/app/colormipsearch-jar-with-dependencies.jar'
-    def log_config_arg = log_config ? "-Dlog4j.configuration=file://\$(readlink -e ${log_config})" : ''
+    def log_config_arg = log_config ? "-Dlog4j.configuration=file://\$(${readlink_cmd} ${log_config})" : ''
     def java_mem_opts = get_java_mem_opts(mem_gb)
     def cache_size_arg = cache_size ? "--cacheSize ${cache_size}" : ''
     def concurrency_arg = get_concurrency_arg(concurrency, cpus)
