@@ -9,6 +9,7 @@
     "searchable_cdm_location": "Male_CNS_New_VNC_v09_JRC2018U_CDM_for_search",
     "grad_location": "Male_CNS_New_VNC_v09_JRC2018U_gradient",
     "zgap_location": "Male_CNS_New_VNC_v09_JRC2018U_RGB20px",
+    "vol_segmentation_location": "Male_CNS_New_VNC_v09_JRC2018U_swc",
     "junk_location": "junk_CDM",
     "libstore_dir": "/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs",
     "vol_segmentation_dest": "/nrs/jacs/jacsData/filestore/system/EMSkeletons/JRC2018_VNC_Unisex_40x_DS/flyem_male_cns_vnc_0_9/swc",
