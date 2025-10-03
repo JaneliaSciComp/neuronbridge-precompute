@@ -24,7 +24,8 @@ process COPY_VARIANTS_TO_LIBSTORE {
           val(dry_run)
     tuple path(app_jar),
           path(log_config),
-          val(app_runner)
+          val(app_runner),
+          val(readlink_cmd)
     val(cpus)
     val(mem_gb)
     val(java_opts)
@@ -38,7 +39,7 @@ process COPY_VARIANTS_TO_LIBSTORE {
 
     script:
     def java_app = app_jar ?: '/app/colormipsearch-jar-with-dependencies.jar'
-    def log_config_arg = log_config ? "-Dlog4j.configuration=file://\$(readlink -e ${log_config})" : ''
+    def log_config_arg = log_config ? "-Dlog4j.configuration=file://\$(${readlink_cmd} -e ${log_config})" : ''
     def java_mem_opts = "-Xmx${mem_gb-1}G -Xms${mem_gb-1}G"
     def alignment_space = area_to_alignment_space(anatomical_area)
     def libstore_dir = "${libstore_base_dir}/${alignment_space}/${library_name}"

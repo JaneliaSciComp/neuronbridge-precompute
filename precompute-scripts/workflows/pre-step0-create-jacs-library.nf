@@ -6,6 +6,7 @@ workflow {
         params.app ? file(params.app) : [],
         params.log_config ? file(params.log_config) : [],
         params.tool_runner,
+        params.readlink_cmd,
     ]
     def variants_output_dir = params.variants_output_dir
         ? file(params.variants_output_dir)
