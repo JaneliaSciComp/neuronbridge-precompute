@@ -81,19 +81,24 @@ process PREPARE_VARIANTS_FOR_MIPSTORE {
         echo "Remove file \${full_output_dir}/${output_file_name}.json because it already exists"
         rm -f "\${full_output_dir}/${output_file_name}.json"
     fi
-    ${app_runner} java \
-        ${java_opts} ${java_mem_opts} \
-        \${LOG_CONFIG_ARG} \
-        -jar ${java_app} \
-        createColorDepthSearchDataInput \
-        ${jacs_url_arg} \
-        ${jacs_auth_arg} \
-        -as ${alignment_space} \
-        -l ${library_name} \
-        ${library_variants_arg} \
-        --results-storage FS \
-        -od ${output_dirname} \
+    CMD=(
+        ${app_runner} java
+        ${java_opts} ${java_mem_opts}
+        \${LOG_CONFIG_ARG}
+        -jar ${java_app}
+        createColorDepthSearchDataInput
+        ${jacs_url_arg}
+        ${jacs_auth_arg}
+        -as ${alignment_space}
+        -l ${library_name}
+        ${library_variants_arg}
+        --results-storage FS
+        -od ${output_dirname}
         --output-filename ${output_file_name}
+    )
+
+    echo "CMD: \${CMD[@]}"
+    (exec "\${CMD[@]}")
 
     full_output_name="\${full_output_dir}/${output_file_name}.json"
     echo "\$(date) Completed ${library_name} variants import on \$(hostname -s)"
