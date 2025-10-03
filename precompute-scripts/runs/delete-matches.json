@@ -14,7 +14,7 @@
     "include_matches_with_gradscore": true,
     "delete_processing_size": 100,
     "delete_batch_size": 2000,
-    "delete_size": 100000,
+    "delete_size": 50000,
     "fetch_size": 50000,
     "delete_only": true,
     "java_opts": ""

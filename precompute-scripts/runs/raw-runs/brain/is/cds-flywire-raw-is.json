@@ -11,5 +11,4 @@
     "targets_tags": "import-is",
     "mip_excluded_tags": "validationError",
     "cds_processing_tag": "cds-flywire-vs-israw"
-
 }
