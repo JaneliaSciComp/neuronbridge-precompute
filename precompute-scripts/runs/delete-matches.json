@@ -4,7 +4,7 @@
     "anatomical_area": "vnc",
     "db_config": "mylocal/proddb-config.properties",
     "log_config": "runs/log4j.properties",
-    "masks_library": "flyem_vnc_0_9",
+    "masks_library": "flyem_manc_1_0",
     "masks_published_names": "",
     "mask_excluded_terms": "",
     "targets_library": "",
