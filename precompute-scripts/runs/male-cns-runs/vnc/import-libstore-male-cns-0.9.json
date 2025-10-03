@@ -1,0 +1,15 @@
+{
+    "dry_run": true,
+    "anatomical_area": "vnc",
+    "import_library": "flyem_male_cns_vnc_0_9",
+    "import_tag": "import-male-cns-vnc-0.9",
+    "variants_input_dir": "/nrs/scicompsoft/emlm/public_release_2025/Male_CNS/v09/VNC_v09",
+    "ignore_source_cdms": false,
+    "display_cdm_location": "Male_CNS_New_VNC_v09_JRC2018U_CDM_for_visualization",
+    "searchable_cdm_location": "Male_CNS_New_VNC_v09_JRC2018U_CDM_for_search",
+    "grad_location": "Male_CNS_New_VNC_v09_JRC2018U_gradient",
+    "zgap_location": "Male_CNS_New_VNC_v09_JRC2018U_RGB20px",
+    "junk_location": "junk_CDM",
+    "libstore_dir": "/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs",
+    "vol_segmentation_dest": "/nrs/jacs/jacsData/filestore/system/EMSkeletons/JRC2018_VNC_Unisex_40x_DS/flyem_male_cns_vnc_0_9/swc",
+}
