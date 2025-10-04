@@ -126,6 +126,7 @@ process CDS {
         --write-batch-size ${write_batch_size}
         ${parallelize_write_results_arg}
         ${update_matches_arg}
+        --use-id-generator-lock
     )
 
     echo "CMD: \${CMD[@]}"
