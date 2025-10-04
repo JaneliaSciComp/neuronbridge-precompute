@@ -5,7 +5,7 @@
     "masks_library": "flyem_male_cns_vnc_0_9",
     "masks_published_names": "",
     "mask_excluded_terms": "",
-    "targets_library": "flylight_split_gal4_published",
+    "targets_library": "flylight_raw_published",
     "targets_published_names": "",
     "targets_tags": "",
     "mip_excluded_tags": "junk,validationError,not-released",
@@ -15,6 +15,6 @@
     "top_best_sample_matches_per_line": 0,
     "top_best_matches_per_sample": 0,
     "pct_pos_pixels": 2,
-    "gradscore_processing_tag": "gradscore-male-vnc-cns-0.9-vs-sgal4",
+    "gradscore_processing_tag": "gradscore-male-vnc-cns-0.9-vs-raw",
     "lsf_opts": "-P scicompsoft"
 }
