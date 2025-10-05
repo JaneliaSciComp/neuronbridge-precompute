@@ -10,5 +10,5 @@
     "targets_tags": "",
     "mip_excluded_tags": "validationError,junk,not-released",
     "cds_processing_tag": "cds-male-vnc-cns-0.9-vs-mcfo",
-    "mips_base_link": "/nrs/jacs/jacsData/filestore"
+    "mips_base_link": "/nrs/jacs/jacsData/filestore/"
 }
