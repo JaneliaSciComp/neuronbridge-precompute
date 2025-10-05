@@ -7,7 +7,7 @@
     "mask_excluded_terms": "",
     "targets_library": "flylight_raw_published",
     "targets_published_names": "",
-    "targets_tags": "import-is",
+    "targets_tags": "",
     "mip_excluded_tags": "validationError,junk,not-released",
     "cds_processing_tag": "cds-male-cns-0.9-vs-israw"
 }
