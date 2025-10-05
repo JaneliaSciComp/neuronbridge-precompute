@@ -7,7 +7,7 @@
     "mask_excluded_terms": "",
     "targets_library": "flylight_raw_published",
     "targets_published_names": "",
-    "targets_tags": "import-is",
+    "targets_tags": "",
     "mip_excluded_tags": "junk,validationError,not-released",
     "with_bidirectional_matching": false,
     "gradscore_batch_size": 100,
