@@ -43,6 +43,8 @@ workflow {
         db_config_file,
     )
 
+    def rand = new Random()
+
     // split the work
     def cds_inputs = masks_count
     | join(targets_count)
