@@ -57,6 +57,9 @@ workflow {
                 def (masks_limits, targets_limits) = mtpair
                 def (masks_offset, masks_size) = masks_limits
                 def (targets_offset, targets_size) = targets_limits
+                def start_delay = params.max_cds_start_delay 
+                                    ? rand.nextInt(params.max_cds_start_delay + 1)
+                                    : 0
                 [
                     idx+1, // jobs are 1-indexed
                     anatomical_area,
@@ -66,6 +69,7 @@ workflow {
                     targets_library,
                     targets_offset,
                     targets_size,
+                    start_delay,
                 ]
             }
             .findAll {

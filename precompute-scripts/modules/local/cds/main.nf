@@ -19,7 +19,8 @@ process CDS {
           val(masks_length),
           val(targets_library),
           val(targets_offset),
-          val(targets_length)
+          val(targets_length),
+          val(start_delay)
     tuple path(app_jar),
           path(log_config),
           val(app_runner),
@@ -81,6 +82,7 @@ process CDS {
     def processing_size_arg = processing_size ? "-ps ${processing_size}" : ''
     def update_matches_arg = update_matches ? '--update-matches' : ''
     def parallelize_write_results_arg = parallelize_write_results ? '--parallel-write-results' : ''
+    def sleep_stmt = start_delay ? "sleep ${start_delay}" : ""
 
     """
     echo "\$(date) Run ${anatomical_area} cds job: ${job_id} on \$(hostname -s)"
@@ -128,6 +130,9 @@ process CDS {
         ${update_matches_arg}
         --use-id-generator-lock
     )
+
+    # random delay to prevent choking the db server
+    ${sleep_stmt}
 
     echo "CMD: \${CMD[@]}"
     (exec "\${CMD[@]}")
