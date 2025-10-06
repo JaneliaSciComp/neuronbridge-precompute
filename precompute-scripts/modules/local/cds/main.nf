@@ -21,7 +21,7 @@ process CDS {
           val(targets_offset),
           val(targets_length),
           val(start_delay)
-    tuple val(app_jar),
+    tuple path(app_jar),
           path(log_config),
           val(app_runner),
           val(readlink_cmd)

@@ -99,7 +99,7 @@ workflow {
     }
     CDS(cds_inputs,
         [
-            params.app,
+            params.app ? file(params.app) : [],
             params.log_config ? file(params.log_config) : [],
             params.tool_runner,
             params.readlink_cmd,
