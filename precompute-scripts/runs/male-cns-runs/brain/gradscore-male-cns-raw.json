@@ -15,6 +15,7 @@
     "top_best_sample_matches_per_line": 0,
     "top_best_matches_per_sample": 0,
     "pct_pos_pixels": 2,
-    "gradscore_processing_tag": "gradscore-male-cns-0.9-vs-israw",
+    "gradscore_processing_tag": "gradscore-male-cns-0.9-vs-raw",
+    "mips_base_dir": "/nrs/scicompsoft/goinac/neuronbridge/neuronbridge-precompute-tools/precompute-scripts/filestore",
     "lsf_opts": "-P scicompsoft"
 }
