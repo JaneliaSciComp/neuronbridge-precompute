@@ -1,7 +1,7 @@
 {
     "job_list": "",
     "anatomical_area": "vnc",
-    "db_config": "mylocal/proddb-config.properties",
+    "db_config": "${projectDir}/mylocal/proddb-config.properties",
     "masks_library": "flyem_male_cns_vnc_0_9",
     "masks_published_names": "",
     "mask_excluded_terms": "",
@@ -10,5 +10,5 @@
     "targets_tags": "",
     "mip_excluded_tags": "validationError,junk,not-released",
     "cds_processing_tag": "cds-male-vnc-cns-0.9-vs-mcfo",
-    "mips_base_link": "/nrs/jacs/jacsData/filestore/"
+    "mips_base_link": "/nrs/jacs/jacsData/filestore/system/"
 }
