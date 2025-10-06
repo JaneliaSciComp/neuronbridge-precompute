@@ -1,7 +1,7 @@
 {
     "job_list": "",
     "anatomical_area": "vnc",
-    "db_config": "./mylocal/proddb-config.properties",
+    "db_config": "/nrs/scicompsoft/goinac/neuronbridge/neuronbridge-precompute-tools/precompute-scripts/mylocal/proddb-config.properties",
     "masks_library": "flyem_male_cns_vnc_0_9",
     "masks_published_names": "",
     "mask_excluded_terms": "",
