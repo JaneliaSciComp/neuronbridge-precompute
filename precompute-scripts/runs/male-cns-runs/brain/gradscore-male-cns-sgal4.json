@@ -17,5 +17,6 @@
     "pct_pos_pixels": 2,
     "gradscore_processing_tag": "gradscore-male-cns-0.9-vs-sgal4",
     "mips_base_dir": "/nrs/scicompsoft/goinac/neuronbridge/neuronbridge-precompute-tools/precompute-scripts/filestore",
+    "log_config": "runs/log4j.properties",
     "lsf_opts": "-P scicompsoft"
 }
