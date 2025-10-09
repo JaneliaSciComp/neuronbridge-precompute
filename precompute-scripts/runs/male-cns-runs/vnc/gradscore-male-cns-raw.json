@@ -14,7 +14,7 @@
     "top_best_sample_matches_per_line": 0,
     "top_best_matches_per_sample": 0,
     "pct_pos_pixels": 2,
-    "gradscore_batch_size": 100,
+    "gradscore_batch_size": 200,
     "cpus": 24,
     "mem_gb": 350,
     "gradscore_concurrency": 47,
