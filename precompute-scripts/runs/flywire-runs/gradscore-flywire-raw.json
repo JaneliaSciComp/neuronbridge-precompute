@@ -21,5 +21,6 @@
     "gradscore_processing_tag": "gradscore-flywire-realigned-vs-israw",
     "log_config": "runs/log4j.properties",
     "lsf_opts": "-P scicompsoft",
+    "params.executor_queue_size": 20,
     "java_opts": ""
 }
