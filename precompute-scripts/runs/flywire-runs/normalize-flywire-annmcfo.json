@@ -5,13 +5,13 @@
     "masks_library": "flywire_fafb_783_realign",
     "masks_published_names": "",
     "mask_excluded_terms": "",
-    "targets_library": "flylight_gen1_mcfo_published,flylight_annotator_gen1_mcfo_published",
+    "targets_library": "flylight_annotator_gen1_mcfo_published",
     "targets_published_names": "",
     "targets_tags": "",
     "mip_excluded_tags": "validationError,junk,not-released",
     "normalize_score_batch_size": 1000,
     "normalize_score_processing_size": 100,
     "pct_pos_pixels": 2,
-    "normalize_score_processing_tag": "normalize-flywire-vs-mcfo+annmcfo",
+    "normalize_score_processing_tag": "normalize-flywire-vs-annmcfo",
     "lsf_opts": "-P scicompsoft"
 }

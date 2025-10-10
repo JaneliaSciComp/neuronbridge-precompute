@@ -1,0 +1,17 @@
+{
+    "job_list": "",
+    "anatomical_area": "brain",
+    "db_config": "mylocal/proddb-config.properties",
+    "masks_library": "flywire_fafb_783_realign",
+    "masks_published_names": "",
+    "mask_excluded_terms": "",
+    "targets_library": "flylight_split_gal4_published",
+    "targets_published_names": "",
+    "targets_tags": "",
+    "mip_excluded_tags": "validationError,junk,not-released",
+    "normalize_score_batch_size": 1000,
+    "normalize_score_processing_size": 100,
+    "pct_pos_pixels": 2,
+    "normalize_score_processing_tag": "normalize-flywire-vs-sgal4",
+    "lsf_opts": "-P scicompsoft"
+}
