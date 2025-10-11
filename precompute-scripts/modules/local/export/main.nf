@@ -22,10 +22,10 @@ process EXPORT {
           val(target_libraries),
           val(job_offset), 
           val(job_size)
-    tuple path(app_jar),
+    tuple path(app_jar, stageAs: 'app/app.jar'),
           path(log_config),
           val(app_runner)
-    path(db_config_file)
+    path(db_config_file, stageAs: 'config/db.properties')
     val(cpus)
     val(mem_gb)
     val(java_opts)
