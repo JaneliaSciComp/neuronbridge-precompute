@@ -93,7 +93,7 @@ process EXPORT {
     def processing_size_arg = processing_size ? "-ps ${processing_size}" : ''
     def max_matches_with_same_name_per_mip_arg = max_matches_with_same_name_per_mip ? "--max-matches-with-same-name-per-mip ${max_matches_with_same_name_per_mip}" : ''
     def max_matches_per_mip_arg = max_matches_per_mip ? "--max-matches-per-mip ${max_matches_per_mip}" : ''
-    def db_read_page_size_arg = (db_read_page_size as int) > 0 ? "--db-page-size ${db_read_page_size}" : db_read_page_size
+    def db_read_page_size_arg = (db_read_page_size as int) > 0 ? "--db-page-size ${db_read_page_size}" : ''
 
     """
     echo "\$(date) Run ${anatomical_area} ${export_type} export job: ${job_id} on \$(hostname -s)"
