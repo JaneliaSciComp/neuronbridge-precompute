@@ -104,6 +104,7 @@ workflow {
             params.default_image_store,
             params.image_stores_map,
             params.jacs_read_batch_size,
+            params.db_read_page_size,
             params.export_processing_size,
             params.max_exported_matches_with_same_name_per_mip,
             params.max_exported_matches_per_mip,

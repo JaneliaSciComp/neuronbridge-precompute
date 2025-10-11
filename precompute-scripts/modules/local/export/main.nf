@@ -46,6 +46,7 @@ process EXPORT {
           val(default_image_store),
           val(image_stores_map),
           val(jacs_read_batch_size),
+          val(db_read_page_size),
           val(processing_size),
           val(max_matches_with_same_name_per_mip),
           val(max_matches_per_mip)
@@ -92,6 +93,7 @@ process EXPORT {
     def processing_size_arg = processing_size ? "-ps ${processing_size}" : ''
     def max_matches_with_same_name_per_mip_arg = max_matches_with_same_name_per_mip ? "--max-matches-with-same-name-per-mip ${max_matches_with_same_name_per_mip}" : ''
     def max_matches_per_mip_arg = max_matches_per_mip ? "--max-matches-per-mip ${max_matches_per_mip}" : ''
+    def db_read_page_size_arg = (db_read_page_size as int) > 0 ? "--db-page-size ${db_read_page_size}" : db_read_page_size
 
     """
     echo "\$(date) Run ${anatomical_area} ${export_type} export job: ${job_id} on \$(hostname -s)"
@@ -106,38 +108,44 @@ process EXPORT {
         LOG_CONFIG_ARG=
     fi
 
-    ${app_runner} java \
-        ${java_opts} ${java_mem_opts} \
-        \${LOG_CONFIG_ARG} \
-        -jar ${java_app} \
-        exportData \
-        --config ${db_config_file} \
-        ${concurrency_arg} \
-        --exported-result-type ${export_type} \
-        --jacs-url "${jacs_url}" \
-        --authorization "${jacs_authorization}" \
-        --read-batch-size ${jacs_read_batch_size} \
-        ${processing_size_arg} \
-        ${alignment_space_arg} \
-        ${mask_names_arg} \
-        ${mask_mip_ids_arg} \
-        ${mask_libraries_arg} \
-        ${target_libraries_arg} \
-        ${mask_tags_arg} \
-        ${excluded_mask_tags_arg} \
-        ${target_tags_arg} \
-        ${excluded_target_tags_arg} \
-        ${mask_terms_arg} \
-        ${excluded_mask_terms_arg} \
-        ${target_terms_arg} \
-        ${excluded_target_terms_arg} \
-        ${default_image_store_arg} \
-        ${image_stores_map_arg} \
-        ${max_matches_with_same_name_per_mip_arg} \
-        ${max_matches_per_mip_arg} \
-        --default-relative-url-index 1 \
-        -od "\${result_export_dir}" \
+    CMD=(
+      ${app_runner} java
+        ${java_opts} ${java_mem_opts}
+        \${LOG_CONFIG_ARG}
+        -jar ${java_app}
+        exportData
+        --config ${db_config_file}
+        ${concurrency_arg}
+        --exported-result-type ${export_type}
+        --jacs-url "${jacs_url}"
+        --authorization "${jacs_authorization}"
+        --read-batch-size ${jacs_read_batch_size}
+        ${db_read_page_size_arg}
+        ${processing_size_arg}
+        ${alignment_space_arg}
+        ${mask_names_arg}
+        ${mask_mip_ids_arg}
+        ${mask_libraries_arg}
+        ${target_libraries_arg}
+        ${mask_tags_arg}
+        ${excluded_mask_tags_arg}
+        ${target_tags_arg}
+        ${excluded_target_tags_arg}
+        ${mask_terms_arg}
+        ${excluded_mask_terms_arg}
+        ${target_terms_arg}
+        ${excluded_target_terms_arg}
+        ${default_image_store_arg}
+        ${image_stores_map_arg}
+        ${max_matches_with_same_name_per_mip_arg}
+        ${max_matches_per_mip_arg}
+        --default-relative-url-index 1
+        -od "\${result_export_dir}"
         ${job_offset_arg} ${job_size_arg}
+    )
+
+    echo "CMD: \${CMD[@]}"
+    (exec "\${CMD[@]}")
 
     echo "\$(date) Completed ${anatomical_area} ${export_type} export job: ${job_id} on \$(hostname -s)"
     """
