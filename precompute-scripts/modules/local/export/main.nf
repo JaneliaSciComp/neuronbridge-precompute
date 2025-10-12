@@ -23,7 +23,7 @@ process EXPORT {
           val(job_offset), 
           val(job_size)
     tuple path(app_jar, stageAs: 'app/app.jar'),
-          path(log_config),
+          path(log_config, stageAs: 'config/logconfig.properties'),
           val(app_runner)
     path(db_config_file, stageAs: 'config/db.properties')
     val(cpus)
