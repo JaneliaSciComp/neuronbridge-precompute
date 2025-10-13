@@ -35,7 +35,7 @@ workflow {
     def export_inputs = unique_mips_count
     | flatMap { anatomical_area, mips_libraries, nmips ->
         def export_jobs = partition_work(nmips, params.export_batch_size)
-        log.debug "Partition export for ${nmips} ${mips_libraries} mips into ${export_jobs.size} jobs"
+        log.info "Partition export for ${nmips} ${mips_libraries} mips into ${export_jobs.size} jobs"
         export_jobs
             .withIndex()
             .collect { job, idx ->
