@@ -56,8 +56,13 @@ process DBQUERY {
     mongodb_username=\$(grep -e "MongoDB.Username=" ${db_config_file} | sed s/MongoDB.Username=//)
     mongodb_password=\$(grep -e "MongoDB.Password=" ${db_config_file} | sed s/MongoDB.Password=//)
     mongodb_replicaset=\$(grep -e "MongoDB.ReplicaSet=" ${db_config_file} | sed s/MongoDB.ReplicaSet=//)
+    if [[ "\${mongodb_replicaset}" == "" ]]; then
+        replicaset_param=""
+    else
+        replicaset_param="&replicaSet=\${mongodb_replicaset}"
+    fi
 
-    mongosh "mongodb://\${mongodb_username}:\${mongodb_password}@\${mongodb_server}/\${mongodb_database}?authSource=\${mongodb_authdatabase}&replicaSet=\${mongodb_replicaset}" <<-EOF > mongo_output
+    mongosh "mongodb://\${mongodb_username}:\${mongodb_password}@\${mongodb_server}/\${mongodb_database}?authSource=\${mongodb_authdatabase}\${replicaset_param}" <<-EOF > mongo_output
     db.neuronMetadata.aggregate([
         {
             \\\$match: {
