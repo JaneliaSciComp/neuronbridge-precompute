@@ -235,6 +235,11 @@ def process_em_library(coll, library, count):
         lib = result[1]
         version = result[2][1:].replace("_", ".")
         prefix = ":".join([lib, 'v' + version])
+    elif library.startswith("flyem_male_cns_"):
+        result = re.search(r"flyem_(male_cns_[^_]*)((_\d)+)", library)
+        lib = result[1]
+        version = result[2][1:].replace("_", ".")
+        prefix = ":".join([lib, 'v' + version])
     else:
         result = re.search(r"flyem_([^_]*)((_\d)+)", library)
         lib = result[1]
@@ -247,7 +252,7 @@ def process_em_library(coll, library, count):
     doi = EMDOI[lib]
     for row in tqdm(results, desc=prefix, total=count):
         COUNT['read'] += 1
-        if prefix in str(row["publishedName"]):
+        if prefix in str(row["publishedName"]) or prefix.startswith("male_cns_"):
             bid = str(row["publishedName"])
         else:
             if 'flywire' in prefix and 'flywire' in str(row["publishedName"]):
@@ -289,6 +294,8 @@ def process_em():
         if library.startswith("flylight"):
             continue
         if ARG.RELEASE and library != ARG.RELEASE:
+            continue
+        if 'import-' in row["_id"]["tag"]:
             continue
         LOGGER.info("Library %s %s", library, row["_id"]["tag"])
         process_em_library(coll, library, row["count"])

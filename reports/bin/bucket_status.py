@@ -54,8 +54,12 @@ def process_template_cdm(bucket, template):
             last = arr[-1] if arr else ""
             prefix = "/".join([template, library,"searchable_neurons", "KEYS", "0"])
             objs = AW.get_objects(bucket, prefix)
-            version = objs[-1].split(".")[-1].replace("_", ".") if objs[-1] and ".v" in objs[-1] \
-                else ""
+            if objs:
+                version = objs[-1].split(".")[-1].replace("_", ".") if objs[-1] and ".v" in objs[-1] \
+                    else ""
+            else:
+                #print(f"No objects for {bucket} {prefix}")
+                version = ""
             neurons = f"{int(neurons):,}"
             last = f"{int(last):,}"
         else:
