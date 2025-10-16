@@ -24,7 +24,8 @@ process EXPORT {
           val(job_size)
     tuple path(app_jar, stageAs: 'app/app.jar'),
           path(log_config, stageAs: 'config/logconfig.properties'),
-          val(app_runner)
+          val(app_runner),
+          val(readlink_cmd)
     path(db_config_file, stageAs: 'config/db.properties')
     val(cpus)
     val(mem_gb)
@@ -59,7 +60,7 @@ process EXPORT {
 
     script:
     def java_app = app_jar ?: '/app/colormipsearch-jar-with-dependencies.jar'
-    def log_config_arg = log_config ? "-Dlog4j.configuration=file://\$(readlink -e ${log_config})" : ''
+    def log_config_arg = log_config ? "-Dlog4j.configuration=file://\$(${readlink_cmd} -e ${log_config})" : ''
     def java_mem_opts = get_java_mem_opts(mem_gb)
     def concurrency_arg = get_concurrency_arg(concurrency, cpus)
     def alignment_space = area_to_alignment_space(anatomical_area)
@@ -100,7 +101,7 @@ process EXPORT {
     release_export_dir="${base_export_dir}/${release_dir}"
     mkdir -p \${release_export_dir}
     result_export_dir="\${release_export_dir}/${anatomical_area}/${relative_output_dir}"
-    full_result_dir=\$(readlink -m \${result_export_dir})
+    full_result_dir=\$(${readlink_cmd} -m \${result_export_dir})
 
     if [[ ${log_config} != "" && -f ${log_config} ]];  then
         LOG_CONFIG_ARG="${log_config_arg}"

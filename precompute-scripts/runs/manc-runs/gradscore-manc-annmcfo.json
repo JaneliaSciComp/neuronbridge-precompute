@@ -8,7 +8,7 @@
     "targets_library": "flylight_annotator_gen1_mcfo_published",
     "targets_published_names": "",
     "targets_tags": "",
-    "mip_excluded_tags": "validationError,junk",
+    "mip_excluded_tags": "validationError,junk,not-released",
     "with_bidirectional_matching": false,
     "gradscore_batch_size": 100,
     "ga_processing_size": 12,
@@ -18,6 +18,5 @@
     "top_best_matches_per_sample": 0,
     "pct_pos_pixels": 2,
     "gradscore_processing_tag": "gradscore-manc-vs-annmcfo",
-    "cpus": 64,
     "lsf_opts": "-P scicompsoft"
 }

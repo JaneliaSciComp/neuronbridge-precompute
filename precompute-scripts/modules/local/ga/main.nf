@@ -40,6 +40,7 @@ process GA {
           val(target_terms),
           val(target_excluded_terms),
           val(mirror_flag),
+          val(mask_th),
           val(top_best_line_matches),
           val(top_best_sample_matches_per_line),
           val(top_best_matches_per_sample),
@@ -73,6 +74,7 @@ process GA {
     def target_terms_arg = target_terms ? "--targets-terms ${target_terms}" : ''
     def target_excluded_terms_arg = target_excluded_terms ? "--excluded-targets-terms ${target_excluded_terms}" : ''
     def mirror_flag_arg = mirror_flag ? '--mirrorMask' : ''
+    def mask_th_arg = mask_th ? "--maskThreshold ${mask_th}" : ''
     def processing_size_arg = processing_size ? "-ps ${processing_size}" : ''
     def matches_tags_arg = matches_tags ? "--match-tags ${matches_tags}" : ''
     def masks_processing_tags_arg = masks_processing_tags ? "--masks-processing-tags ${get_processing_tags_arg(masks_processing_tags)}" : ''
@@ -116,6 +118,7 @@ process GA {
         ${target_excluded_terms_arg}
         ${processing_size_arg}
         ${mirror_flag_arg}
+        ${mask_th_arg}
         --processing-tag ${ga_processing_tag}
         ${matches_tags_arg}
         ${masks_processing_tags_arg}

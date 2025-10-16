@@ -18,6 +18,5 @@
     "top_best_matches_per_sample": 0,
     "pct_pos_pixels": 2,
     "gradscore_processing_tag": "gradscore-manc-vs-mcfo",
-    "cpus": 64,
     "lsf_opts": "-P scicompsoft"
 }

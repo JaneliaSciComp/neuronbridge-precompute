@@ -97,6 +97,7 @@ workflow {
             params.target_terms,
             params.target_excluded_terms,
             params.mirror_flag,
+            params.mask_th,
             params.top_best_line_matches,
             params.top_best_sample_matches_per_line,
             params.top_best_matches_per_sample,
