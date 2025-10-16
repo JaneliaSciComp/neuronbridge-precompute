@@ -15,6 +15,7 @@ process PREPARE_VARIANTS_FOR_MIPSTORE {
     input:
     tuple val(anatomical_area),
           val(library_name),
+          val(excluded_libraries),
           path(output_dir),
           path(variants_location),
           val(display_cdm_location),
@@ -48,6 +49,7 @@ process PREPARE_VARIANTS_FOR_MIPSTORE {
     def log_config_arg = log_config ? "-Dlog4j.configuration=file://\$(${readlink_cmd} -e ${log_config})" : ''
     def java_mem_opts = "-Xmx${mem_gb-1}G -Xms${mem_gb-1}G"
     def alignment_space = area_to_alignment_space(anatomical_area)
+    def excluded_libraries_arg = excluded_libraries ? "--excluded-libraries ${excluded_libraries}" : ''
     def output_file_name = output_name ?: library_name
     def library_variants_arg = create_library_variants_arg(
         library_name,
@@ -91,6 +93,7 @@ process PREPARE_VARIANTS_FOR_MIPSTORE {
         ${jacs_auth_arg}
         -as ${alignment_space}
         -l ${library_name}
+        ${excluded_libraries_arg}
         ${library_variants_arg}
         --results-storage FS
         -od ${output_dirname}

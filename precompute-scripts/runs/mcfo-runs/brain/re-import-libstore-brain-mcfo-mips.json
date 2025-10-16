@@ -3,6 +3,7 @@
     "force_copy": true,
     "anatomical_area": "brain",
     "import_library": "flylight_gen1_mcfo_published",
+    "excluded_libraries": "flylight_annotator_gen1_mcfo_published",
     "import_tag": "re-import-mcfo",
     "variants_input_dir": "/nrs/scicompsoft/emlm/public_release_2022/",
     "display_cdm_location": "",
