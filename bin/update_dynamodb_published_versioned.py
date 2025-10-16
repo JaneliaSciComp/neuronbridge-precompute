@@ -22,6 +22,7 @@ import neuronbridge_common.neuronbridge_common as NB
 NEURON_DATA = ["neuronInstance", "neuronType"]
 NEURON_MAP = {}
 TYPE_BODY_LIMIT = 10000
+ARG = LOGGER = None
 # Database
 DATABASE = {}
 DYNAMO = {}
@@ -191,12 +192,11 @@ def build_bodyid_list(bodyids):
     return blist
 
 
-def batch_row(name, keytype, matches, bodyids=None):
+def batch_row(name, keytype, bodyids=None):
     ''' Create and save a payload for a single row
         Keyword arguments:
           name: publishedName, bodyID, neuronInstance, or neuronType
           keytype: key type for DynamoDB (publishedName, bodyID, neuronInstance, or neuronType)
-          matches: CDM/PPP match dict
           bodyids: list of body IDs [optional, used for neuronInstance or neuronType only]
         Returns:
           None
@@ -206,11 +206,9 @@ def batch_row(name, keytype, matches, bodyids=None):
                "filterKey": name.lower(),
                "name": name,
                "keyType": keytype}
-               # Removed booleans 2024-09
-               #"cdm": matches["cdm"],
-               #"ppp": matches["ppp"]}
     if bodyids:
-        payload["bodyIDs"] = build_bodyid_list(bodyids)
+        payload["bodyIDs"] = bodyids
+        #payload["bodyIDs"] = build_bodyid_list(bodyids)
     if name not in KEYS:
         ITEMS.append(payload)
         COUNT[keytype] += 1
@@ -229,11 +227,10 @@ def update_ddb_nb(library):
     DDB_NB[library]["count"] += 1
 
 
-def primary_update(rlist, matches):
+def primary_update(rlist):
     ''' Run primary update to batch simple items (publishingName and bodyID)
         Keyword arguments:
           rlist: record list
-          matches: match dict
         Returns:
           None
     '''
@@ -245,48 +242,46 @@ def primary_update(rlist, matches):
         keytype = "publishingName"
         if row["libraryName"].startswith("flyem") or row["libraryName"].startswith("flywire"):
             keytype = "bodyID"
-        batch_row(name, keytype, matches[name])
+        batch_row(name, keytype)
         update_ddb_nb(row["libraryName"])
 
 
 def add_neuron(neuron, ntype):
-    ''' Add a single neuron (Instance or Type) to the list of items to be stored in DynamoDB
+    ''' Add a single neuron (Instance) to the list of items to be stored in DynamoDB
         Keyword arguments:
-          neuron: neuronInstance or neuronType
+          neuron: neuronInstance
           ntype: "neuronInstance" or "neuronType"
         Returns:
           None
     '''
-    nmatch = {"cdm": False, "ppp": False}
     coll = DATABASE["NB"]["neuronMetadata"]
     # Allow a body ID from any library
     #payload = {ntype: neuron, "libraryName": row["libraryName"]}
-    payload = {ntype: neuron}
+    payload = {ntype: neuron, "tags": ARG.VERSION}
     cnt = coll.count_documents(payload)
     if cnt > TYPE_BODY_LIMIT:
         LOGGER.warning(f"{cnt:,} bodies for {ntype} {neuron}")
         return
-    else:
-        results = coll.find(payload, {"publishedName": 1, "processedTags": 1,
-                                      "libraryName": 1})
+    results = coll.find(payload, {"publishedName": 1, "tags": 1,
+                                  "libraryName": 1, "datasetLabels": 1})
     bids = {}
     for brow in results:
-        if brow["publishedName"] in bids or "processedTags" not in brow:
-            continue
-        bids[brow["publishedName"]] = True
-        # Set match flags
-        if "ColorDepthSearch" in brow["processedTags"] \
-           and brow["processedTags"]["ColorDepthSearch"]:
-            nmatch["cdm"] = True
-        if "PPPMatch" in brow["processedTags"] \
-           and brow["processedTags"]["PPPMatch"]:
-            nmatch["ppp"] = True
+        if 'datasetLabels' not in brow:
+            print(brow)
+            terminate_program(f"No dataset labels for {brow['publishedName']} {neuron}")
+        if len(brow["datasetLabels"]) != 1:
+            terminate_program(f"Incorrect dataset labels for {brow['publishedName']} " \
+                              + f"{brow['datasetLabels']}")
+        fqual = ':'.join([brow["datasetLabels"][0], brow["publishedName"]])
+        if fqual not in bids:
+            bids[fqual] = True
+        continue
     llen = len(list(bids.keys()))
     if llen > 50:
         NBODY.append(f"{ntype} {neuron} matches {llen} bodies")
     else:
         NBODY.append(f"{ntype} {neuron} matches {','.join(list(bids.keys()))}")
-    batch_row(neuron, ntype, nmatch, list(bids.keys()))
+    batch_row(neuron, ntype, list(bids.keys()))
 
 
 def add_neuron_type(neuron):
@@ -296,7 +291,6 @@ def add_neuron_type(neuron):
         Returns:
           None
     '''
-    nmatch = {"cdm": True, "ppp": False}
     if neuron not in NEURON_MAP:
         return
     llen = len(NEURON_MAP[neuron])
@@ -306,8 +300,8 @@ def add_neuron_type(neuron):
     if llen > 50:
         NBODY.append(f"neuronType {neuron} matches {llen} bodies")
     else:
-        NBODY.append(f"neuronType{neuron} matches {','.join(NEURON_MAP[neuron])}")
-    batch_row(neuron, "neuronType", nmatch, NEURON_MAP[neuron])
+        NBODY.append(f"neuronType {neuron} matches {','.join(NEURON_MAP[neuron])}")
+    batch_row(neuron, "neuronType", NEURON_MAP[neuron])
 
 
 def match_count(matches):
@@ -397,21 +391,28 @@ def update_neuron_map():
         Returns:
           None
     '''
-    payload = [{"$unwind": "$neuronTerms"},
-               {"$match": {"neuronTerms": {"$ne": None}}},
-               {"$group": {"_id": "$neuronTerms", "bodies": {"$push": "$publishedName"},
-                           "count": {"$sum": 1}}}]
+    LOGGER.info("Mapping neuron types")
+    payload = [{"$match": {"tags": ARG.VERSION, "neuronTerms": {"$exists": 1}}},
+               {"$unwind": "$neuronTerms"},
+               {"$unwind": "$datasetLabels"},
+               {"$match": {"neuronTerms": {"$ne": ""}}},
+               {"$group": {"_id": "$neuronTerms",
+                "bodies": {"$push": {"$concat": ["$datasetLabels", ":", "$publishedName"]}}}}
+              ]
     coll = DATABASE["NB"]["neuronMetadata"]
     try:
         rows = coll.aggregate(payload)
     except Exception as err:
         terminate_program(err)
     for row in tqdm(rows, desc="Adding neuronTerms bodies"):
-        NEURON_MAP[row["_id"]] = row["bodies"]
-    payload = [{"$unwind": "$neuronType"},
-               {"$match": {"neuronType": {"$ne": None}}},
-               {"$group": {"_id": "$neuronType", "bodies": {"$push": "$publishedName"},
-                           "count": {"$sum": 1}}}]
+        NEURON_MAP[row["_id"]] = list(dict.fromkeys(row["bodies"]))
+    payload = [{"$match": {"tags": ARG.VERSION, "neuronType": {"$exists": 1}}},
+               {"$unwind": "$neuronType"},
+               {"$unwind": "$datasetLabels"},
+               {"$match": {"neuronType": {"$ne": ""}}},
+               {"$group": {"_id": "$neuronType",
+                "bodies": {"$push": {"$concat": ["$datasetLabels", ":", "$publishedName"]}}}}
+              ]
     try:
         rows = coll.aggregate(payload)
     except Exception as err:
@@ -419,9 +420,10 @@ def update_neuron_map():
     for row in tqdm(rows, desc="Adding neuronType bodies"):
         for body in row["bodies"]:
             if row["_id"] not in NEURON_MAP:
-                NEURON_MAP[row["_id"]] = row["bodies"]
+                NEURON_MAP[row["_id"]] = [body]
             elif body not in NEURON_MAP[row["_id"]]:
                 NEURON_MAP[row["_id"]].append(body)
+    LOGGER.info(f"Neuron types mapped: {len(NEURON_MAP):,}")
 
 
 def process_results(count, results, publishedurl):
@@ -475,22 +477,19 @@ def process_results(count, results, publishedurl):
     # matches: key=publishing name, value={cdm: boolean, ppp: boolean}
     # rlist: list of rows from neuronMetadata (distinct publishing names)
     # neurons: key=data type, value={neuron name or instance: boolean}
-    update_neuron_map()
     if len(rlist) != len(matches):
         terminate_program(f"Unique primary list ({len(rlist)}) != match list({len(matches)})")
     print("Libraries:")
     liblen = cntlen = 0
     for lib, val in library.items():
-        if len(lib) > liblen:
-            liblen = len(lib)
-        if len(str(val)) > cntlen:
-            cntlen = len(str(val))
+        liblen = max(liblen, len(lib))
+        cntlen = max(cntlen, len(str(val)))
     for lib, val in library.items():
         print(f"  {lib+':':<{liblen+1}} {val:>{cntlen},}")
     print(f"Neuron instances:   {len(neurons['neuronInstance']):,}")
     print(f"Neuron types:       {len(neurons['neuronType']):,}")
     match_count(matches)
-    primary_update(rlist, matches)
+    primary_update(rlist)
     update_neuron_matches(neurons)
     LOGGER.info("Producing output files")
     for ntype in NEURON_DATA:
@@ -540,6 +539,7 @@ def update_dynamo():
     #                   {"processedTags.PPPMatch": ARG.VERSION}]}
     payload = {"$or": [{"tags": ARG.VERSION},
                        {"processedTags.PPPMatch": ARG.VERSION}]}
+    payload = {"tags": ARG.VERSION}
     results = coll.aggregate([{"$match": payload}, {"$group": {"_id": "$libraryName",
                                                                "count": {"$sum":1}}}])
     lkeys = []
@@ -576,7 +576,9 @@ def update_dynamo():
     pppresults = coll.distinct("sourceEmName")
     for row in pppresults:
         KNOWN_PPP[row.split("-")[0]] = True
-    LOGGER.info(f"Processing neuronMetaData ({count:,} images)")
+    if 'flylight' not in answers["to_include"]:
+        update_neuron_map()
+    LOGGER.info(f"Processing neuronMetadata ({count:,} images)")
     process_results(count, results, publishedurl)
     # Done with the changes to DynamoDB! Update the manifest in MongoDB.
     if not ARG.WRITE:
