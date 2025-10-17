@@ -27,21 +27,20 @@ workflow {
     )
 
     unique_mips_count.subscribe {
-        log.debug "MIPs to validate count: $it"
+        log.info "MIPs to validate count: $it"
     }
 
     // split the work
     def validation_inputs = unique_mips_count
     | flatMap { anatomical_area, mips_libraries, nmips ->
-        def export_jobs = partition_work(nmips, params.export_batch_size)
-        log.debug "Partition validation for ${nmips} ${mips_libraries} mips into ${export_jobs.size} jobs"
-        export_jobs
+        def validation_jobs = partition_work(nmips, params.validation_batch_size)
+        log.info "Partition validation for ${nmips} ${mips_libraries} mips into ${validation_jobs.size} jobs"
+        validation_jobs
             .withIndex()
             .collect { job, idx ->
                 def (job_offset, job_size) = job
                 [
                     idx+1, // jobs are 1-indexed
-                    params.data_version,
                     anatomical_area,
                     mips_libraries,
                     job_offset,
@@ -69,29 +68,32 @@ workflow {
             }
     }
     validation_inputs.subscribe {
-        log.debug "Run validation: $it"
+        log.info "Run validation: $it"
     }
-    VALIDATE(validation_inputs,
+    VALIDATE(validation_inputs, // [index, area, libs, range ]
        [
            params.app ? file(params.app) : [],
            params.log_config ? file(params.log_config) : [],
            params.tool_runner,
+           params.readlink_cmd,
        ],
        db_config_file,
        params.cpus,
        params.mem_gb,
        params.java_opts,
        [
-            params.validate_samples,
             params.validate_data_releases,
+            params.validate_published_names,
+            params.validate_samples,
+            params.validate_mip_ids,
             params.validate_tags,
-            params.target_mip_excluded_tags,
+            params.mip_excluded_tags,
+            params.mip_terms,
+            params.mip_excluded_terms,
             params.jacs_url,
             params.jacs_authorization,
-            params.default_image_store,
-            params.image_stores_map,
             params.jacs_read_batch_size,
-            params.export_processing_size,
+            params.validation_processing_size,
        ],
        params.mips_base_dir
     )

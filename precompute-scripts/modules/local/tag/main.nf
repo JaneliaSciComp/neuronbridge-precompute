@@ -46,23 +46,27 @@ process TAG {
 
     """
     echo "\$(date) Tag mips with: ${new_tag} on \$(hostname -s)"
-    ${app_runner} java \
-        ${java_opts} ${java_mem_opts} \
-        ${log_config_arg} \
-        -jar ${java_app} \
-        tag \
-        --config ${db_config_file} \
-        --tag ${new_tag} \
-        ${alignment_space_arg} \
-        ${libraries_arg} \
-        ${data_tags_arg} \
-        ${data_labels_arg} \
-        ${excluded_tags_arg} \
-        ${processing_tags_arg} \
-        ${published_names_arg} \
-        ${mip_ids_arg} \
-        ${neuron_terms_arg} \
+    CMD=(
+        ${app_runner} java
+        ${java_opts} ${java_mem_opts}
+        ${log_config_arg}
+        -jar ${java_app}
+        tag
+        --config ${db_config_file}
+        --tag ${new_tag}
+        ${alignment_space_arg}
+        ${libraries_arg}
+        ${data_tags_arg}
+        ${data_labels_arg}
+        ${excluded_tags_arg}
+        ${processing_tags_arg}
+        ${published_names_arg}
+        ${mip_ids_arg}
+        ${neuron_terms_arg}
         ${excluded_neuron_terms_arg}
+    )
 
+    echo "CMD: \${CMD[@]}"
+    (exec "\${CMD[@]}")
     """
 }
