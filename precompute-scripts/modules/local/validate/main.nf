@@ -34,7 +34,8 @@ process VALIDATE {
           val(jacs_url),
           val(jacs_authorization),
           val(jacs_read_batch_size),
-          val(processing_size)
+          val(processing_size),
+          val(error_tag)
     path(mips_base_dir)
 
     script:
@@ -53,7 +54,7 @@ process VALIDATE {
     def validated_samples_arg = sample_refs ? "--validated-samples ${sample_refs}" : ''
     def validated_mips_arg = mip_ids ? "--validated-mips ${mip_ids}" : ''
     def validated_tags_arg = tags ? "--validated-tags ${tags}" : ''
-
+    def error_tag_arg = error_tag ? "--error-tag ${error_tag}" : '--error-tag validationError'
     def processing_size_arg = processing_size ? "-ps ${processing_size}" : ''
 
     """
@@ -84,6 +85,7 @@ process VALIDATE {
         ${validated_samples_arg}
         ${validated_mips_arg}
         ${validated_tags_arg}
+        ${error_tag_arg}
         ${job_offset_arg} ${job_size_arg}
     )
 

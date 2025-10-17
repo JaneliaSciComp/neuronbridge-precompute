@@ -27,7 +27,7 @@ workflow {
     )
 
     unique_mips_count.subscribe {
-        log.info "MIPs to validate count: $it"
+        log.debug "MIPs to validate count: $it"
     }
 
     // split the work
@@ -50,16 +50,16 @@ workflow {
             .findAll {
                 def (job_idx) = it
                 def first_job_idx = params.first_job > 0 ? params.first_job : 1
-                def last_job_idx = params.last_job > 0 ? params.last_job : export_jobs.size
+                def last_job_idx = params.last_job > 0 ? params.last_job : validation_jobs.size
 
-                def excluded_first_job_idx = params.excluded_first_job > 0 ? params.excluded_first_job : export_jobs.size
+                def excluded_first_job_idx = params.excluded_first_job > 0 ? params.excluded_first_job : validation_jobs.size
                 def excluded_last_job_idx = params.excluded_last_job > 0 ? params.excluded_last_job : 1
 
                 def job_is_included = is_job_id_in_process_list(job_idx,
                                                                 params.job_list,
                                                                 first_job_idx,
                                                                 last_job_idx)
-                def job_is_excluded = export_jobs.size > 1 &&
+                def job_is_excluded = validation_jobs.size > 1 &&
                                       is_job_id_in_process_list(job_idx,
                                                                 params.excluded_job_list,
                                                                 excluded_first_job_idx,
@@ -68,7 +68,7 @@ workflow {
             }
     }
     validation_inputs.subscribe {
-        log.info "Run validation: $it"
+        log.debug "Run validation: $it"
     }
     VALIDATE(validation_inputs, // [index, area, libs, range ]
        [
@@ -94,6 +94,7 @@ workflow {
             params.jacs_authorization,
             params.jacs_read_batch_size,
             params.validation_processing_size,
+            params.validation_error_tag,
        ],
        params.mips_base_dir
     )
