@@ -1,0 +1,16 @@
+{
+    "anatomical_area": "brain",
+    "import_library": "flylight_gen1_mcfo_published",
+    "excluded_libraries": "flylight_annotator_gen1_mcfo_published",
+    "import_tag": "re-import-mcfo",
+    "jacs_url": "",
+    "jacs_authorization": "",
+    "db_config": "mylocal/proddb-config.properties",
+    "searchable_cdm_location": "segmentation",
+    "grad_location": "grad",
+    "zgap_location": "zgap",
+    "vol_segmentation_location": [
+        "/nrs/jacs/jacsData/filestore/system/EMSkeletons/JRC2018_Unisex_20x_HR/flylight_gen1_mcfo_published/segmented_nrrd"
+    ],
+    "libstore_dir": "/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs"
+}
