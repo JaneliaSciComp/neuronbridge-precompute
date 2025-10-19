@@ -62,7 +62,7 @@ def get_lib_arg(lib, offset, length) {
 
 def get_list_arg(values) {
     if (values) {
-        def vs = values.tokenize(',')
+        def vs = (values instanceof Collection) ? values : values.tokenize(',')
         return vs.join(' ')
     } else {
         return ''

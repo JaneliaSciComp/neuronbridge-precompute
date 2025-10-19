@@ -3,6 +3,7 @@ include {
       get_concurrency_arg;
       get_java_mem_opts;
       get_list_arg;
+      get_values_as_collection;
 } from '../../../nfutils/utils'
 
 process EXPORT {
@@ -76,10 +77,10 @@ process EXPORT {
     def mask_names_arg = get_arg_from_input_list('--exported-names', mask_names)
     def mask_mip_ids_arg = get_arg_from_input_list('--exported-mips', mask_mip_ids)
 
-    def mask_tags_arg = get_arg_from_input_list('--neuron-tags', mask_tags)
+    def mask_tags_arg = get_arg_from_input_list('--neuron-tags', get_values_as_collection(mask_tags) + [data_version])
     def excluded_mask_tags_arg = get_arg_from_input_list('--excluded-neuron-tags', excluded_mask_tags)
 
-    def target_tags_arg = get_arg_from_input_list('--target-tags', target_tags)
+    def target_tags_arg = get_arg_from_input_list('--target-tags', get_values_as_collection(target_tags) + [data_version])
     def excluded_target_tags_arg = get_arg_from_input_list('--excluded-target-tags', excluded_target_tags)
 
     def mask_terms_arg = get_arg_from_input_list('--neuron-terms', mask_terms)
