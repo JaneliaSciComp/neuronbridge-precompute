@@ -33,10 +33,12 @@ process GA {
           val(cache_size),
           val(masks_published_names),
           val(mask_tags),
+          val(mask_excluded_tags),
           val(mask_terms),
           val(mask_excluded_terms),
           val(targets_published_names),
           val(target_tags),
+          val(target_excluded_tags),
           val(target_terms),
           val(target_excluded_terms),
           val(mirror_flag),
@@ -66,11 +68,13 @@ process GA {
     def masks_arg = get_lib_arg(masks_library, masks_offset, masks_length)
     def masks_published_names_arg = masks_published_names ? "--masks-published-names ${masks_published_names}" : ''
     def mask_tags_arg = mask_tags ? "--masks-tags ${mask_tags}" : ''
+    def mask_excluded_tags_arg = mask_excluded_tags ? "--masks-excluded-tags ${mask_excluded_tags}" : ''
     def mask_terms_arg = mask_terms ? "--masks-terms ${mask_terms}" : ''
     def mask_excluded_terms_arg = mask_excluded_terms ? "--excluded-masks-terms ${mask_excluded_terms}" : ''
     def targets_library_arg = targets_library ? "--targets-libraries ${targets_library}" : ''
     def targets_published_names_arg = targets_published_names ? "--targets-published-names ${targets_published_names}" : ''
     def target_tags_arg = target_tags ? "--targets-tags ${target_tags}" : ''
+    def target_excluded_tags_arg = target_excluded_tags ? "--targets-excluded-tags ${target_excluded_tags}" : ''
     def target_terms_arg = target_terms ? "--targets-terms ${target_terms}" : ''
     def target_excluded_terms_arg = target_excluded_terms ? "--excluded-targets-terms ${target_excluded_terms}" : ''
     def mirror_flag_arg = mirror_flag ? '--mirrorMask' : ''
@@ -109,11 +113,13 @@ process GA {
         --masks-libraries ${masks_arg}
         ${masks_published_names_arg}
         ${mask_tags_arg}
+        ${mask_excluded_tags_arg}
         ${mask_terms_arg}
         ${mask_excluded_terms_arg}
         ${targets_library_arg}
         ${targets_published_names_arg}
         ${target_tags_arg}
+        ${target_excluded_tags_arg}
         ${target_terms_arg}
         ${target_excluded_terms_arg}
         ${processing_size_arg}
