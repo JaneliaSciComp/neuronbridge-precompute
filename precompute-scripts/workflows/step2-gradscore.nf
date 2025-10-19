@@ -109,6 +109,7 @@ workflow {
             params.targets_processing_tags,
             params.pct_pos_pixels,
             params.with_bidirectional_matching,
+            params.cancel_prev_scores,
        ],
        file(params.mips_base_dir),
     )
