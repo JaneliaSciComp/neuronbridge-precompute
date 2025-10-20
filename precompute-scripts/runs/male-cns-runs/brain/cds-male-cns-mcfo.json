@@ -4,10 +4,12 @@
     "db_config": "mylocal/proddb-config.properties",
     "masks_library": "flyem_male_cns_brain_0_9",
     "masks_published_names": "",
+    "masks_tags": "",
+    "masks_excluded_tags": "validationError,junk,not-released",
     "mask_excluded_terms": "",
     "targets_library": "flylight_gen1_mcfo_published",
     "targets_published_names": "",
     "targets_tags": "",
-    "mip_excluded_tags": "validationError,junk,not-released",
+    "targets_excluded_tags": "validationError,junk,not-released",
     "cds_processing_tag": "cds-male-cns-0.9-vs-mcfo"
 }
