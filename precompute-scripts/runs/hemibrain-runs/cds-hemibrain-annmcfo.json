@@ -1,0 +1,21 @@
+{
+    "job_list": "",
+    "anatomical_area": "brain",
+    "db_config": "mylocal/proddb-config.properties",
+    "masks_library": "flyem_hemibrain_1_2_1",
+    "masks_published_names": "",
+    "masks_tags": "",
+    "masks_excluded_tags": "validationError,junk,not-released",
+    "mask_excluded_terms": "",
+    "targets_library": "flylight_annotator_gen1_mcfo_published",
+    "targets_published_names": "",
+    "targets_tags": "",
+    "targets_excluded_tags": "validationError,junk,not-released",
+    "target_excluded_terms": "",
+    "cds_processing_tag": "cds-hemi-vs-annmcfo",
+    "cds_cache_size": 500,
+    "cds_processing_size": 100,
+    "cpus": "16",
+    "mem_gb": "60",
+    "java_opts": ""
+}

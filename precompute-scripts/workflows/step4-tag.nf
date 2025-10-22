@@ -10,6 +10,7 @@ workflow {
             params.app ? file(params.app) : [],
             params.log_config ? file(params.log_config) : [],
             params.tool_runner,
+            params.readlink_cmd,
        ],
        file(params.db_config),
        params.cpus,
