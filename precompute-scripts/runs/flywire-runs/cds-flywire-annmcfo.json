@@ -4,11 +4,14 @@
     "db_config": "mylocal/proddb-config.properties",
     "masks_library": "flywire_fafb_783_realign",
     "masks_published_names": "",
+    "masks_tags": "",
+    "masks_excluded_tags": "validationError,junk,not-released",
     "mask_excluded_terms": "",
     "targets_library": "flylight_annotator_gen1_mcfo_published",
     "targets_published_names": "",
+    "targets_tags": "",
+    "targets_excluded_tags": "validationError,junk,not-released",
     "target_excluded_terms": "",
-    "mip_excluded_tags": "validationError,junk,not-released",
     "cds_processing_tag": "cds-flywire-vs-annmcfo",
     "java_opts": ""
 }
