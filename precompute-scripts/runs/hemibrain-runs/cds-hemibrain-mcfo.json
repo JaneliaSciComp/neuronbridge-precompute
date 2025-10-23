@@ -17,8 +17,8 @@
     "cds_processing_size": 500,
     "cds_mask_batch_size": 1000,
     "cds_target_batch_size": 5000,
-    "cpus": 12,
-    "cds_concurrency": 24,
+    "cpus": 15,
+    "cds_concurrency": 30,
     "mem_gb": 100,
     "java_opts": ""
 }
