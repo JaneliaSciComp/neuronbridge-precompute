@@ -15,8 +15,10 @@
     "cds_processing_tag": "cds-hemi-vs-mcfo",
     "cds_cache_size": 12000,
     "cds_processing_size": 500,
-    "cpus": 24,
-    "cds_concurrency": 48,
+    "cds_mask_batch_size": 1000,
+    "cds_target_batch_size": 5000,
+    "cpus": 12,
+    "cds_concurrency": 24,
     "mem_gb": 100,
     "java_opts": ""
 }
