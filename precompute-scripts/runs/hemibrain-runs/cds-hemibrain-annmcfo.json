@@ -16,7 +16,7 @@
     "cds_cache_size": 500,
     "cds_processing_size": 100,
     "cpus": 15,
-    "cds_concurrency": 15,
+    "cds_concurrency": 29,
     "mem_gb": 60,
     "java_opts": ""
 }
