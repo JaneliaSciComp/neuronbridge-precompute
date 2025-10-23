@@ -21,7 +21,7 @@ workflow {
             params.mip_terms,
             params.mip_excluded_terms,
             params.mip_processing_tags,
-            false,
+            true,
         ]),
         db_config_file,
     )
