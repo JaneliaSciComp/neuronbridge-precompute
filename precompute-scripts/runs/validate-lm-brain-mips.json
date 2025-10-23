@@ -5,6 +5,7 @@
     "validate_libs": "",
     "validate_published_names": "",
     "validate_mip_ids": "",
+    "mip_excluded_tags": "",
     "jacs_url": "",
     "jacs_authorization": "",
     "cpus": 5,
