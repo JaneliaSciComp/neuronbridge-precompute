@@ -21,6 +21,8 @@
     "gradscore_batch_size": 50,
     "ga_processing_size": 40,
     "cpus": 15,
+    "gradscore_concurrency": 15,
+    "gradscore_cache_size": 5000,
     "mem_gb": 100,
     "gradscore_processing_tag": "gradscore-hemibrain-vs-mcfo+annmcfo",
     "mips_base_dir": "/nrs/scicompsoft/goinac/neuronbridge/neuronbridge-precompute-tools/precompute-scripts/filestore",
