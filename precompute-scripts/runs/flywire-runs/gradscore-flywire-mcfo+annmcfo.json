@@ -22,7 +22,7 @@
     "gradscore_batch_size": 50,
     "mips_matches_read_size": 50,
     "ga_processing_size": 40,
-    "gradscore_cache_size": 100,
+    "gradscore_cache_size": 5000,
     "cpus": 15,
     "gradscore_concurrency": 29,
     "mem_gb": 220,
