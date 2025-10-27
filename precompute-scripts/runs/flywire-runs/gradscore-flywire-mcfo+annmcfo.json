@@ -12,7 +12,7 @@
     "targets_tags": "",
     "targets_excluded_tags": "validationError,junk,not-released",
     "target_excluded_terms": "",
-    "cancel_prev_scores": true,
+    "cancel_prev_scores": false,
     "with_bidirectional_matching": false,
     "mask_th": 20,
     "top_best_line_matches": 300,
