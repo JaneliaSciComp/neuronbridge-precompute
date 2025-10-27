@@ -13,10 +13,11 @@
     "targets_excluded_tags": "validationError,junk,not-released",
     "target_excluded_terms": "",
     "cds_processing_tag": "cds-hemi-vs-annmcfo",
-    "cds_cache_size": 500,
-    "cds_processing_size": 100,
+    "cds_cache_size": 12000,
+    "cds_processing_size": 500,
+    "cds_mask_batch_size": 1000,
+    "cds_target_batch_size": 5000,
     "cpus": 15,
-    "cds_concurrency": 29,
-    "mem_gb": 60,
-    "java_opts": ""
+    "cds_concurrency": 30,
+    "mem_gb": 100
 }

@@ -19,6 +19,5 @@
     "cds_target_batch_size": 5000,
     "cpus": 15,
     "cds_concurrency": 30,
-    "mem_gb": 100,
-    "java_opts": ""
+    "mem_gb": 100
 }
