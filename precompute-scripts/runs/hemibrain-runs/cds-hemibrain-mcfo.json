@@ -7,7 +7,7 @@
     "masks_tags": "",
     "masks_excluded_tags": "validationError,junk,not-released",
     "mask_excluded_terms": "",
-    "targets_library": "flylight_gen1_mcfo_published",
+    "targets_library": "flylight_gen1_mcfo_published_1_1",
     "targets_published_names": "",
     "targets_tags": "",
     "targets_excluded_tags": "validationError,junk,not-released",
