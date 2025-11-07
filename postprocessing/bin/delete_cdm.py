@@ -347,6 +347,8 @@ def check_neuronmetadata_lm():
     payload = {"alignmentSpace": ARG.TEMPLATE,
                "sourceRefId": 'Sample#' + ARG.SAMPLE,
                "tags": tag}
+    payload = {"alignmentSpace": ARG.TEMPLATE,
+               "sourceRefId": 'Sample#' + ARG.SAMPLE}
     LOGGER.info(f"Searching neuronMetadata for {ARG.TEMPLATE} {ARG.SAMPLE} {tag}")
     try:
         results = coll.find(payload)
@@ -356,6 +358,7 @@ def check_neuronmetadata_lm():
         TARGET['neuronMetadata'].append(row['_id'])
     LOGGER.info(f"neuronMetadata records found: {len(TARGET['neuronMetadata']):,}")
     if not TARGET['neuronMetadata']:
+        LOGGER.error(payload)
         terminate_program(f"No neuronMetadata records found for {ARG.SAMPLE}")
 
 
@@ -804,7 +807,10 @@ def delete_items():
     if not choices:
         LOGGER.warning("There is nothing to delete")
         terminate_program()
-    if ARG.ACCEPT:
+    if ARG.OMNI:
+        answers = {}
+        answers['area'] = accepted = ['publishedLMImage', 'published-stacks']
+    elif ARG.ACCEPT:
         answers = {}
         answers['area'] = accepted
     else:
@@ -895,6 +901,8 @@ if __name__ == '__main__':
                         help='Body ID')
     PARSER.add_argument('--version', dest='VERSION',
                         help='DynamoDB NeuronBridge version')
+    PARSER.add_argument('--omni', dest='OMNI', action='store_true',
+                        default=False, help='Accept deletion choices for Omnibus Broad')
     PARSER.add_argument('--accept', dest='ACCEPT', action='store_true',
                         default=False, help='Accept all deletion choices')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',

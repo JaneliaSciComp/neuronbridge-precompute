@@ -93,10 +93,12 @@ def get_mongo_payload(coll):
     '''
     field = "datasetLabels" if coll == "neuronMetadata" else "alpsRelease"
     field2 = "sourceRefId" if coll == "neuronMetadata" else "sampleRef"
+    # {"$group": {"_id": {"release": f"${field}", "sample": f"${field2}"}}},
+    # {"$group": {"_id": {"release": f"${field}", "sample": f"${field2}", "libraryName": "$libraryName"}}},
     return [{"$match": {field: {"$exists": True},
              "libraryName": {"$regex": "^flylight_"}}},
             {"$unwind": f"${field}"},
-            {"$group": {"_id": {"release": f"${field}", "sample": f"${field2}"}}},
+            {"$group": {"_id": {"release": f"${field}", "sample": f"${field2}", "libraryName": "$libraryName"}}},
            ]
 
 
@@ -190,6 +192,9 @@ def process():
         rows = DB['neuronbridge'][coll].aggregate(payload)
         scnt = 0
         for row in rows:
+            if row['_id']['libraryName'] in ('flylight_gen1_mcfo_published',
+                                             'flylight_annotator_gen1_mcfo_published'):
+                continue
             if row['_id']['release'] not in mongo[coll]:
                 mongo[coll][row['_id']['release']] = 0
             mongo[coll][row['_id']['release']] += 1

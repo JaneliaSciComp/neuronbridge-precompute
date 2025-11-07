@@ -513,7 +513,7 @@ def get_image_mapping(publishing_db):
         Returns:
           None
     '''
-    LOGGER.info("Getting image mapping (sample -> release)")
+    LOGGER.info(f"Getting image mapping (sample -> release) from {publishing_db}")
     stmt = "SELECT DISTINCT workstation_sample_id,alps_release FROM image_data_mv WHERE " \
            + "alps_release IS NOT NULL"
     try:

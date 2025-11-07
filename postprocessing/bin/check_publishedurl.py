@@ -111,7 +111,7 @@ def get_parms():
             versions.append(row['_id'])
         quest = [inquirer.List('version',
                  message='Select version',
-                 choices=versions)]
+                 choices=sorted(versions))]
         ans = inquirer.prompt(quest)
         if not ans or not ans['version']:
             terminate_program("No version selected")

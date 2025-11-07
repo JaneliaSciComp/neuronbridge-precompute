@@ -1,14 +1,17 @@
-''' Report on EM datasets from Mongo
+''' dataset_report.py
+    Report on datasets in MongoDB
 '''
 
 import argparse
 from operator import attrgetter
 import sys
-from colorama import Fore, Style
 import jrc_common.jrc_common as JRC
 
-#pylint: disable=broad-exception-caught
+#pylint: disable=broad-exception-caught,logging-fstring-interpolation,logging-not-lazy
 
+# Globals
+ARG = LOGGER = None
+# Database
 DB = {}
 
 # -----------------------------------------------------------------------------
@@ -38,98 +41,57 @@ def initialize_program():
         dbconfig = JRC.get_config("databases")
     except Exception as err:
         terminate_program(err)
-    for dbname in ('jacs', 'neuronbridge'):
-        man = 'prod' if dbname == 'neuronbridge' else ARG.MANIFOLD
+    for dbname in ('sage', 'neuronbridge'):
+        man = 'prod' if dbname == 'sage' else ARG.MANIFOLD
         dbo = attrgetter(f"{dbname}.{man}.read")(dbconfig)
-        LOGGER.info("Connecting to %s %s on %s as %s", dbo.name, ARG.MANIFOLD, dbo.host, dbo.user)
+        LOGGER.info(f"Connecting to {dbo.name} {ARG.MANIFOLD} on {dbo.host} as {dbo.user}")
         DB[dbname] = JRC.connect_database(dbo)
 
 
-def color(txt, warn=False):
-    """ Color Yes/No text
-        Keyword arguments:
-          txt: text to color
-        Returns:
-          Colored text
-    """
-    if 'Yes' in txt:
-        return Fore.GREEN + txt + Style.RESET_ALL
-    if warn:
-        return Fore.YELLOW + txt + Style.RESET_ALL
-    return Fore.RED + txt + Style.RESET_ALL
-
-
-def get_datasets():
-    """ Show datasets
+def processing():
+    """ Process the data
         Keyword arguments:
           None
         Returns:
           None
     """
-    # Get data sets from NeuronBridge publishedURL
-    LOGGER.info("Getting libraries from NeuronBridge")
-    coll = DB['neuronbridge'].publishedURL
-    payload = [{"$group": {"_id": {"lib": "$libraryName"},
-                           "count": {"$sum": 1}}}]
-    rows = coll.aggregate(payload)
-    nblib = {}
-    for row in rows:
-        nblib[row['_id']['lib'].replace('flyem_', '')] = row['count']
-    # Get data sets from jacs
-    LOGGER.info("Getting datasets from JACS")
-    coll = DB['jacs'].emDataSet
-    rows = coll.find()
+    payload = [{"$match": {"tags": "3.8.1"}},
+               {"$match": {"tags": {"$nin": ["junk", "validationError"]}}},
+               {"$project": {"libraryName": 1, "publishedName": 1, "mipId": 1, "sourceRefId": 1,
+                             "alignmentSpace": 1}},
+               {"$sort": {"libraryName": 1, "publishedName": 1}}]
+    LOGGER.info("Getting datasets from NeuronBridge")
+    try:
+        rows = DB['neuronbridge'].neuronMetadata.aggregate(payload)
+    except Exception as err:
+        terminate_program(err)
     dataset = {}
     for row in rows:
-        dataset[str(row['_id'])] = {'active': 'Yes' if row['active'] else 'No',
-                                    'published': 'Yes' if row['published'] else 'No'}
-    # Get body count from jacs
-    LOGGER.info("Getting bodies from JACS")
-    coll = DB['jacs'].emBody
-    payload = [{"$group": {"_id": {"ds": "$dataSetIdentifier", "dsr": "$dataSetRef"},
-                           "count": {"$sum": 1}}}]
-    rows = coll.aggregate(payload)
-    rep = {}
-    maxds = 8
-    for row in rows:
-        dsid = row['_id']['dsr'].split('#')[1]
-        dset = row['_id']['ds']
-        if dsid not in dataset:
-            LOGGER.warning(f"Dataset ID {dsid} not found")
-            continue
-        if ':' in dset:
-            dset, ver = dset.split(':')
-            dslib = '_'.join([dset, ver.replace('v', '').replace('.', '_')])
-        else:
-            ver = ''
-            dslib = dset
-        if len(dset) > maxds:
-            maxds = len(dset)
-        if dslib in nblib:
-            on_nb = color(f"{'Yes':^12}")
-        elif dataset[dsid]['active'] == 'Yes' and dataset[dsid]['published'] == 'Yes' \
-             and dset not in ('fib19', 'hemibrain'):
-            on_nb = color(f"{'No':^12}")
-        else:
-            on_nb = 'No'
-        rep[row['_id']['ds']] = {'ds': dset, 'ver': ver,
-                                 'nb': on_nb,
-                                 'cnt': row['count'],
-                                 'act': color(f"{dataset[dsid]['active']:^6}", True),
-                                 'pub': color(f"{dataset[dsid]['published']:^6}", True)}
-    # Display
-    print(f"{'Data set':<{maxds}}  Version  {'Active':6}  {'Public':6}  {'Bodies':7}  NeuronBridge")
-    print(f"{'-'*maxds}  {'-'*7}  {'-'*6}  {'-'*6}  {'-'*7}  {'-'*12}")
-    for dset, data in sorted(rep.items()):
-        print(f"{data['ds']:<{maxds}}  {data['ver']:<7}  {data['act']}  " \
-              + f"{data['pub']}  {data['cnt']:>7,}  {data['nb']:^12}")
-
+        if row['libraryName'] not in dataset:
+            dataset[row['libraryName']] = {'images': 0, 'publishedName': {'20x': {}, '40x': {}}, \
+                                           'mipId': {'20x': {}, '40x': {}},
+                                           'sourceRefId': {'20x': {}, '40x': {}}}
+        dataset[row['libraryName']]['images'] += 1
+        for field in ('publishedName', 'mipId', 'sourceRefId'):
+            align = '20x' if '20x' in row['alignmentSpace'] else '40x'
+            dataset[row['libraryName']][field][align][row[field]] = True
+    for library, data in dataset.items():
+        print(f"{library}: {data['images']:,} images")
+        for field, value in data.items():
+            if field == 'images':
+                continue
+            alignl = []
+            for mag, align in value.items():
+                if align:
+                    alignl.append(f"{len(align):,} {mag}")
+            alignstr = ', '.join(alignl)
+            print(f"  {field}: {alignstr}")
 
 # -----------------------------------------------------------------------------
 
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
-        description="Report on EM datasets from Mongo")
+        description="Report on datasets in MongoDB")
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         choices=['dev', 'prod', 'local'], default='prod', help='Manifold')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
@@ -139,5 +101,5 @@ if __name__ == '__main__':
     ARG = PARSER.parse_args()
     LOGGER = JRC.setup_logging(ARG)
     initialize_program()
-    get_datasets()
-    sys.exit(0)
+    processing()
+    terminate_program()
