@@ -9,8 +9,8 @@
     "targets_published_names": "",
     "targets_tags": "",
     "mip_excluded_tags": "validationError,junk,not-released",
-    "normalize_score_batch_size": 1000,
-    "normalize_score_processing_size": 100,
+    "normalize_score_batch_size": 200,
+    "normalize_score_processing_size": 20,
     "pct_pos_pixels": 2,
     "normalize_score_processing_tag": "normalize-hemi-vs-annmcfo",
     "lsf_opts": "-P scicompsoft"
