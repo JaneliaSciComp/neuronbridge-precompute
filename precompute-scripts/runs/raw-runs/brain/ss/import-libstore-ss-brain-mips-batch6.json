@@ -1,0 +1,19 @@
+{
+    "dry_run": true,
+    "force_copy": true,
+    "anatomical_area": "brain",
+    "import_library": "flylight_raw_published",
+    "import_tag": "import-ss-batch6",
+    "variants_input_dir": "/nrs/scicompsoft/emlm/public_release_2025/Omunibus_batch6",
+    "display_cdm_location": "",
+    "searchable_cdm_location": "Omunibus_Neuron_CDM_6",
+    "grad_location": "Omunibus_batch6_neuron_gradient",
+    "zgap_location": "Omunibus_batch6_neuron_10pxRGB",
+    "junk_location": "",
+    "vol_segmentation_location": "segmented_nrrd_neuron_6",
+    "searchable_cdm_dest": "segmentation",
+    "libstore_dir": "/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs",
+    "vol_segmentation_dest": "/nrs/jacs/jacsData/filestore/system/EMSkeletons/JRC2018_Unisex_20x_HR/flylight_raw_published/SS_segmented_nrrd",
+    "jacs_url": "",
+    "jacs_authorization": ""
+}
