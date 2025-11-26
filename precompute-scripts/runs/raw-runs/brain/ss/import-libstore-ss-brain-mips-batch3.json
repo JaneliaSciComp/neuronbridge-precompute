@@ -8,7 +8,7 @@
     "display_cdm_location": "",
     "searchable_cdm_location": "Omunibus_batch3_CDM",
     "grad_location": "Omunibus_batch3_gradient",
-    "zgap_location": "Omunibus_batch3_RGB20px",
+    "zgap_location": "/nrs/scicompsoft/emlm/public_release_2025/RGB10px/Omunibus_batch3_10pxRGB",
     "junk_location": "",
     "vol_segmentation_location": "Omunibus_batch3_segmented_nrrd",
     "searchable_cdm_dest": "segmentation",

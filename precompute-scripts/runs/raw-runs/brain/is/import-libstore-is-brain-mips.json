@@ -7,7 +7,7 @@
     "display_cdm_location": "",
     "searchable_cdm_location": "IS_CDM_Neuron",
     "grad_location": "IS_gradient",
-    "zgap_location": "IS_20pxRGB",
+    "zgap_location": "/nrs/scicompsoft/emlm/public_release_2025/RGB10px/Omunibus_IS_Brain_10pxRGB",
     "searchable_cdm_dest": "segmentation",
     "libstore_dir": "/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs",
     "jacs_url": "",

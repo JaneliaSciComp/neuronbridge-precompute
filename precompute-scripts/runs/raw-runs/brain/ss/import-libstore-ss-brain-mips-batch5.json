@@ -8,7 +8,7 @@
     "display_cdm_location": "",
     "searchable_cdm_location": "Omunibus_batch5_segmented_Neuron_CDM",
     "grad_location": "Omunibus_batch5_segmented_Neuron_gradient",
-    "zgap_location": "Omunibus_batch5_segmented_Neuron_RGB20px",
+    "zgap_location": "/nrs/scicompsoft/emlm/public_release_2025/RGB10px/Omunibus_batch5_10pxRGB",
     "junk_location": "",
     "vol_segmentation_location": "Omunibus_batch5_segmented_Neuron_nrrd",
     "searchable_cdm_dest": "segmentation",
