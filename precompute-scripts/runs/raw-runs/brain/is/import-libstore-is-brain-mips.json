@@ -8,6 +8,8 @@
     "searchable_cdm_location": "IS_CDM_Neuron",
     "grad_location": "IS_gradient",
     "zgap_location": "/nrs/scicompsoft/emlm/public_release_2025/RGB10px/Omunibus_IS_Brain_10pxRGB",
+    "vol_segmentation_location": "IS_segmented_nrrd",
+    "vol_segmentation_dest": "/nrs/jacs/jacsData/filestore/system/EMSkeletons/JRC2018_Unisex_20x_HR/flylight_raw_published/IS_segmented_nrrd",
     "searchable_cdm_dest": "segmentation",
     "libstore_dir": "/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs",
     "jacs_url": "",
