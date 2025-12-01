@@ -9,7 +9,7 @@
     "targets_library": "flylight_raw_published",
     "targets_published_names": "",
     "target_excluded_terms": "",
-    "targets_tags": "import-is",
+    "targets_tags": "",
     "mip_excluded_tags": "validationError,junk,not-released",
     "with_bidirectional_matching": false,
     "top_best_line_matches": 300,
@@ -18,9 +18,9 @@
     "pct_pos_pixels": 2,
     "gradscore_batch_size": 100,
     "ga_processing_size": 20,
-    "gradscore_processing_tag": "gradscore-flywire-realigned-vs-israw",
+    "gradscore_processing_tag": "gradscore-flywire-realigned-vs-raw",
     "log_config": "runs/log4j.properties",
     "lsf_opts": "-P scicompsoft",
-    "params.executor_queue_size": 20,
+    "params.executor_queue_size": 100,
     "java_opts": ""
 }
