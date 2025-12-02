@@ -18,7 +18,7 @@
     "pct_pos_pixels": 2,
     "gradscore_batch_size": 100,
     "ga_processing_size": 20,
-    "gradscore_processing_tag": "gradscore-flywire-realigned-vs-raw",
+    "gradscore_processing_tag": "gradscore-braincns-raw",
     "log_config": "runs/log4j.properties",
     "lsf_opts": "-P scicompsoft",
     "java_opts": ""
