@@ -45,6 +45,7 @@ process EXPORT {
           val(excluded_target_terms),
           val(jacs_url),
           val(jacs_authorization),
+          val(config_url),
           val(default_image_store),
           val(image_stores_map),
           val(jacs_read_batch_size),
@@ -96,6 +97,7 @@ process EXPORT {
     def max_matches_with_same_name_per_mip_arg = max_matches_with_same_name_per_mip ? "--max-matches-with-same-name-per-mip ${max_matches_with_same_name_per_mip}" : ''
     def max_matches_per_mip_arg = max_matches_per_mip ? "--max-matches-per-mip ${max_matches_per_mip}" : ''
     def db_read_page_size_arg = (db_read_page_size as int) > 0 ? "--db-page-size ${db_read_page_size}" : ''
+    def config_url_arg = config_url ? "--config-url ${config_url}" : ''
 
     """
     echo "\$(date) Run ${anatomical_area} ${export_type} export job: ${job_id} on \$(hostname -s)"
@@ -122,6 +124,7 @@ process EXPORT {
         --jacs-url "${jacs_url}"
         --authorization "${jacs_authorization}"
         --read-batch-size ${jacs_read_batch_size}
+        ${config_url_arg}
         ${db_read_page_size_arg}
         ${processing_size_arg}
         ${alignment_space_arg}

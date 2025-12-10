@@ -102,6 +102,7 @@ workflow {
             params.excluded_from_exported_target_terms,
             params.jacs_url,
             params.jacs_authorization,
+            params.config_url,
             params.default_image_store,
             params.image_stores_map,
             params.jacs_read_batch_size,
