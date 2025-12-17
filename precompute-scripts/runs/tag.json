@@ -1,7 +1,7 @@
 {
     "anatomical_area": "brain+vnc",
     "db_config": "mylocal/proddb-config.properties",
-    "mip_libraries": "flylight_annotator_gen1_mcfo_published,flylight_gen1_mcfo_published,flylight_raw_published,flylight_split_gal4_published,flyem_hemibrain_1_2_1,flyem_male_cns_brain_0_9,flywire_fafb_783,flywire_fafb_783_realign,flyem_vnc_0_5,flyem_manc_1_2_1,flyem_male_cns_vnc_0_9",
+    "mip_libraries": "flylight_annotator_gen1_mcfo_published,flylight_annotator_gen1_mcfo_published_1_1,flylight_gen1_mcfo_published,flylight_gen1_mcfo_published_1_1,flylight_raw_published,flylight_split_gal4_published,flyem_hemibrain_1_2_1,flyem_male_cns_brain_0_9,flywire_fafb_783_realign,flyem_vnc_0_5,flyem_manc_1_2_1,flyem_male_cns_vnc_0_9",
     "mip_tags": "",
     "mip_excluded_tags": "validationError,junk,not-released"
 }
