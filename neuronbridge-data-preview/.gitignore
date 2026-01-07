@@ -1,0 +1,13 @@
+node_modules/
+.env
+server/.env
+npm-debug.log
+.DS_Store
+client/build/
+client/node_modules/
+server/node_modules/
+*.log
+.idea/
+.vscode/
+*~
+*.swp
