@@ -1,5 +1,5 @@
 {
-  "name": "neuronbridge-local-client",
+  "name": "neuronbridge-preview-client",
   "version": "1.0.0",
   "private": true,
   "proxy": "http://localhost:3000",

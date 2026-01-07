@@ -1,7 +1,7 @@
 {
   "name": "neuronbridge-local-server",
   "version": "1.0.0",
-  "description": "NeuronBridge Local - Server",
+  "description": "NeuronBridge Data Preview - Server",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

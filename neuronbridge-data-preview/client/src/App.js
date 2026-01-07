@@ -10,7 +10,7 @@ function App() {
       <div className="App">
         <header className="App-header">
           <div className="container">
-            <h1>NeuronBridge Local</h1>
+            <h1>NeuronBridge Data Preview</h1>
             <nav className="nav">
               <Link to="/">Home</Link>
             </nav>
@@ -26,7 +26,7 @@ function App() {
 
         <footer className="App-footer">
           <div className="container">
-            <p>NeuronBridge Local - Local data browser for neuron color depth MIP searches</p>
+            <p>NeuronBridge Data Preview - Local data browser for neuron color depth MIP searches</p>
           </div>
         </footer>
       </div>

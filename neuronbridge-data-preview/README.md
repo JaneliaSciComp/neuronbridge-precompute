@@ -1,4 +1,4 @@
-# NeuronBridge Local
+# NeuronBridge Data Preview
 
 A local version of the NeuronBridge web application that uses local MongoDB data and filesystem instead of AWS services.
 

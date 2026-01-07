@@ -53,7 +53,7 @@ async function startServer() {
 
     // Start listening
     app.listen(PORT, () => {
-      console.log(`NeuronBridge Local server running on http://localhost:${PORT}`);
+      console.log(`NeuronBridge Preview server running on http://localhost:${PORT}`);
       console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`Database: ${process.env.MONGODB_DATABASE}`);
       console.log(`Image base path: ${process.env.IMAGE_BASE_PATH}`);

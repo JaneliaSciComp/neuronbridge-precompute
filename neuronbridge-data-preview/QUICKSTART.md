@@ -1,6 +1,6 @@
 # Quick Start Guide
 
-Get NeuronBridge Local up and running in 5 minutes.
+Get NeuronBridge Data Preview up and running in 5 minutes.
 
 ## Prerequisites Check
 
@@ -76,7 +76,7 @@ npm run start:server
 You should see:
 ```
 Connected to MongoDB
-NeuronBridge Local server running on http://localhost:3000
+NeuronBridge Data Preview server running on http://localhost:3000
 Environment: development
 Database: neuronbridge
 Image base path: /your/path/to/images
@@ -97,7 +97,7 @@ npm run start:dev
 
 Navigate to: `http://localhost:3000`
 
-You should see the NeuronBridge Local interface with your neurons!
+You should see the NeuronBridge Data Preview interface with your neurons!
 
 ## Development Mode (Optional)
 
