@@ -18,7 +18,6 @@ router.get('/em-cdms/:neuronId', async (req, res) => {
   try {
     const db = getDB();
     const matchesCollection = db.collection('cdMatches');
-    const neuronsCollection = db.collection('neuronMetadata');
 
     const page = parseInt(req.query.page) || 0;
     const limit = Math.min(parseInt(req.query.limit) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
@@ -89,7 +88,6 @@ router.get('/lm-cdms/:neuronId', async (req, res) => {
   try {
     const db = getDB();
     const matchesCollection = db.collection('cdMatches');
-    const neuronsCollection = db.collection('neuronMetadata');
 
     const page = parseInt(req.query.page) || 0;
     const limit = Math.min(parseInt(req.query.limit) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
@@ -146,6 +144,115 @@ router.get('/lm-cdms/:neuronId', async (req, res) => {
   } catch (error) {
     console.error('Error fetching CDM matches:', error);
     res.status(500).json({ error: 'Failed to fetch matches' });
+  }
+});
+
+/**
+ * GET /api/matches/em-cdms-stats/:neuronId
+ * Get color depth match statistics for an EM neuron
+ * Query params:
+ *   - targetLibrary: single library or comma-separated list of libraries (optional, returns all if not specified)
+ *   - minScore: minimum normalized score
+ */
+router.get('/em-cdms-stats/:neuronId', async (req, res) => {
+  try {
+    const db = getDB();
+    const matchesCollection = db.collection('cdMatches');
+
+    // Parse target libraries from query param
+    const targetLibraries = req.query.targetLibrary
+      ? req.query.targetLibrary.split(',').map(lib => lib.trim())
+      : null;
+
+    // Build pipeline
+    const pipeline = [];
+    const matchFilter = createMatchStage({}/*no filtering by the scores*/, {
+        maskImageRefId: convertStringToId(req.params.neuronId),
+    });
+    pipeline.push(matchFilter);
+
+    // Lookup neuron metadata
+    const lookupStage = targetLibraries
+      ? {
+          from: 'neuronMetadata',
+          let: { imageId: '$matchedImageRefId' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: [ '$_id', '$$imageId' ] },
+                libraryName: { $in: targetLibraries },
+              }
+            }
+          ],
+          as: 'matchedImage'
+        }
+      : {
+          from: 'neuronMetadata',
+          localField: 'matchedImageRefId',
+          foreignField: '_id',
+          as: 'matchedImage'
+        };
+
+    pipeline.push({ $lookup: lookupStage });
+    pipeline.push({
+      $unwind: {
+        path: '$matchedImage',
+        preserveNullAndEmptyArrays: false,
+      }
+    });
+
+    // Add group stage to compute max pixel score and max negative score per library
+    pipeline.push({
+      $group: {
+        _id: '$matchedImage.libraryName',
+        maxMatchingPixels: { $max: '$matchingPixels' },
+        maxNegativeScore: {
+          $max: {
+            $cond: [
+              {
+                $and: [
+                  { $ne: ['$gradientAreaGap', null] },
+                  { $ne: ['$gradientAreaGap', -1] }
+                ]
+              },
+              {
+                $add: [
+                  '$gradientAreaGap',
+                  { $divide: [{ $ifNull: ['$highExpressionArea', 0] }, 3] }
+                ]
+              },
+              null
+            ]
+          }
+        }
+      }
+    });
+
+    // Sort by library name
+    pipeline.push({
+      $sort: { _id: 1 }
+    });
+
+    // Execute aggregation
+    const stats = await matchesCollection
+      .aggregate(pipeline)
+      .toArray();
+
+    // Format results
+    const results = stats.map(stat => ({
+      targetLibrary: stat._id,
+      maxMatchingPixels: stat.maxMatchingPixels || 0,
+      maxNegativeScore: stat.maxNegativeScore || 0
+    }));
+
+    res.json({
+      neuronId: req.params.neuronId,
+      results
+    });
+
+  } catch (error) {
+    console.error('Error fetching maximum values for neuron CDM scores:', error);
+    res.status(500).json({ error: 'Failed to fetch max neuron scores' });
   }
 });
 

@@ -13,6 +13,8 @@ const THUMBNAIL_HEIGHT = parseInt(process.env.THUMBNAIL_HEIGHT) || 200;
  * Generate and serve thumbnail images for PNG and TIF files
  * Query params:
  *   - imagePath: path to the source image
+ *   - width: optional thumbnail width (default: THUMBNAIL_WIDTH env var or 200)
+ *   - height: optional thumbnail height (default: THUMBNAIL_HEIGHT env var or 200)
  */
 router.get('/thumbnail', async (req, res) => {
   try {
@@ -31,6 +33,10 @@ router.get('/thumbnail', async (req, res) => {
       return res.status(403).json({ error: `${imagePath} is not accessible` });
     }
 
+    // Allow custom width/height via query params
+    const width = req.query.width ? parseInt(req.query.width) : THUMBNAIL_WIDTH;
+    const height = req.query.height ? parseInt(req.query.height) : THUMBNAIL_HEIGHT;
+
     const ext = path.extname(imagePath).toLowerCase();
 
     // Check if file exists
@@ -39,7 +45,7 @@ router.get('/thumbnail', async (req, res) => {
     // Generate thumbnail for PNG and TIF files
     if (ext === '.png' || ext === '.tif' || ext === '.tiff') {
       const thumbnail = await sharp(imagePath)
-        .resize(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, {
+        .resize(width, height, {
           fit: 'inside',
           withoutEnlargement: true
         })

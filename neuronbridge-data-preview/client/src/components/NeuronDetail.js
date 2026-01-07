@@ -19,6 +19,8 @@ function NeuronDetail() {
     targetMipId: '',
     targetLibrary: ''
   });
+  const [maxStats, setMaxStats] = useState([]);
+  const [modalMatch, setModalMatch] = useState(null);
 
   useEffect(() => {
     // Reset filters and state when navigating to a new neuron
@@ -40,6 +42,12 @@ function NeuronDetail() {
       fetchCDMatches(isEM(neuron));
     }
   }, [neuron, page]);
+
+  useEffect(() => {
+    if (neuron && isEM(neuron)) {
+      fetchMaxStats();
+    }
+  }, [neuron, filters.targetLibrary]);
 
   const fetchNeuron = async () => {
     setLoading(true);
@@ -68,6 +76,28 @@ function NeuronDetail() {
       setLibraries(data);
     } catch (err) {
       console.error('Failed to fetch libraries:', err);
+    }
+  };
+
+  const fetchMaxStats = async () => {
+    try {
+      const endpoint = `/api/cdmatches/em-cdms-stats/${id}`;
+      const params = new URLSearchParams();
+
+      if (filters.targetLibrary && filters.targetLibrary !== '') {
+        params.append('targetLibrary', filters.targetLibrary);
+      }
+
+      const url = params.toString() ? `${endpoint}?${params.toString()}` : endpoint;
+      const response = await fetch(url);
+
+      if (!response.ok) throw new Error('Failed to fetch max stats');
+
+      const data = await response.json();
+      setMaxStats(data.results || []);
+    } catch (err) {
+      console.error('Failed to fetch max stats:', err);
+      setMaxStats([]);
     }
   };
 
@@ -117,14 +147,26 @@ function NeuronDetail() {
     }
   };
 
-  const getImageUrl = (neuron, fileType = 'SourceColorDepthImage') => {
+  const getImageUrl = (neuron, fileType = 'SourceColorDepthImage', size = null) => {
     const image = neuron?.computeFiles?.[fileType] ||
                   neuron?.computeFiles?.InputColorDepthImage;
 
     if (image) {
-      return `/api/images/thumbnail?imagePath=${image}`;
+      // Use custom size if provided, otherwise use larger default for detail page (600x600)
+      const width = size || 600;
+      const height = size || 600;
+      return `/api/images/thumbnail?imagePath=${image}&width=${width}&height=${height}`;
     }
     return null;
+  };
+
+  const formatLibraryName = (libraryName) => {
+    if (!libraryName) return '';
+    // Remove prefix before first underscore
+    let formatted = libraryName.substring(libraryName.indexOf('_') + 1);
+    // Remove '_published' from the name
+    formatted = formatted.replace('_published', '');
+    return formatted;
   };
 
   if (loading) {
@@ -152,7 +194,11 @@ function NeuronDetail() {
             src={getImageUrl(neuron, 'InputColorDepthImage')}
             alt={neuron.publishedName}
             className="detail-image"
-            style={{ margin: 0, flex: '0 0 auto' }}
+            style={{
+              margin: 0,
+              flex: '0 0 auto',
+              maxWidth: neuron.alignmentSpace === 'JRC2018_VNC_Unisex_40x_DS' ? '300px' : '600px'
+            }}
           />
         )}
 
@@ -210,6 +256,48 @@ function NeuronDetail() {
         <div className="metadata-item" style={{ marginBottom: '20px' }}>
           <div className="metadata-label">Neuron Terms</div>
           <div className="metadata-value">{neuron.neuronTerms.join(', ')}</div>
+        </div>
+      )}
+
+      {isEM(neuron) && maxStats.length > 0 && (
+        <div style={{
+          background: '#f0f7ff',
+          border: '1px solid #b3d9ff',
+          borderRadius: '8px',
+          padding: '20px',
+          marginBottom: '20px'
+        }}>
+          <h3 style={{ marginTop: '0', marginBottom: '15px', fontSize: '16px', color: '#333' }}>
+            Match Statistics
+          </h3>
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '12px'
+          }}>
+            {maxStats.map((stat, idx) => (
+              <div key={idx} style={{
+                flex: '1 1 200px',
+                minWidth: '200px',
+                padding: '12px',
+                backgroundColor: '#fff',
+                borderRadius: '6px',
+                border: '1px solid #b3d9ff'
+              }}>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: '#1976d2', marginBottom: '8px' }}>
+                  {formatLibraryName(stat.targetLibrary)}
+                </div>
+                <div style={{ fontSize: '13px', color: '#333', marginBottom: '4px' }}>
+                  <span style={{ fontWeight: '500' }}>Max Pixels:</span> {stat.maxMatchingPixels.toLocaleString()}
+                </div>
+                {stat.maxNegativeScore > 0 && (
+                  <div style={{ fontSize: '13px', color: '#333' }}>
+                    <span style={{ fontWeight: '500' }}>Max Negative Score:</span> {stat.maxNegativeScore.toFixed(2)}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -434,9 +522,9 @@ function NeuronDetail() {
                 const matchedNeuron = match.matchedImage;
                 return (
                   <div key={idx} className="match-card">
-                    {getImageUrl(matchedNeuron) && (
+                    {getImageUrl(matchedNeuron, 'SourceColorDepthImage', 200) && (
                       <img
-                        src={getImageUrl(matchedNeuron)}
+                        src={getImageUrl(matchedNeuron, 'SourceColorDepthImage', 200)}
                         alt={matchedNeuron?.publishedName}
                       />
                     )}
@@ -445,7 +533,23 @@ function NeuronDetail() {
                         Score: {match.normalizedScore.toFixed(2)}
                       </div>
                     )}
-                    <div><strong>{matchedNeuron?.publishedName}</strong></div>
+                    <div>
+                      <strong>
+                        {matchedNeuron?._id ? (
+                          <Link
+                            to={`/neuron/${matchedNeuron._id}`}
+                            style={{
+                              color: '#1976d2',
+                              textDecoration: 'none'
+                            }}
+                          >
+                            {matchedNeuron?.publishedName}
+                          </Link>
+                        ) : (
+                          matchedNeuron?.publishedName
+                        )}
+                      </strong>
+                    </div>
                     <div style={{ fontSize: '12px', color: '#999' }}>
                       {matchedNeuron?.libraryName}
                     </div>
@@ -479,11 +583,25 @@ function NeuronDetail() {
                         </div>
                       </div>
                     )}
-                    {matchedNeuron?._id && (
-                      <Link to={`/neuron/${matchedNeuron._id}`} style={{ fontSize: '12px' }}>
-                        View Details →
-                      </Link>
-                    )}
+                    <a
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setModalMatch(match);
+                      }}
+                      style={{
+                        fontSize: '12px',
+                        color: '#1976d2',
+                        textDecoration: 'none',
+                        cursor: 'pointer',
+                        marginTop: '8px',
+                        display: 'inline-block'
+                      }}
+                      onMouseOver={(e) => e.target.style.textDecoration = 'underline'}
+                      onMouseOut={(e) => e.target.style.textDecoration = 'none'}
+                    >
+                      View Details →
+                    </a>
                   </div>
                 );
               })}
@@ -509,6 +627,136 @@ function NeuronDetail() {
           <p>No color depth matches found.</p>
         )}
       </div>
+
+      {modalMatch && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '20px'
+          }}
+          onClick={() => setModalMatch(null)}
+        >
+          <div
+            style={{
+              backgroundColor: '#fff',
+              borderRadius: '8px',
+              padding: '30px',
+              maxWidth: '1400px',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              position: 'relative'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setModalMatch(null)}
+              style={{
+                position: 'absolute',
+                top: '10px',
+                right: '10px',
+                background: '#fff',
+                border: '1px solid #ccc',
+                borderRadius: '4px',
+                padding: '8px 12px',
+                cursor: 'pointer',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                color: '#666'
+              }}
+              onMouseOver={(e) => {
+                e.target.style.backgroundColor = '#f0f0f0';
+              }}
+              onMouseOut={(e) => {
+                e.target.style.backgroundColor = '#fff';
+              }}
+            >
+              ✕
+            </button>
+
+            <h2 style={{ marginTop: 0, marginBottom: '20px', textAlign: 'center' }}>
+              Compare Neurons
+            </h2>
+
+            <div style={{ display: 'flex', gap: '30px', alignItems: 'flex-start' }}>
+              <div style={{ flex: 1, textAlign: 'center' }}>
+                <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#666' }}>
+                  Current Neuron
+                </h3>
+                <div style={{ marginBottom: '10px', fontSize: '14px', fontWeight: 'bold' }}>
+                  {neuron.publishedName}
+                </div>
+                <div style={{ marginBottom: '15px', fontSize: '12px', color: '#999' }}>
+                  {neuron.libraryName}
+                </div>
+                {getImageUrl(neuron, 'InputColorDepthImage') && (
+                  <img
+                    src={getImageUrl(neuron, 'InputColorDepthImage')}
+                    alt={neuron.publishedName}
+                    style={{
+                      maxWidth: '600px',
+                      width: '100%',
+                      height: 'auto',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px'
+                    }}
+                  />
+                )}
+              </div>
+
+              <div style={{ flex: 1, textAlign: 'center' }}>
+                <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#666' }}>
+                  Matched Neuron
+                </h3>
+                <div style={{ marginBottom: '10px', fontSize: '14px', fontWeight: 'bold' }}>
+                  {modalMatch.matchedImage?.publishedName}
+                </div>
+                <div style={{ marginBottom: '15px', fontSize: '12px', color: '#999' }}>
+                  {modalMatch.matchedImage?.libraryName}
+                </div>
+                {getImageUrl(modalMatch.matchedImage, 'InputColorDepthImage') && (
+                  <img
+                    src={getImageUrl(modalMatch.matchedImage, 'InputColorDepthImage')}
+                    alt={modalMatch.matchedImage?.publishedName}
+                    style={{
+                      maxWidth: '600px',
+                      width: '100%',
+                      height: 'auto',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px'
+                    }}
+                  />
+                )}
+                {modalMatch.normalizedScore && (
+                  <div style={{ marginTop: '15px', fontSize: '14px', color: '#333' }}>
+                    <strong>Match Score:</strong> {modalMatch.normalizedScore.toFixed(2)}
+                  </div>
+                )}
+                {modalMatch.matchingPixels && (
+                  <div style={{ fontSize: '13px', color: '#666' }}>
+                    <strong>Matching Pixels:</strong> {modalMatch.matchingPixels.toLocaleString()}
+                  </div>
+                )}
+                {modalMatch.gradientAreaGap !== null && modalMatch.gradientAreaGap !== undefined && modalMatch.gradientAreaGap !== -1 && (
+                  <div style={{ marginTop: '10px', fontSize: '13px', color: '#666' }}>
+                    <div><strong>Negative Score:</strong> {modalMatch.negativeScore.toFixed(2)}</div>
+                    <div>Gradient Gap: {modalMatch.gradientAreaGap.toFixed(2)}</div>
+                    <div>High Expression: {modalMatch.highExpressionArea.toFixed(2)}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
