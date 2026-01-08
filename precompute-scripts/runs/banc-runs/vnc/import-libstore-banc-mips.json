@@ -13,7 +13,7 @@
     "vol_segmentation_location": "BANC_JRC2018U_VNC_SWC",
     "searchable_cdm_dest": "searchable",
     "libstore_dir": "/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs",
-    "vol_segmentation_dest": "/nrs/jacs/jacsData/filestore/system/EMSkeletons/JRC2018_Unisex_20x_HR/flywire_banc_626/swc",
+    "vol_segmentation_dest": "/nrs/jacs/jacsData/filestore/system/EMSkeletons/JRC2018_VNC_Unisex_40x_DS/flywire_banc_626/swc",
     "jacs_url": "",
     "jacs_authorization": ""
 }
