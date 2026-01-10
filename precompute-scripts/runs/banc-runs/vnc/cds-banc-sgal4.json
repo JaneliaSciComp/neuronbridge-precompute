@@ -1,0 +1,14 @@
+{
+    "job_list": "",
+    "anatomical_area": "vnc",
+    "db_config": "mylocal/proddb-config.properties",
+    "masks_library": "flywire_banc_626",
+    "masks_published_names": "",
+    "mask_excluded_terms": "",
+    "targets_library": "flylight_split_gal4_published",
+    "targets_published_names": "",
+    "targets_tags": "",
+    "mip_excluded_tags": "validationError,junk,not-released",
+    "cds_processing_tag": "cds-banc_626-vs-sgal4",
+    "mips_base_dir": "/nrs/scicompsoft/goinac/neuronbridge/neuronbridge-precompute-tools/precompute-scripts/filestore"
+}
