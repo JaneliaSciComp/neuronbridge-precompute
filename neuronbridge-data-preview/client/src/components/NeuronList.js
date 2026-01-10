@@ -1,25 +1,36 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { isEM } from '../utils/neuronUtils'
 
 function NeuronList() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+
   const [neurons, setNeurons] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useState(parseInt(searchParams.get('page') || '0', 10));
   const [totalPages, setTotalPages] = useState(0);
   const [filters, setFilters] = useState({
-    libraryName: '',
-    alignmentSpace: '',
-    publishedName: '',
-    mipId: ''
+    libraryName: searchParams.get('libraryName') || '',
+    alignmentSpace: searchParams.get('alignmentSpace') || '',
+    publishedName: searchParams.get('publishedName') || '',
+    mipId: searchParams.get('mipId') || ''
   });
   const [libraries, setLibraries] = useState([]);
   const [alignmentSpaces, setAlignmentSpaces] = useState([]);
 
   useEffect(() => {
-    fetchLibraries();
+    const alignmentSpaceParam = searchParams.get('alignmentSpace');
+    fetchLibraries(alignmentSpaceParam);
     fetchAlignmentSpaces();
+    // If there are URL params, fetch neurons on initial load
+    const hasSearchParams = searchParams.get('libraryName') || searchParams.get('alignmentSpace') ||
+                            searchParams.get('publishedName') || searchParams.get('mipId');
+    if (hasSearchParams) {
+      fetchNeurons();
+    }
   }, []);
 
   useEffect(() => {
@@ -84,12 +95,27 @@ function NeuronList() {
     }
   };
 
+  const updateURLParams = (newFilters, newPage) => {
+    const params = new URLSearchParams();
+
+    if (newFilters.libraryName) params.set('libraryName', newFilters.libraryName);
+    if (newFilters.alignmentSpace) params.set('alignmentSpace', newFilters.alignmentSpace);
+    if (newFilters.publishedName) params.set('publishedName', newFilters.publishedName);
+    if (newFilters.mipId) params.set('mipId', newFilters.mipId);
+    if (newPage > 0) params.set('page', newPage.toString());
+
+    navigate({ search: params.toString() }, { replace: true });
+  };
+
   const handleFilterChange = (field, value) => {
+    let newFilters;
     if (field === 'mipId') {
       // When setting MIP ID, clear library and alignment space filters
-      setFilters(prev => ({ ...prev, [field]: value, libraryName: '', alignmentSpace: '' }));
+      newFilters = { ...filters, [field]: value, libraryName: '', alignmentSpace: '' };
+      setFilters(newFilters);
     } else {
-      setFilters(prev => ({ ...prev, [field]: value }));
+      newFilters = { ...filters, [field]: value };
+      setFilters(newFilters);
     }
 
     if (field === 'alignmentSpace') {
@@ -102,6 +128,7 @@ function NeuronList() {
 
   const handleSearch = () => {
     setPage(0);
+    updateURLParams(filters, 0);
     fetchNeurons();
   };
 
@@ -217,7 +244,12 @@ function NeuronList() {
 
       <div className="neuron-grid">
         {neurons.map(neuron => (
-          <Link to={`/neuron/${neuron._id}`} key={neuron._id} className="neuron-card">
+          <Link
+            to={`/neuron/${neuron._id}`}
+            key={neuron._id}
+            className="neuron-card"
+            state={{ fromSearch: location.search }}
+          >
             {getInputImageUrl(neuron) && (
               <img
                 src={getInputImageUrl(neuron)}
@@ -250,14 +282,22 @@ function NeuronList() {
       {neurons.length > 0 && (
         <div className="pagination">
           <button
-            onClick={() => setPage(Math.max(0, page - 1))}
+            onClick={() => {
+              const newPage = Math.max(0, page - 1);
+              setPage(newPage);
+              updateURLParams(filters, newPage);
+            }}
             disabled={page === 0}
           >
             Previous
           </button>
           <span>Page {page + 1} of {totalPages}</span>
           <button
-            onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
+            onClick={() => {
+              const newPage = Math.min(totalPages - 1, page + 1);
+              setPage(newPage);
+              updateURLParams(filters, newPage);
+            }}
             disabled={page >= totalPages - 1}
           >
             Next

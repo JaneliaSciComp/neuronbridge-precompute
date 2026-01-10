@@ -1,9 +1,12 @@
-import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { isEM } from '../utils/neuronUtils'
+import { useState, useEffect, useRef } from 'react';
+import { useParams, Link, useLocation } from 'react-router-dom';
+import { isEM } from '../utils/neuronUtils';
+import { CoordsProvider } from '../contexts/MouseCoordsContext';
+import MousePosition from './MousePosition';
 
 function NeuronDetail() {
   const { id } = useParams();
+  const location = useLocation();
   const [neuron, setNeuron] = useState(null);
   const [cdMatches, setCDMatches] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -21,6 +24,9 @@ function NeuronDetail() {
   });
   const [maxStats, setMaxStats] = useState([]);
   const [modalMatch, setModalMatch] = useState(null);
+  const [imageDimensions, setImageDimensions] = useState({ current: null, matched: null });
+  const currentImgRef = useRef(null);
+  const matchedImgRef = useRef(null);
 
   useEffect(() => {
     // Reset filters and state when navigating to a new neuron
@@ -48,6 +54,13 @@ function NeuronDetail() {
       fetchMaxStats();
     }
   }, [neuron, filters.targetLibrary]);
+
+  useEffect(() => {
+    // Reset image dimensions when modal is closed
+    if (!modalMatch) {
+      setImageDimensions({ current: null, matched: null });
+    }
+  }, [modalMatch]);
 
   const fetchNeuron = async () => {
     setLoading(true);
@@ -181,10 +194,13 @@ function NeuronDetail() {
     return <div className="error">Neuron not found</div>;
   }
 
+  // Get the search params from the location state (passed from NeuronList)
+  const backToListUrl = location.state?.fromSearch ? `/${location.state.fromSearch}` : '/';
+
   return (
     <div className="detail-container">
       <div className="detail-header">
-        <Link to="/">← Back to List</Link>
+        <Link to={backToListUrl}>← Back to List</Link>
         <h1>{neuron.publishedName}</h1>
       </div>
 
@@ -538,6 +554,7 @@ function NeuronDetail() {
                         {matchedNeuron?._id ? (
                           <Link
                             to={`/neuron/${matchedNeuron._id}`}
+                            state={{ fromSearch: location.state?.fromSearch }}
                             style={{
                               color: '#1976d2',
                               textDecoration: 'none'
@@ -686,74 +703,112 @@ function NeuronDetail() {
               Compare Neurons
             </h2>
 
-            <div style={{ display: 'flex', gap: '30px', alignItems: 'flex-start' }}>
-              <div style={{ flex: 1, textAlign: 'center' }}>
-                <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#666' }}>
-                  Current Neuron
-                </h3>
-                <div style={{ marginBottom: '10px', fontSize: '14px', fontWeight: 'bold' }}>
-                  {neuron.publishedName}
+            <CoordsProvider>
+              <div style={{ display: 'flex', gap: '30px', alignItems: 'flex-start' }}>
+                <div style={{ flex: 1, textAlign: 'center' }}>
+                  <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#666' }}>
+                    Current Neuron
+                  </h3>
+                  <div style={{ marginBottom: '10px', fontSize: '14px', fontWeight: 'bold' }}>
+                    {neuron.publishedName}
+                  </div>
+                  <div style={{ marginBottom: '15px', fontSize: '12px', color: '#999' }}>
+                    {neuron.libraryName}
+                  </div>
+                  {getImageUrl(neuron, 'InputColorDepthImage') && (
+                    <div className="image-with-crosshair">
+                      <img
+                        ref={currentImgRef}
+                        src={getImageUrl(neuron, 'InputColorDepthImage')}
+                        alt={neuron.publishedName}
+                        style={{
+                          maxWidth: '600px',
+                          width: '100%',
+                          height: 'auto',
+                          border: '1px solid #ddd',
+                          borderRadius: '4px'
+                        }}
+                        onLoad={(e) => {
+                          setImageDimensions(prev => ({
+                            ...prev,
+                            current: {
+                              width: e.target.naturalWidth,
+                              height: e.target.naturalHeight
+                            }
+                          }));
+                        }}
+                      />
+                      {imageDimensions.current && (
+                        <MousePosition
+                          width={imageDimensions.current.width}
+                          height={imageDimensions.current.height}
+                        />
+                      )}
+                    </div>
+                  )}
                 </div>
-                <div style={{ marginBottom: '15px', fontSize: '12px', color: '#999' }}>
-                  {neuron.libraryName}
-                </div>
-                {getImageUrl(neuron, 'InputColorDepthImage') && (
-                  <img
-                    src={getImageUrl(neuron, 'InputColorDepthImage')}
-                    alt={neuron.publishedName}
-                    style={{
-                      maxWidth: '600px',
-                      width: '100%',
-                      height: 'auto',
-                      border: '1px solid #ddd',
-                      borderRadius: '4px'
-                    }}
-                  />
-                )}
-              </div>
 
-              <div style={{ flex: 1, textAlign: 'center' }}>
-                <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#666' }}>
-                  Matched Neuron
-                </h3>
-                <div style={{ marginBottom: '10px', fontSize: '14px', fontWeight: 'bold' }}>
-                  {modalMatch.matchedImage?.publishedName}
+                <div style={{ flex: 1, textAlign: 'center' }}>
+                  <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#666' }}>
+                    Matched Neuron
+                  </h3>
+                  <div style={{ marginBottom: '10px', fontSize: '14px', fontWeight: 'bold' }}>
+                    {modalMatch.matchedImage?.publishedName}
+                  </div>
+                  <div style={{ marginBottom: '15px', fontSize: '12px', color: '#999' }}>
+                    {modalMatch.matchedImage?.libraryName}
+                  </div>
+                  {getImageUrl(modalMatch.matchedImage, 'InputColorDepthImage') && (
+                    <div className="image-with-crosshair">
+                      <img
+                        ref={matchedImgRef}
+                        src={getImageUrl(modalMatch.matchedImage, 'InputColorDepthImage')}
+                        alt={modalMatch.matchedImage?.publishedName}
+                        style={{
+                          maxWidth: '600px',
+                          width: '100%',
+                          height: 'auto',
+                          border: '1px solid #ddd',
+                          borderRadius: '4px'
+                        }}
+                        onLoad={(e) => {
+                          setImageDimensions(prev => ({
+                            ...prev,
+                            matched: {
+                              width: e.target.naturalWidth,
+                              height: e.target.naturalHeight
+                            }
+                          }));
+                        }}
+                      />
+                      {imageDimensions.matched && (
+                        <MousePosition
+                          width={imageDimensions.matched.width}
+                          height={imageDimensions.matched.height}
+                        />
+                      )}
+                    </div>
+                  )}
+                  {modalMatch.normalizedScore && (
+                    <div style={{ marginTop: '15px', fontSize: '14px', color: '#333' }}>
+                      <strong>Match Score:</strong> {modalMatch.normalizedScore.toFixed(2)}
+                    </div>
+                  )}
+                  {modalMatch.matchingPixels && (
+                    <div style={{ fontSize: '13px', color: '#666' }}>
+                      <strong>Matching Pixels:</strong> {modalMatch.matchingPixels.toLocaleString()}
+                    </div>
+                  )}
+                  {modalMatch.gradientAreaGap !== null && modalMatch.gradientAreaGap !== undefined && modalMatch.gradientAreaGap !== -1 && (
+                    <div style={{ marginTop: '10px', fontSize: '13px', color: '#666' }}>
+                      <div><strong>Negative Score:</strong> {modalMatch.negativeScore.toFixed(2)}</div>
+                      <div>Gradient Gap: {modalMatch.gradientAreaGap.toFixed(2)}</div>
+                      <div>High Expression: {modalMatch.highExpressionArea.toFixed(2)}</div>
+                    </div>
+                  )}
                 </div>
-                <div style={{ marginBottom: '15px', fontSize: '12px', color: '#999' }}>
-                  {modalMatch.matchedImage?.libraryName}
-                </div>
-                {getImageUrl(modalMatch.matchedImage, 'InputColorDepthImage') && (
-                  <img
-                    src={getImageUrl(modalMatch.matchedImage, 'InputColorDepthImage')}
-                    alt={modalMatch.matchedImage?.publishedName}
-                    style={{
-                      maxWidth: '600px',
-                      width: '100%',
-                      height: 'auto',
-                      border: '1px solid #ddd',
-                      borderRadius: '4px'
-                    }}
-                  />
-                )}
-                {modalMatch.normalizedScore && (
-                  <div style={{ marginTop: '15px', fontSize: '14px', color: '#333' }}>
-                    <strong>Match Score:</strong> {modalMatch.normalizedScore.toFixed(2)}
-                  </div>
-                )}
-                {modalMatch.matchingPixels && (
-                  <div style={{ fontSize: '13px', color: '#666' }}>
-                    <strong>Matching Pixels:</strong> {modalMatch.matchingPixels.toLocaleString()}
-                  </div>
-                )}
-                {modalMatch.gradientAreaGap !== null && modalMatch.gradientAreaGap !== undefined && modalMatch.gradientAreaGap !== -1 && (
-                  <div style={{ marginTop: '10px', fontSize: '13px', color: '#666' }}>
-                    <div><strong>Negative Score:</strong> {modalMatch.negativeScore.toFixed(2)}</div>
-                    <div>Gradient Gap: {modalMatch.gradientAreaGap.toFixed(2)}</div>
-                    <div>High Expression: {modalMatch.highExpressionArea.toFixed(2)}</div>
-                  </div>
-                )}
               </div>
-            </div>
+            </CoordsProvider>
           </div>
         </div>
       )}

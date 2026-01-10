@@ -218,3 +218,16 @@ main {
   border-bottom: 2px solid #eee;
   padding-bottom: 10px;
 }
+
+/* Cross cursor styles */
+.image-with-crosshair {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+
+.image-with-crosshair img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
