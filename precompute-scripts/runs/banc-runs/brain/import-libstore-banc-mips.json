@@ -1,0 +1,19 @@
+{
+    "dry_run": true,
+    "anatomical_area": "brain",
+    "import_library": "flywire_banc_626",
+    "import_tag": "import-banc-626",
+    "variants_input_dir": "/nrs/scicompsoft/emlm/public_release_2025/BANC/Brain",
+    "ignore_source_cdms": false,
+    "display_cdm_location": "BANC_Brain_CDM_swc_exist,BANC_Brain_CDM_SWC_Not_Exist",
+    "searchable_cdm_location": "BANC_Brain_CDM_swc_exist,BANC_Brain_CDM_SWC_Not_Exist",
+    "grad_location": "BANC_Brain_Gradient",
+    "zgap_location": "BANC_Brain_RGB10px",
+    "junk_location": "junk_CDM",
+    "vol_segmentation_location": "BANC_Brain_JRC2018U_SWC",
+    "searchable_cdm_dest": "searchable",
+    "libstore_dir": "/nrs/jacs/jacsData/filestore/system/ColorDepthMIPs",
+    "vol_segmentation_dest": "/nrs/jacs/jacsData/filestore/system/EMSkeletons/JRC2018_Unisex_20x_HR/flywire_banc_626/swc",
+    "jacs_url": "",
+    "jacs_authorization": ""
+}
