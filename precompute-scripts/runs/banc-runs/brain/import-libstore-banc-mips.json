@@ -5,7 +5,7 @@
     "import_tag": "import-banc-626",
     "variants_input_dir": "/nrs/scicompsoft/emlm/public_release_2025/BANC/Brain",
     "ignore_source_cdms": false,
-    "display_cdm_location": "BANC_Brain_CDM_swc_exist,BANC_Brain_CDM_SWC_Not_Exist",
+    "display_cdm_location": "BANC_Brain_CDM_no_FL",
     "searchable_cdm_location": "BANC_Brain_CDM_swc_exist,BANC_Brain_CDM_SWC_Not_Exist",
     "grad_location": "BANC_Brain_Gradient",
     "zgap_location": "BANC_Brain_RGB10px",
