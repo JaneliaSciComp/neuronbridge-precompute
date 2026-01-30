@@ -1,0 +1,14 @@
+{
+    "job_list": "",
+    "anatomical_area": "brain",
+    "db_config": "mylocal/proddb-config.properties",
+    "masks_library": "flywire_banc_626",
+    "masks_published_names": "",
+    "mask_excluded_terms": "",
+    "targets_library": "flyem_male_cns_brain_0_9",
+    "targets_published_names": "",
+    "targets_tags": "",
+    "mip_excluded_tags": "validationError,junk,not-released",
+    "cds_processing_tag": "cds-banc_626-vs-male_cns_0_9",
+    "mips_base_dir": "/nrs/scicompsoft/goinac/neuronbridge/neuronbridge-precompute-tools/precompute-scripts/filestore"
+}
