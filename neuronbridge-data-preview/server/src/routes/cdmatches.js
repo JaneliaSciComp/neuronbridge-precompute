@@ -13,6 +13,7 @@ const MAX_PAGE_SIZE = parseInt(process.env.MAX_PAGE_SIZE) || 500;
  *   - page: page number (default: 0)
  *   - limit: items per page (default: 50)
  *   - minScore: minimum normalized score
+ *   - targetLibraries: comma-separated list of target libraries (optional)
  */
 router.get('/em-cdms/:neuronId', async (req, res) => {
   try {
@@ -23,13 +24,18 @@ router.get('/em-cdms/:neuronId', async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
     const skip = page * limit;
 
+    // Parse target libraries from query param
+    const targetLibraries = req.query.targetLibraries
+      ? req.query.targetLibraries.split(',').map(lib => lib.trim())
+      : null;
+
     // Build pipeline
     const pipeline = [];
     const matchFilter = createMatchStage(req.query, {
         maskImageRefId: convertStringToId(req.params.neuronId),
     });
     pipeline.push(matchFilter);
-    pipeline.push(...createLookupStage(req.query.targetLibrary, 'matchedImageRefId'));
+    pipeline.push(...createLookupStage(targetLibraries, 'matchedImageRefId'));
 
     // Get total count
     const totalResult = await matchesCollection.aggregate([
@@ -78,11 +84,12 @@ router.get('/em-cdms/:neuronId', async (req, res) => {
 
 /**
  * GET /api/matches/lm-cdms/:neuronId
- * Get color depth matches for an EM neuron
+ * Get color depth matches for an LM neuron
  * Query params:
  *   - page: page number (default: 0)
  *   - limit: items per page (default: 50)
  *   - minScore: minimum normalized score
+ *   - targetLibraries: comma-separated list of target libraries (optional)
  */
 router.get('/lm-cdms/:neuronId', async (req, res) => {
   try {
@@ -93,6 +100,11 @@ router.get('/lm-cdms/:neuronId', async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
     const skip = page * limit;
 
+    // Parse target libraries from query param
+    const targetLibraries = req.query.targetLibraries
+      ? req.query.targetLibraries.split(',').map(lib => lib.trim())
+      : null;
+
     // Build pipeline
     const pipeline = [];
     const matchFilter = createMatchStage(req.query, {
@@ -100,7 +112,7 @@ router.get('/lm-cdms/:neuronId', async (req, res) => {
     });
 
     pipeline.push(matchFilter);
-    pipeline.push(...createLookupStage(req.query.targetLibrary, 'maskImageRefId'));
+    pipeline.push(...createLookupStage(targetLibraries, 'maskImageRefId'));
 
     // Get total count
     const totalResult = await matchesCollection.aggregate([
@@ -151,7 +163,7 @@ router.get('/lm-cdms/:neuronId', async (req, res) => {
  * GET /api/matches/em-cdms-stats/:neuronId
  * Get color depth match statistics for an EM neuron
  * Query params:
- *   - targetLibrary: single library or comma-separated list of libraries (optional, returns all if not specified)
+ *   - targetLibraries: comma-separated list of libraries (optional, returns all if not specified)
  *   - minScore: minimum normalized score
  */
 router.get('/em-cdms-stats/:neuronId', async (req, res) => {
@@ -160,8 +172,8 @@ router.get('/em-cdms-stats/:neuronId', async (req, res) => {
     const matchesCollection = db.collection('cdMatches');
 
     // Parse target libraries from query param
-    const targetLibraries = req.query.targetLibrary
-      ? req.query.targetLibrary.split(',').map(lib => lib.trim())
+    const targetLibraries = req.query.targetLibraries
+      ? req.query.targetLibraries.split(',').map(lib => lib.trim())
       : null;
 
     // Build pipeline
@@ -275,8 +287,8 @@ const createMatchStage = (query, neuronReferenceFilter) => {
   };
 };
 
-const createLookupStage = (targetLibrary, referenceField) => {
-  const lookup = targetLibrary
+const createLookupStage = (targetLibraries, referenceField) => {
+  const lookup = targetLibraries && targetLibraries.length > 0
     ? {
         from: 'neuronMetadata',
         let: { imageId: '$' + referenceField },
@@ -284,7 +296,7 @@ const createLookupStage = (targetLibrary, referenceField) => {
           {
             $match: {
               $expr: { $eq: [ '$_id', '$$imageId' ] },
-              libraryName: { $eq: targetLibrary },
+              libraryName: { $in: targetLibraries },
             }
           }
         ],

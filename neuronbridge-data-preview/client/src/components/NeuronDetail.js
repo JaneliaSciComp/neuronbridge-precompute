@@ -20,19 +20,24 @@ function NeuronDetail() {
     minMatchingPixels: '',
     hasGradientAreaGap: false,
     targetMipId: '',
-    targetLibrary: ''
+    targetLibraries: []
   });
   const [maxStats, setMaxStats] = useState([]);
-  const [modalMatch, setModalMatch] = useState(null);
+  const [modalMatchIndex, setModalMatchIndex] = useState(null);
   const [imageDimensions, setImageDimensions] = useState({ current: null, matched: null });
+  const [libraryDropdownOpen, setLibraryDropdownOpen] = useState(false);
   const currentImgRef = useRef(null);
   const matchedImgRef = useRef(null);
+  const libraryDropdownRef = useRef(null);
+
+  // Derive modalMatch from index
+  const modalMatch = modalMatchIndex !== null ? cdMatches[modalMatchIndex] : null;
 
   useEffect(() => {
     // Reset filters and state when navigating to a new neuron
     setFilters({
       targetMipId: '',
-      targetLibrary: ''
+      targetLibraries: []
     });
     setCDMatches([]);
     setPage(0);
@@ -44,7 +49,7 @@ function NeuronDetail() {
 
   useEffect(() => {
     if (neuron) {
-      fetchTargetLibraries(!isEM(neuron));
+      fetchTargetLibraries();
       fetchCDMatches(isEM(neuron));
     }
   }, [neuron, page]);
@@ -53,14 +58,61 @@ function NeuronDetail() {
     if (neuron && isEM(neuron)) {
       fetchMaxStats();
     }
-  }, [neuron, filters.targetLibrary]);
+  }, [neuron, filters.targetLibraries]);
 
   useEffect(() => {
     // Reset image dimensions when modal is closed
-    if (!modalMatch) {
+    if (modalMatchIndex === null) {
       setImageDimensions({ current: null, matched: null });
     }
-  }, [modalMatch]);
+  }, [modalMatchIndex]);
+
+  // Keyboard navigation for modal
+  useEffect(() => {
+    if (modalMatchIndex === null) return;
+
+    function handleKeyDown({ key }) {
+      if (/^Arrow(Left|Up)$/.test(key)) {
+        setModalMatchIndex(prev => (prev > 0 ? prev - 1 : prev));
+      }
+      if (/^Arrow(Right|Down)$/.test(key)) {
+        setModalMatchIndex(prev => (prev < cdMatches.length - 1 ? prev + 1 : prev));
+      }
+      if (key === 'Escape') {
+        setModalMatchIndex(null);
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [modalMatchIndex, cdMatches.length]);
+
+  // Close library dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (libraryDropdownRef.current && !libraryDropdownRef.current.contains(event.target)) {
+        setLibraryDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const toggleLibrary = (lib) => {
+    setFilters(prev => ({
+      ...prev,
+      targetLibraries: prev.targetLibraries.includes(lib)
+        ? prev.targetLibraries.filter(l => l !== lib)
+        : [...prev.targetLibraries, lib]
+    }));
+  };
+
+  const removeLibrary = (lib) => {
+    setFilters(prev => ({
+      ...prev,
+      targetLibraries: prev.targetLibraries.filter(l => l !== lib)
+    }));
+  };
 
   const fetchNeuron = async () => {
     setLoading(true);
@@ -79,11 +131,9 @@ function NeuronDetail() {
     }
   };
 
-  const fetchTargetLibraries = async (isEM) => {
+  const fetchTargetLibraries = async () => {
     try {
-      const endpoint = isEM
-        ? '/api/neurons/meta/libraries?isEM=true'
-        : '/api/neurons/meta/libraries?isEM=false';
+      const endpoint = '/api/neurons/meta/libraries';
       const response = await fetch(endpoint);
       const data = await response.json();
       setLibraries(data);
@@ -97,8 +147,8 @@ function NeuronDetail() {
       const endpoint = `/api/cdmatches/em-cdms-stats/${id}`;
       const params = new URLSearchParams();
 
-      if (filters.targetLibrary && filters.targetLibrary !== '') {
-        params.append('targetLibrary', filters.targetLibrary);
+      if (filters.targetLibraries && filters.targetLibraries.length > 0) {
+        params.append('targetLibraries', filters.targetLibraries.join(','));
       }
 
       const url = params.toString() ? `${endpoint}?${params.toString()}` : endpoint;
@@ -141,8 +191,8 @@ function NeuronDetail() {
       if (filters.targetMipId && filters.targetMipId !== '') {
         params.append('targetMipId', filters.targetMipId);
       }
-      if (filters.targetLibrary && filters.targetLibrary !== '') {
-        params.append('targetLibrary', filters.targetLibrary);
+      if (filters.targetLibraries && filters.targetLibraries.length > 0) {
+        params.append('targetLibraries', filters.targetLibraries.join(','));
       }
 
       const response = await fetch(`${endpoint}?${params.toString()}`);
@@ -409,7 +459,7 @@ function NeuronDetail() {
               />
             </div>
 
-            <div style={{ flex: '1 1 200px', minWidth: '200px' }}>
+            <div style={{ flex: '1 1 250px', minWidth: '250px', position: 'relative' }} ref={libraryDropdownRef}>
               <label style={{
                 display: 'block',
                 marginBottom: '6px',
@@ -417,26 +467,121 @@ function NeuronDetail() {
                 fontWeight: '500',
                 color: '#495057'
               }}>
-                Target Library
+                Target Libraries
               </label>
-              <select
-                value={filters.targetLibrary}
-                onChange={(e) => setFilters({ ...filters, targetLibrary: e.target.value })}
+              <div
+                onClick={() => setLibraryDropdownOpen(!libraryDropdownOpen)}
                 style={{
                   width: '100%',
-                  padding: '8px 12px',
+                  minHeight: '38px',
+                  padding: '4px 30px 4px 8px',
                   border: '1px solid #ced4da',
                   borderRadius: '4px',
                   fontSize: '14px',
                   backgroundColor: '#fff',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '4px',
+                  alignItems: 'center',
+                  position: 'relative'
                 }}
               >
-                <option value="">All Libraries</option>
-                {libraries.map(lib => (
-                  <option key={lib} value={lib}>{lib}</option>
-                ))}
-              </select>
+                {filters.targetLibraries.length === 0 ? (
+                  <span style={{ color: '#6c757d' }}>All libraries</span>
+                ) : (
+                  filters.targetLibraries.map(lib => (
+                    <span
+                      key={lib}
+                      style={{
+                        backgroundColor: '#e9ecef',
+                        padding: '2px 6px',
+                        borderRadius: '3px',
+                        fontSize: '12px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        maxWidth: '150px'
+                      }}
+                    >
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {lib}
+                      </span>
+                      <span
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeLibrary(lib);
+                        }}
+                        style={{
+                          cursor: 'pointer',
+                          fontWeight: 'bold',
+                          color: '#6c757d',
+                          lineHeight: 1
+                        }}
+                      >
+                        ×
+                      </span>
+                    </span>
+                  ))
+                )}
+                <span style={{
+                  position: 'absolute',
+                  right: '10px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: '#6c757d',
+                  fontSize: '10px'
+                }}>
+                  ▼
+                </span>
+              </div>
+              {libraryDropdownOpen && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  backgroundColor: '#fff',
+                  border: '1px solid #ced4da',
+                  borderRadius: '4px',
+                  marginTop: '2px',
+                  maxHeight: '200px',
+                  overflowY: 'auto',
+                  zIndex: 1000,
+                  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+                }}>
+                  {libraries.map(lib => (
+                    <div
+                      key={lib}
+                      onClick={() => toggleLibrary(lib)}
+                      style={{
+                        padding: '8px 12px',
+                        cursor: 'pointer',
+                        backgroundColor: filters.targetLibraries.includes(lib) ? '#e3f2fd' : 'transparent',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}
+                      onMouseOver={(e) => {
+                        if (!filters.targetLibraries.includes(lib)) {
+                          e.currentTarget.style.backgroundColor = '#f8f9fa';
+                        }
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.backgroundColor = filters.targetLibraries.includes(lib) ? '#e3f2fd' : 'transparent';
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={filters.targetLibraries.includes(lib)}
+                        onChange={() => {}}
+                        style={{ margin: 0, cursor: 'pointer' }}
+                      />
+                      <span style={{ fontSize: '13px' }}>{lib}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div style={{
@@ -500,7 +645,7 @@ function NeuronDetail() {
               </button>
               <button
                 onClick={() => {
-                  setFilters({ minNormalizedScore: '', minMatchingPixels: '', hasGradientAreaGap: false, targetMipId: '', targetLibrary: '' });
+                  setFilters({ minNormalizedScore: '', minMatchingPixels: '', hasGradientAreaGap: false, targetMipId: '', targetLibraries: [] });
                   setPage(0);
                 }}
                 style={{
@@ -604,7 +749,7 @@ function NeuronDetail() {
                       href="#"
                       onClick={(e) => {
                         e.preventDefault();
-                        setModalMatch(match);
+                        setModalMatchIndex(idx);
                       }}
                       style={{
                         fontSize: '12px',
@@ -660,7 +805,7 @@ function NeuronDetail() {
             zIndex: 1000,
             padding: '20px'
           }}
-          onClick={() => setModalMatch(null)}
+          onClick={() => setModalMatchIndex(null)}
         >
           <div
             style={{
@@ -675,7 +820,7 @@ function NeuronDetail() {
             onClick={(e) => e.stopPropagation()}
           >
             <button
-              onClick={() => setModalMatch(null)}
+              onClick={() => setModalMatchIndex(null)}
               style={{
                 position: 'absolute',
                 top: '10px',
@@ -699,9 +844,12 @@ function NeuronDetail() {
               ✕
             </button>
 
-            <h2 style={{ marginTop: 0, marginBottom: '20px', textAlign: 'center' }}>
+            <h2 style={{ marginTop: 0, marginBottom: '10px', textAlign: 'center' }}>
               Compare Neurons
             </h2>
+            <div style={{ textAlign: 'center', marginBottom: '20px', fontSize: '14px', color: '#666' }}>
+              Match {modalMatchIndex + 1} of {cdMatches.length}
+            </div>
 
             <CoordsProvider>
               <div style={{ display: 'flex', gap: '30px', alignItems: 'flex-start' }}>
@@ -809,6 +957,70 @@ function NeuronDetail() {
                 </div>
               </div>
             </CoordsProvider>
+
+            {/* Navigation buttons */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'center',
+              gap: '10px',
+              marginTop: '20px',
+              paddingTop: '20px',
+              borderTop: '1px solid #eee'
+            }}>
+              <button
+                onClick={() => setModalMatchIndex(prev => (prev > 0 ? prev - 1 : prev))}
+                disabled={modalMatchIndex <= 0}
+                style={{
+                  backgroundColor: modalMatchIndex <= 0 ? '#ccc' : '#1976d2',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '10px 20px',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  cursor: modalMatchIndex <= 0 ? 'not-allowed' : 'pointer',
+                  transition: 'background-color 0.2s',
+                  minWidth: '100px'
+                }}
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => setModalMatchIndex(prev => (prev < cdMatches.length - 1 ? prev + 1 : prev))}
+                disabled={modalMatchIndex >= cdMatches.length - 1}
+                style={{
+                  backgroundColor: modalMatchIndex >= cdMatches.length - 1 ? '#ccc' : '#1976d2',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '10px 20px',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  cursor: modalMatchIndex >= cdMatches.length - 1 ? 'not-allowed' : 'pointer',
+                  transition: 'background-color 0.2s',
+                  minWidth: '100px'
+                }}
+              >
+                Next
+              </button>
+              <button
+                onClick={() => setModalMatchIndex(null)}
+                style={{
+                  backgroundColor: '#1976d2',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '10px 20px',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s',
+                  minWidth: '100px'
+                }}
+              >
+                Done
+              </button>
+            </div>
           </div>
         </div>
       )}
