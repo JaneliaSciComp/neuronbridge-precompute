@@ -5,7 +5,7 @@
     "masks_library": "flywire_banc_626",
     "masks_published_names": "",
     "mask_excluded_terms": "",
-    "targets_library": "flylight_gen1_mcfo_published",
+    "targets_library": "flylight_gen1_mcfo_published_1_1",
     "targets_published_names": "",
     "targets_tags": "",
     "mip_excluded_tags": "validationError,junk,not-released",
