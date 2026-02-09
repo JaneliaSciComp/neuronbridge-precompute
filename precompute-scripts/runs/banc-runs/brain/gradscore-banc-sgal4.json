@@ -3,7 +3,7 @@
     "anatomical_area": "brain",
     "db_config": "mylocal/proddb-config.properties",
     "masks_library": "flywire_banc_626",
-    "masks_published_names": "720575941407845038,720575941407841071,720575941408690991,720575941408697647,720575941408697262,720575941408697262,720575941410171051,720575941410166699,720575941410169259,720575941410166699",
+    "masks_published_names": "",
     "mask_tags": "",
     "masks_excluded_tags": "validationError,junk,not-released",
     "mask_excluded_terms": "",
