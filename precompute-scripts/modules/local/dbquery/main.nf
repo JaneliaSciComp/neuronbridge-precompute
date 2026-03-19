@@ -36,10 +36,36 @@ process DBQUERY {
     def alignment_space = area_to_alignment_space(anatomical_area)
     def library_filter = library_names ? "libraryName: ${get_in_filter(library_names)}," : ''
     def as_filter = alignment_space ? "alignmentSpace: \"${alignment_space}\"," : ''
-    def tag_filter = mip_tags ? "tags: ${get_in_filter(mip_tags)}," : ''
-    def excluded_tag_filter = excluded_tags ? "tags: ${get_nin_filter(excluded_tags)}," : ''
-    def terms_filter = mips_terms ? "neuronTerms: ${get_in_filter(mips_terms)}," : ''
-    def excluded_terms_filter = excluded_terms ? "neuronTerms: ${get_nin_filter(excluded_terms)}," : ''
+    def tag_filter
+    if (mip_tags && excluded_tags) {
+        tag_filter = """
+        tags: {
+            ${get_values_filter('in', mip_tags)},
+            ${get_values_filter('nin', excluded_tags)},
+        },
+        """
+    } else if (mip_tags) {
+        tag_filter = "tags: ${get_in_filter(mip_tags)},"
+    } else if (excluded_tags) {
+        tag_filter = "tags: ${get_nin_filter(excluded_tags)},"
+    } else {
+        tag_filter = ''
+    }
+    def terms_filter
+    if (mips_terms && excluded_terms) {
+        terms_filter = """
+        neuronTerms: {
+            ${get_values_filter('in', mips_terms)},
+            ${get_values_filter('nin', excluded_terms)},
+        },
+        """
+    } else if (mips_terms) {
+        terms_filter = "neuronTerms: ${get_in_filter(mips_terms)},"
+    } else if (excluded_terms) {
+        terms_filter = "neuronTerms: ${get_nin_filter(excluded_terms)},"
+    } else {
+        terms_filter = ''
+    }
     def published_name_filter = published_names ? "publishedName: ${get_in_filter(published_names)}," : ''
     def mip_id_filter = mip_ids ? "mipId: ${get_in_filter(mip_ids)}," : ''
     def processing_tags_filter = processing_tags ? "${get_processing_tag_in_filter(processing_tags)}," : ''
@@ -47,8 +73,6 @@ process DBQUERY {
     def unique_pipeline = unique_mips 
         ? "{\\\$group: {_id: \"\\\$mipId\"}},"
         : ''
-    def match_op = '$match'
-    def count_op = '$count'
     """
     mongodb_server=\$(grep -e "MongoDB.Server=" ${db_config_file} | sed s/MongoDB.Server=//)
     mongodb_database=\$(grep -e "MongoDB.Database=" ${db_config_file} | sed s/MongoDB.Database=//)
@@ -69,9 +93,7 @@ process DBQUERY {
                 ${as_filter}
                 ${library_filter}
                 ${tag_filter}
-                ${excluded_tag_filter}
                 ${terms_filter}
-                ${excluded_terms_filter}
                 ${published_name_filter}
                 ${mip_id_filter}
                 ${processing_tags_filter}
@@ -93,27 +115,11 @@ process DBQUERY {
   This methods 
 */
 def get_in_filter(list_as_str) {
-    def vs = list_as_str instanceof List ? list_as_str : "${list_as_str}".split(',')
-    def list_values = vs
-        .collect {
-            "\"${it.trim()}\""
-        }
-        .inject('') {arg, item -> 
-            arg ? "${arg},${item}" : "${item}"
-        }
-    return "{\\\$in: [${list_values}]}"
+    return "{${get_values_filter('in', list_as_str)}}"
 }
 
 def get_nin_filter(list_as_str) {
-    def vs = list_as_str instanceof List ? list_as_str : "${list_as_str}".split(',')
-    def list_values = vs
-        .collect {
-            "\"${it.trim()}\""
-        }
-        .inject('') {arg, item -> 
-            arg ? "${arg},${item}" : "${item}"
-        }
-    return "{\\\$nin: [${list_values}]}"
+    return "{${get_values_filter('nin', list_as_str)}}"
 }
 
 def get_processing_tag_in_filter(ptags_as_str) {
@@ -125,4 +131,16 @@ def get_processing_tag_in_filter(ptags_as_str) {
         .inject('') { arg, item ->
             arg ? "${arg}, ${item}" : item
         }
+}
+
+def get_values_filter(filter_op, list_as_str) {
+    def vs = list_as_str instanceof List ? list_as_str : "${list_as_str}".split(',')
+    def list_values = vs
+        .collect { v ->
+            "\"${v.trim()}\""
+        }
+        .inject('') {arg, item -> 
+            arg ? "${arg},${item}" : "${item}"
+        }
+    return "\\\$${filter_op}: [${list_values}]"
 }
