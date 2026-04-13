@@ -26,7 +26,7 @@ from tqdm import tqdm
 import jrc_common.jrc_common as JRC
 import neuronbridge_common.neuronbridge_common as NB
 
-__version__ = '2.0.0'
+__version__ = '2.1.0'
 # Configuration
 KEYFILE = "keys_denormalized.json"
 COUNTFILE = "counts_denormalized.json"
@@ -245,6 +245,7 @@ def populate_batch_dict():
         keys.append(obj['Key'])
     for key in tqdm(keys, desc="Keys"):
         if "/KEYS/" in key:
+            # Ignore keys_denormalized
             continue
         which = 'default'
         LOGGER.debug(key)
@@ -286,6 +287,9 @@ def denormalize():
     #pylint: disable=no-member
     print(f"Processing {ARG.LIBRARY}/{ARG.TEMPLATE} on {ARG.MANIFOLD} manifold")
     batch_dict = populate_batch_dict()
+    with open('denormalized.json', 'w') as f:
+        f.write(json.dumps(batch_dict, indent=4))
+    LOGGER.info("Saved denormalized.json")
     if not batch_dict['count'] or not batch_dict['count']['default']:
         terminate_program(f"{ARG.TEMPLATE}/{ARG.LIBRARY} was not found in the {ARG.BUCKET} bucket")
     # Write files
