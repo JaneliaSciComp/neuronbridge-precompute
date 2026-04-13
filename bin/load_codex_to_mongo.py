@@ -2,13 +2,15 @@
     This program will update emBody and emDataSet in MongoDB as well as the versioned published
     table in DynamoDB from Codex data
     Codex files used:
-      classification.csv
+      classification.csv (FAFB only)
       neurons.csv
-    (https://codex.flywire.ai/api/download)
+    (https://codex.flywire.ai/api/download?dataset=banc)
+    (https://codex.flywire.ai/api/download?dataset=fafb)
 '''
-__version__ = '0.0.1'
+__version__ = '2.0.0'
 
 import argparse
+import collections
 import csv
 from datetime import datetime
 import json
@@ -23,16 +25,20 @@ from tqdm import tqdm
 import jrc_common.jrc_common as JRC
 
 # pylint: disable=broad-exception-caught, logging-fstring-interpolation
+# Globals
+ARG = LOGGER = None
 # Database
 DB = {}
 # UUIDs
 KEYS = {}
 # Codex IDs and labels
 CODEX_LABEL = {}
+EXISTING_LABELS = {}
+NEW_LABELS = {}
 # Actions
 ACTION = {}
 # Counters
-COUNT = {'found': 0, 'hinsertions': 0, 'iinsertions': 0, 'minsertions': 0}
+COUNT = collections.defaultdict(lambda: 0, {})
 
 def terminate_program(msg=None):
     ''' Terminate the program gracefully
@@ -93,6 +99,14 @@ def initialize_program():
             terminate_program(err)
     for dbn in ("MongoDB", "DynamoDB"):
         ACTION[dbn] = False
+    try:
+        rows = DB['jacs'].emBody.find({'dataSetIdentifier': {"$regex": "^flywire_"}})
+    except Exception as err:
+        terminate_program(err)
+    for row in rows:
+        for term in row['terms']:
+            EXISTING_LABELS[term] = True
+    LOGGER.info(f"Found {len(EXISTING_LABELS):,} existing labels")
     quest = [inquirer.Checkbox("actions",
                                message="Which databases should be updated?",
                                choices=["MongoDB", "DynamoDB"],
@@ -164,7 +178,7 @@ def insert_dataset(coll):
                'version': ARG.VERSION,
                'uuid': uuid,
                'gender': 'f',
-               'anatomicalArea': 'Brain',
+               'anatomicalArea': ARG.AREA,
                'creationDate': dtm,
                'updatedDate': dtm,
                'active': True,
@@ -243,7 +257,10 @@ def add_body_ids(htype, payload):
         for itm in rec['Items']:
             if 'bodyIDs' in itm:
                 for bid in itm['bodyIDs']:
-                    body_ids[list(bid.keys())[0]] = True
+                    if isinstance(bid, dict):
+                        body_ids[list(bid.keys())[0]] = True
+                    else:
+                        body_ids[bid] = True
                 COUNT['found'] += 1
     payload['bodyIDs'] = []
     for bid in body_ids:
@@ -330,22 +347,74 @@ def process_entries(labels, dlabels, dsid):
     docs = []
     codex_id = []
     for key, val in tqdm(labels.items(), desc='Building MongoDB insert lists'):
+        if not val:
+            continue
+        for term in val:
+            NEW_LABELS[term] = True
         if ACTION['MongoDB']:
             docs.append(create_body_payload(key, val, dtm, dsid))
     for key, val in tqdm(dlabels.items(), desc='Building DynamoDB insert lists'):
+        if not val:
+            continue
         if ACTION['DynamoDB']:
             codex_id.append(create_dynamo_id_payload(key, val))
-    if ACTION['MongoDB'] and ARG.WRITE:
-        print(f"Writing {len(docs):,} records to emBody")
-        coll.insert_many(docs)
+    if ACTION['MongoDB']:
+        if ARG.WRITE:
+            print(f"Writing {len(docs):,} records to emBody")
+            coll.insert_many(docs)
+        with open(f"{ARG.DATASET}_mongodb.json", 'w', encoding='ascii') as outstream:
+            json.dump(docs, outstream, indent=4, default=str)
     if ACTION['DynamoDB']:
         print(f"Found {len(codex_id):,} Codex IDs")
         print(f"Found {len(CODEX_LABEL):,} Codex types")
         write_dynamodb(codex_id)
+        with open(f"{ARG.DATASET}_dynamodb.json", 'w', encoding='ascii') as outstream:
+            json.dump(codex_id, outstream, indent=4, default=str)
 
 
-def process_files(dsid):
-    """ Get labels from codex files
+def process_banc_files(dsid):
+    """ Get labels from FAFB codex files
+        Keyword arguments:
+          dsid: dataset ID in jacs.emDataSet
+        Returns:
+          None
+    """
+    entriesl = []
+    labels = {} # body ID: [labels]
+    dlabels = {} # body ID: cell type
+    file = f"{ARG.DATASET}_neurons_{ARG.VERSION}.csv"
+    # Add super_class, class, sub_class, cell_type, and hemibrain_type from neurons
+    with open(file, 'r', encoding='ascii') as instream:
+        for row in csv.reader(instream, quotechar='"', delimiter=','):
+            if not row[0] or row[0] == 'Root ID':
+                continue
+            COUNT['read'] += 1
+            labels[row[0]] = []
+            dlabels[row[0]] = []
+            entriesl.append([row[0], row[13]])
+            # super_class, class, sub_class
+            for col in range(10, 13): # 10-12: super_class, class, sub_class
+                if row[col]:
+                    labels[row[0]].append(row[col])
+            # cell_type
+            if row[16]:
+                labels[row[0]].append(row[16])
+                dlabels[row[0]].append(row[16])
+            # hemibrain_type
+            if row[13]:
+                for lab in row[13].split(','):
+                    if lab not in labels[row[0]]:
+                        labels[row[0]].append(lab)
+                        dlabels[row[0]].append(lab)
+            if not labels[row[0]]:
+                del labels[row[0]]
+                del dlabels[row[0]]
+        LOGGER.info(f"Found {len(labels):,} entries in neurons")
+    process_entries(labels, dlabels, dsid)
+
+
+def process_fafb_files(dsid):
+    """ Get labels from FAFB codex files
         Keyword arguments:
           dsid: dataset ID in jacs.emDataSet
         Returns:
@@ -360,6 +429,7 @@ def process_files(dsid):
         for row in csv.reader(instream, quotechar='"', delimiter=','):
             if not row[0] or row[0] == 'root_id':
                 continue
+            COUNT['read'] += 1
             labels[row[0]] = []
             dlabels[row[0]] = []
             entriesl.append([row[0], row[6]])
@@ -402,7 +472,27 @@ def process_codex():
         dsid = result['_id']
     else:
         dsid = insert_dataset(coll)
-    process_files(dsid)
+    if ARG.DATASET == 'flywire_banc':
+        process_banc_files(dsid)
+    else:
+        process_fafb_files(dsid)
+    # New terms
+    with open(f"{ARG.DATASET}_terms.txt", 'w', encoding='ascii') as outstream:
+        for key in sorted(NEW_LABELS):
+            outstream.write(f"{key}\n")
+    # Duplicate terms
+    duplicates = []
+    for key in NEW_LABELS:
+        if key in EXISTING_LABELS:
+            duplicates.append(key)
+    if duplicates:
+        with open(f"{ARG.DATASET}_duplicates.txt", 'w', encoding='ascii') as outstream:
+            for key in sorted(duplicates):
+                outstream.write(f"{key}\n")
+    print(f"Bodies read:                 {COUNT['read']:,}")
+    print(f"Existing labels:             {len(EXISTING_LABELS):,}")
+    print(f"New labels:                  {len(NEW_LABELS):,}")
+    print(f"Duplicate labels:            {len(duplicates):,}")
     print(f"MongoDB Codex ID updates:    {COUNT['minsertions']:,}")
     print(f"DynamoDB Codex ID updates:   {COUNT['iinsertions']:,}")
     print(f"DynamoDB Codex type updates: {COUNT['hinsertions']:,}")
@@ -417,6 +507,9 @@ if __name__ == '__main__':
                         default='flywire_fafb', help='Codex version (snapshot)')
     PARSER.add_argument('--version', dest='VERSION', action='store',
                         required=True, help='Codex version (snapshot)')
+    PARSER.add_argument('--area', dest='AREA', action='store',
+                        default='Brain', choices=['Brain', 'VNC', 'CNS'],
+                        help='Anatomical area')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         default='dev', choices=['dev', 'prod'], help='MongoDB manifold')
     PARSER.add_argument('--table', dest='TABLE', action='store', help='DynamoDB table')
