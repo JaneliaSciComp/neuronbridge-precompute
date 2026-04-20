@@ -1,7 +1,7 @@
 ''' This program will use JSON data to update neuronbridge.publishedURL and create
     an order file to upload imagery to AWS S3.
 '''
-__version__ = '2.4.0'
+__version__ = '2.4.1'
 
 import argparse
 import collections
@@ -789,7 +789,14 @@ def upload_flyem_variants(smp, newname):
             terminate_program(f"Unknown variant {variant}")
         if variant not in WILL_LOAD:
             continue
-        fname, ext = os.path.basename(smp['variants'][variant]).split('.')
+        try:
+            if smp['variants'][variant].count('.') != 1:
+                terminateProgram(f"Invalid file format for {smp['variants'][variant]}.\n" \
+                                  "Must be filename.extenstion, with only one period")
+            fname, ext = os.path.basename(smp['variants'][variant]).split('.')
+        except Exception as err:
+            LOGGER.error(f"Could not process {variant} variant {smp['variants'][variant]}")
+            terminate_program(err)
         ancname = '.'.join([fbase, ext])
         ancname = '/'.join([variant, ancname])
         dirpath = os.path.dirname(smp['variants'][variant])
