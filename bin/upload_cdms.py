@@ -1,7 +1,7 @@
 ''' This program will use JSON data to update neuronbridge.publishedURL and create
     an order file to upload imagery to AWS S3.
 '''
-__version__ = '2.4.1'
+__version__ = '2.5.0'
 
 import argparse
 import collections
@@ -373,14 +373,15 @@ def initialize_program():
     LOGGER.info("%d slide codes in non-public releases: %s", len(rows), ", ".join(non_public))
 
 
-def log_error(err_text):
+def log_error(err_text, log_only=False):
     ''' Log an error and write to error output file
         Keyword arguments:
           err_text: error message
         Returns:
           None
     '''
-    LOGGER.error(err_text)
+    if not log_only:
+        LOGGER.error(err_text)
     ERR.write(err_text + "\n")
 
 
@@ -447,9 +448,12 @@ def upload_aws(bucket, dirpath, fname, newname, force=False):
     UPLOADED_NAME[object_name] = complete_fpath
     if "/searchable_neurons/" in object_name:
         KEY_LIST.append(object_name)
-    if (not ARG.WRITE) and (not os.path.exists(complete_fpath)):
-        terminate_program(f"File {complete_fpath} does not exist")
-    LOGGER.debug("Uploading %s to S3 as %s", complete_fpath, object_name)
+    if not os.path.exists(complete_fpath):
+        msg = f"File {complete_fpath} does not exist"
+        COUNT['Images not found'] += 1
+        terminate_program(msg) if ARG.WRITE else log_error(msg, True)
+        return url, False
+    LOGGER.debug(f"Uploading {complete_fpath} to S3 as {object_name}")
     if ARG.MANIFEST and already_uploaded(object_name):
         return
     S3CP.write(f"{complete_fpath}\t{'/'.join([bucket, object_name])}\n")
@@ -561,25 +565,29 @@ def convert_file(sourcepath, newname):
     '''
     LOGGER.debug("Converting %s to %s", sourcepath, newname)
     newpath = CLOAD.temp_dir + newname
+    if not ARG.WRITE:
+        return newpath
     with Image.open(sourcepath) as image:
         image.save(newpath, 'PNG')
     return newpath
 
 
 def process_flyem(smp, convert=True):
-    ''' Return the file name for a FlyEM sample.
+    ''' Return the file name for a FlyEM sample. The new name will be the
+        body ID followed by the alignment space and the CDM suffix.
         Keyword arguments:
           smp: sample record
+          convert: convert the file to PNG format
         Returns:
           New file name
     '''
     # Temporary!
     #bodyid, status = smp['name'].split('_')[0:2]
-    bodyid = smp['publishedName']
     #field = re.match('.*-(.*)_.*\..*', smp['name'])
     #status = field[1]
     #if bodyid.endswith('-'):
     #    return False
+    bodyid = smp['publishedName']
     newname = f"{bodyid}-{REC['alignment_space']}-CDM.png"
     if convert:
         smp['filepath'] = convert_file(smp['filepath'], newname)
@@ -791,8 +799,8 @@ def upload_flyem_variants(smp, newname):
             continue
         try:
             if smp['variants'][variant].count('.') != 1:
-                terminateProgram(f"Invalid file format for {smp['variants'][variant]}.\n" \
-                                  "Must be filename.extenstion, with only one period")
+                terminate_program(f"Invalid file format for {smp['variants'][variant]}\n" \
+                                  + "Must be filename.extenstion, with only one period")
             fname, ext = os.path.basename(smp['variants'][variant]).split('.')
         except Exception as err:
             LOGGER.error(f"Could not process {variant} variant {smp['variants'][variant]}")
@@ -1310,7 +1318,7 @@ if __name__ == '__main__':
     PARSER.add_argument('--samples', dest='SAMPLES', action='store', type=int,
                         default=0, help='Number of samples to transfer')
     PARSER.add_argument('--version', dest='VERSION', action='store',
-                        default='1.0', help='EM Version')
+                        default='1.0', help='EM hemibrain version (legacy)')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         choices=MANIFOLDS, help='S3 manifold')
     PARSER.add_argument('--mongo', dest='MONGO', action='store',
