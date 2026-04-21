@@ -1,7 +1,7 @@
 ''' This program will use JSON data to update neuronbridge.publishedURL and create
     an order file to upload imagery to AWS S3.
 '''
-__version__ = '2.5.0'
+__version__ = '2.5.1'
 
 import argparse
 import collections
@@ -843,6 +843,10 @@ def upload_flyem_skeletons(smp):
         newname = "/".join([s3type.upper(), smp['publishedName'] + "." + s3type])
         url, _ = upload_aws(AWS.s3_bucket.cdm, dirpath, fname, newname)
         smp['uploaded'][stype.lower()] = url
+        if 'skeletons' not in VARIANT_UPLOADS:
+            VARIANT_UPLOADS['skeletons'] = 1
+        else:
+            VARIANT_UPLOADS['skeletons'] += 1
 
 
 def upload_flylight_variants(smp, newname):
