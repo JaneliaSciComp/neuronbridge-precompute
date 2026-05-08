@@ -5,7 +5,7 @@ workflow {
 
     def upload_types = get_values_as_collection(params.upload_type)
     def anatomical_areas = get_values_as_collection(params.upload_anatomical_areas)
-    def upload_inputs = Channel.of(
+    def upload_inputs = channel.of(
         [
             params.base_data_dir,
             params.release_dirname,

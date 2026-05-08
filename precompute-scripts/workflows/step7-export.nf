@@ -12,7 +12,7 @@ workflow {
     def exported_mask_libs = get_exported_mask_libs(params.export_type, params.exported_mask_libs)
 
     def unique_mips_count = COUNT_MIPS(
-        Channel.of([
+        channel.of([
             params.anatomical_area,
             exported_mask_libs,
             params.exported_mask_names,
@@ -27,7 +27,7 @@ workflow {
         db_config_file,
     )
 
-    unique_mips_count.subscribe {
+    unique_mips_count.subscribe { it ->
         log.debug "MIPs to export count: $it"
     }
 
@@ -53,8 +53,8 @@ workflow {
                     job_size
                 ]
             }
-            .findAll {
-                def (job_idx) = it
+            .findAll { it ->
+                def (job_idx, _rest) = it
                 def first_job_idx = params.first_job > 0 ? params.first_job : 1
                 def last_job_idx = params.last_job > 0 ? params.last_job : export_jobs.size
 
@@ -73,7 +73,7 @@ workflow {
                 return job_is_included && !job_is_excluded
             }
     }
-    export_inputs.subscribe {
+    export_inputs.subscribe { it ->
         log.debug "Run export: $it"
     }
     def export_results = EXPORT(export_inputs,
@@ -121,18 +121,18 @@ def get_exported_mask_libs(export_type, exported_mask_libs) {
     if (exported_mask_libs) {
         return exported_mask_libs
     }
-    switch(export_type) {
-        case 'EM_CD_MATCHES':
-            return params.all_brain_and_vnc_EM_libraries.join(',')
-        case 'LM_CD_MATCHES':
-            return params.all_brain_and_vnc_LM_libraries.join(',')
-        case 'EM_PPP_MATCHES':
-            return params.all_brain_and_vnc_EM_libraries.join(',')
-        case 'EM_MIPS':
-            return params.all_brain_and_vnc_EM_libraries.join(',')
-        case 'LM_MIPS':
-            return params.all_brain_and_vnc_LM_libraries.join(',')
-        default: throw new IllegalArgumentException("Invalid export type: ${export_type}")
+    if (export_type == 'EM_CD_MATCHES') {
+        return params.all_brain_and_vnc_EM_libraries.join(',')
+    } else if (export_type == 'LM_CD_MATCHES') {
+        return params.all_brain_and_vnc_LM_libraries.join(',')
+    } else if (export_type == 'EM_PPP_MATCHES') {
+        return params.all_brain_and_vnc_EM_libraries.join(',')
+    } else if (export_type == 'EM_MIPS') {
+        return params.all_brain_and_vnc_EM_libraries.join(',')
+    } else if (export_type == 'LM_MIPS') {
+        return params.all_brain_and_vnc_LM_libraries.join(',')
+    } else {
+        throw new IllegalArgumentException("Invalid export type: ${export_type}")
     }
 }
 

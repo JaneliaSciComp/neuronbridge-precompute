@@ -16,7 +16,7 @@ workflow {
         params.junk_location,
     ]
     IMPORT_CDMS(
-        Channel.of(
+        channel.of(
             [
                 params.anatomical_area,
                 params.import_library,

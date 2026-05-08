@@ -4,7 +4,7 @@ include {
 } from '../utils'
 
 workflow total_jobs_not_exact_multiple {
-    Channel.of('work')
+    channel.of('work')
     | combine(partition_work(101, 10))
     | map { name,offset,length ->
         get_lib_arg(name, offset, length)
@@ -13,7 +13,7 @@ workflow total_jobs_not_exact_multiple {
 }
 
 workflow total_jobs_exact_multiple {
-    Channel.of('work')
+    channel.of('work')
     | combine(partition_work(20, 5))
     | map { name,offset,length ->
         get_lib_arg(name, offset, length)
@@ -33,7 +33,7 @@ workflow no_partitioning_needed {
 
 
 workflow combine_work_for_multiple_datasets {
-    Channel.of(['ds1', 'ds2'])
+    channel.of(['ds1', 'ds2'])
     | combine([partition_work(10, 4), partition_work(20, 5)].combinations())
     | map { name1, name2, ds1_limits, ds2_limits ->
         def (offset1, length1) = ds1_limits

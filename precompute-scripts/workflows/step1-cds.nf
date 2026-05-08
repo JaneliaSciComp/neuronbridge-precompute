@@ -12,7 +12,7 @@ workflow {
     def db_config_file = file(params.db_config)
 
     def masks_count = COUNT_MASKS(
-        Channel.of([
+        channel.of([
             params.anatomical_area,
             params.masks_library,
             params.masks_published_names,

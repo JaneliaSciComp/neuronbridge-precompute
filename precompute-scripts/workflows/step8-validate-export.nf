@@ -3,7 +3,7 @@ include { VALIDATE_EXPORT} from '../modules/local/validate-export/main'
 workflow {
 
     VALIDATE_EXPORT(
-        Channel.of([ 
+        channel.of([
             params.data_version,
             file(params.base_export_dir),
             params.release_dirname,

@@ -3,7 +3,7 @@ include { DBQUERY } from '../main.nf'
 workflow all_mips {
 
     DBQUERY(
-        Channel.of([
+        channel.of([
             params.anatomical_area,
             params.library,
             params.published_names,
@@ -24,7 +24,7 @@ workflow all_mips {
 workflow unique_mips {
 
     DBQUERY(
-        Channel.of([
+        channel.of([
             params.anatomical_area,
             params.library,
             params.published_names,

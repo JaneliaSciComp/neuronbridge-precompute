@@ -18,7 +18,7 @@ workflow {
         params.zgap_location,
     ]
     def lib_variants = PREPARE_VARIANTS_FOR_MIPSTORE(
-        Channel.of(
+        channel.of(
             [
                 params.anatomical_area,
                 params.import_library,

@@ -11,7 +11,7 @@ workflow {
     def db_config_file = file(params.db_config)
 
     def unique_mips_count = COUNT_MIPS(
-        Channel.of([
+        channel.of([
             params.anatomical_area,
             params.validate_libs,
             params.validate_published_names,
