@@ -11,7 +11,7 @@ workflow {
     def db_config_file = file(params.db_config)
 
     def unique_masks_count = COUNT_MASKS(
-        Channel.of([
+        channel.of([
             params.anatomical_area,
             params.masks_library,
             params.masks_published_names,
@@ -44,8 +44,8 @@ workflow {
                     params.targets_library
                 ]
             }
-            .findAll {
-                def (job_idx) = it
+            .findAll { it ->
+                def (job_idx, _rest) = it
                 def first_job_idx = params.first_job > 0 ? params.first_job : 1
                 def last_job_idx = params.last_job > 0 ? params.last_job : gradscore_jobs.size
 
@@ -65,7 +65,7 @@ workflow {
                 return job_is_included && !job_is_excluded
             }
     }
-    normalize_gradscore_inputs.subscribe {
+    normalize_gradscore_inputs.subscribe { it ->
         log.debug "Normalize grad score: $it"
     }
     NORMALIZE_SCORES(normalize_gradscore_inputs,

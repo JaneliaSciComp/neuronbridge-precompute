@@ -10,7 +10,7 @@ workflow {
 
     def db_config_file = file(params.db_config)
 
-    def masks_count_input = Channel.of([
+    def masks_count_input = channel.of([
             params.anatomical_area,
             params.masks_library,
             params.masks_published_names,
@@ -49,8 +49,8 @@ workflow {
                     start_delay,
                 ]
             }
-            .findAll {
-                def (job_idx) = it
+            .findAll { it ->
+                def (job_idx, _rest) = it
                 def first_job_idx = params.first_job > 0 ? params.first_job : 1
                 def last_job_idx = params.last_job > 0 ? params.last_job : gradscore_jobs.size()
 
@@ -70,7 +70,7 @@ workflow {
                 return job_is_included && !job_is_excluded
             }
     }
-    gradscore_inputs.subscribe {
+    gradscore_inputs.subscribe { it ->
         log.debug "Run grad score: $it"
     }
     GA(gradscore_inputs,

@@ -93,7 +93,7 @@ process GA {
 
     """
     echo "\$(date) Run ${anatomical_area} gradscore job: ${job_id} on \$(hostname -s)"
-    mips_base_fullpath=\$(readlink ${mips_base_dir})
+    mips_base_fullpath=\$(${readlink_cmd} ${mips_base_dir})
     echo "Mips base dir: \${mips_base_fullpath}"
 
     if [[ ${log_config} != "" && -f ${log_config} ]];  then

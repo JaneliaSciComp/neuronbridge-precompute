@@ -27,7 +27,7 @@ process DBQUERY {
     path(db_config_file)
     
     output:
-    tuple val(anatomical_area), val(library_names), env(mips_count_res)
+    tuple val(anatomical_area), val(library_names), env('mips_count_res')
 
     when:
     task.ext.when == null || task.ext.when

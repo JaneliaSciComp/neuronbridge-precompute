@@ -1,18 +1,17 @@
 def area_to_alignment_space(area) {
     log.debug "Get alignment space for ${area}"
-    switch (area) {
-        case '':
-            return ''
-        case ~/^(?i)brain\+vnc$/:
-            return ''
-        case ~/^(?i)vnc\+brain$/:
-            return ''
-        case ~/^(?i)vnc$/:
-            return 'JRC2018_VNC_Unisex_40x_DS'
-        case ~/^(?i)brain$/ : 
-            return 'JRC2018_Unisex_20x_HR'
-        default : 
-            throw new IllegalArgumentException("Invalid area: ${area}")
+    if (!area) {
+        return ''
+    } else if (area.toLowerCase() == 'brain+vnc') {
+        return ''
+    } else if (area.toLowerCase() == 'vnc+brain') {
+        return ''
+    } else if (area.toLowerCase() == 'vnc') {
+        return 'JRC2018_VNC_Unisex_40x_DS'
+    } else if (area.toLowerCase() == 'brain') {
+        return 'JRC2018_Unisex_20x_HR'
+    } else {
+        throw new IllegalArgumentException("Invalid area: ${area}")
     }
 }
 
@@ -45,10 +44,11 @@ def get_java_mem_opts(mem_gb) {
 }
 
 def get_concurrency_arg(concurrency, cpus) {
+    def ncpus = cpus as int
     if (concurrency > 0) {
         "--task-concurrency ${concurrency}"
-    } else if (cpus > 0) {
-        "--task-concurrency ${2 * cpus - 1}"
+    } else if (ncpus > 0) {
+        "--task-concurrency ${2 * ncpus - 1}"
     } else {
         ''
     }
