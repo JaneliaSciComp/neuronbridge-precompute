@@ -12,7 +12,7 @@ workflow {
             params.data_version,
         ]
     )
-    upload_inputs.subscribe { log.debug "Upload inputs: $it" }
+    upload_inputs.subscribe { it -> log.debug "Upload inputs: $it" }
 
     def upload_results = UPLOAD(
         upload_inputs,
