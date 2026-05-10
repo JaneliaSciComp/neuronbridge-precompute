@@ -140,33 +140,33 @@ def get_exported_target_libs(export_type, exported_target_libs) {
     if (exported_target_libs) {
         return exported_target_libs
     }
-    switch(export_type) {
-        case 'EM_CD_MATCHES':
-            return params.all_brain_and_vnc_LM_libraries.join(',')
-        case 'LM_CD_MATCHES':
-            return params.all_brain_and_vnc_EM_libraries.join(',')
-        case 'EM_PPP_MATCHES':
-            return params.all_brain_and_vnc_LM_libraries.join(',')
-        case 'EM_MIPS':
-            return ''
-        case 'LM_MIPS':
-            return ''
-        default: throw new IllegalArgumentException("Invalid export type: ${export_Type}")
+    if (export_type == 'EM_CD_MATCHES') {
+        return params.all_brain_and_vnc_LM_libraries.join(',')
+    } else if (export_type == 'LM_CD_MATCHES') {
+        return params.all_brain_and_vnc_EM_libraries.join(',')
+    } else if (export_type == 'EM_PPP_MATCHES') {
+        return params.all_brain_and_vnc_LM_libraries.join(',')
+    } else if (export_type == 'EM_MIPS') {
+        return ''
+    } else if (export_type == 'LM_MIPS') {
+        return ''
+    } else {
+        throw new IllegalArgumentException("Invalid export type: ${export_type}")
     }
 }
 
 def get_relative_output_dir(export_type) {
-    switch(export_type) {
-        case 'EM_CD_MATCHES':
-            return 'cdmatches/em-vs-lm'
-        case 'LM_CD_MATCHES':
-            return 'cdmatches/lm-vs-em'
-        case 'EM_PPP_MATCHES':
-            return 'pppmatches/em-vs-lm'
-        case 'EM_MIPS':
-            return 'mips/embodies'
-        case 'LM_MIPS':
-            return 'mips/lmlines'
-        default: throw new IllegalArgumentException("Invalid export type: ${export_type}")
+    if (export_type == 'EM_CD_MATCHES') {
+        return 'cdmatches/em-vs-lm'
+    } else if (export_type == 'LM_CD_MATCHES') {
+        return 'cdmatches/lm-vs-em'
+    } else if (export_type == 'EM_PPP_MATCHES') {
+        return 'pppmatches/em-vs-lm'
+    } else if (export_type == 'EM_MIPS') {
+        return 'mips/embodies'
+    } else if (export_type == 'LM_MIPS') {
+        return 'mips/lmlines'
+    } else {
+        throw new IllegalArgumentException("Invalid export type: ${export_type}")
     }
 }
