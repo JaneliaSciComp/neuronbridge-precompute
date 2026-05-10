@@ -55,7 +55,7 @@ process EXPORT {
           val(max_matches_per_mip)
 
     output:
-    env(full_result_dir)
+    env('full_result_dir')
 
     when:
     task.ext.when == null || task.ext.when
