@@ -26,7 +26,7 @@ def partition_work(total_work_size_param, job_size_param) {
     
     njobs == 1
         ? [[0, total_work_size]]
-        : (0..njobs-1).collect {
+        : (0..njobs-1).collect { it ->
             def current_job_size = (it + 1) * job_size > total_work_size
                 ? (total_work_size - it * job_size)
                 : job_size
@@ -118,7 +118,7 @@ def is_job_id_in_process_list(job_idx, job_list_arg, first_job, last_job) {
         } else {
             // if job_list is defined only run specified jobs
             if (job_list_arg instanceof Collection) {
-                def job_list = job_list_arg.collect { it as int }
+                def job_list = job_list_arg.collect { it -> it as int }
                 return job_idx in job_list
             } else {
                 def job_list = job_list_arg.tokenize(',').collect { it.trim() as int }
@@ -126,8 +126,10 @@ def is_job_id_in_process_list(job_idx, job_list_arg, first_job, last_job) {
             }
         }
     } else {
+        def first = first_job as int
+        def last = last_job as int
         // first_job and last_job parameters are 1-index and they are inclusive
-        return (first_job == 0 || job_idx >= first_job) &&
-               (last_job == 0 || job_idx <= last_job)
+        return (first == 0 || job_idx >= first) &&
+               (last == 0 || job_idx <= last)
     }
 }
