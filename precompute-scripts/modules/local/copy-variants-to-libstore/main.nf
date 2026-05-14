@@ -32,7 +32,7 @@ process COPY_VARIANTS_TO_LIBSTORE {
     path(data_paths) // this argument is only sent to ensure all needed volumes are available
     
     output:
-    env(full_libstore_dir)
+    env('full_libstore_dir')
 
     when:
     task.ext.when == null || task.ext.when

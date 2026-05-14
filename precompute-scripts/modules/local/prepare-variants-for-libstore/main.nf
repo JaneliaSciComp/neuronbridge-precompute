@@ -39,7 +39,7 @@ process PREPARE_VARIANTS_FOR_MIPSTORE {
     output:
     tuple val(anatomical_area),
           val(library_name),
-          env(full_output_name)
+          env('full_output_name')
 
     when:
     task.ext.when == null || task.ext.when
