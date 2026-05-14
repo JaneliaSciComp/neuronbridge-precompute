@@ -44,28 +44,33 @@ process UPLOAD {
 def get_data_dirs(upload_type, local_data_dirname, data_version, anatomical_area) {
     log.debug "Get data locations for $upload_type, ${local_data_dirname}, ${data_version}"
     def s3_data_version = data_version.replaceAll('\\.', '_')
-    switch(upload_type) {
-        case 'EM_MIPS' -> [ 
+    if (upload_type == 'EM_MIPS') {
+        return [
             "${local_data_dirname}/${anatomical_area}/mips/embodies",
             "v${s3_data_version}/metadata/by_body",
         ]
-        case 'LM_MIPS' -> [
+    } else if (upload_type == 'LM_MIPS') {
+        return [
             "${local_data_dirname}/${anatomical_area}/mips/lmlines",
             "v${s3_data_version}/metadata/by_line",
         ]
-        case 'EM_CD_MATCHES' -> [
+    } else if (upload_type == 'EM_CD_MATCHES') {
+        return [
             "${local_data_dirname}/${anatomical_area}/cdmatches/em-vs-lm",
             "v${s3_data_version}/metadata/cdsresults",
         ]
-        case 'LM_CD_MATCHES' -> [
+    } else if (upload_type == 'LM_CD_MATCHES') {
+        return [
             "${local_data_dirname}/${anatomical_area}/cdmatches/lm-vs-em",
             "v${s3_data_version}/metadata/cdsresults",
         ]
-        case 'EM_PPP_MATCHES' -> [
+    } else if (upload_type == 'EM_PPP_MATCHES') {
+        return [
             "${local_data_dirname}/${anatomical_area}/pppmatches/em-vs-lm",
             "v${s3_data_version}/metadata/pppmresults",
         ]
-        default -> throw new IllegalArgumentException("Invalid upload type: ${upload_type}")
+    } else {
+        throw new IllegalArgumentException("Invalid upload type: ${upload_type}")
     }
 }
 
