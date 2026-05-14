@@ -19,7 +19,7 @@ process UPLOAD {
     val(dry_run)
 
     output:
-    tuple env(full_data_dir), val(s3_uri)
+    tuple env('full_data_dir'), val(s3_uri)
 
     when:
     task.ext.when == null || task.ext.when
