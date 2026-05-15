@@ -27,7 +27,6 @@ process UPLOAD {
 
     script:
     def upload_type_arg = upload_type
-    log.info "!!!! dry run ${dry_run} ${dry_run.class}"
     def (data_location, s3_prefix) = get_data_dirs(upload_type_arg, local_release_dirname, data_version, anatomical_area)
 
     def data_dir = "${base_data_dir}/${data_location}"
