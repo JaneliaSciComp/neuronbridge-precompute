@@ -5,6 +5,7 @@ workflow {
 
     def upload_types = get_values_as_collection(params.upload_type)
     def anatomical_areas = get_values_as_collection(params.upload_anatomical_areas)
+    def dry_run = Boolean.valueOf(params.dry_run)
     def upload_inputs = channel.of(
         [
             params.base_data_dir,
@@ -12,8 +13,7 @@ workflow {
             params.data_version,
         ]
     )
-    upload_inputs.subscribe { it -> log.debug "Upload inputs: $it" }
-
+    upload_inputs.subscribe { it -> log.debug "Upload inputs (dry run is ${dry_run}): $it" }
     def upload_results = UPLOAD(
         upload_inputs,
         params.aws_runner,
@@ -22,7 +22,8 @@ workflow {
         params.upload_bucket,
         anatomical_areas,
         upload_types,
-        params.dry_run,
+        params.readlink_cmd,
+        dry_run,
     )
 
     upload_results | view

@@ -16,6 +16,7 @@ process UPLOAD {
     val(s3_bucket)
     each(anatomical_area)
     each(upload_type)  // EM_MIPS, LM_MIPS, EM_CD_MATCHES, LM_CD_MATCHES, EM_PPP_MATCHES
+    val(readlink_cmd)
     val(dry_run)
 
     output:
@@ -26,6 +27,7 @@ process UPLOAD {
 
     script:
     def upload_type_arg = upload_type
+    log.info "!!!! dry run ${dry_run} ${dry_run.class}"
     def (data_location, s3_prefix) = get_data_dirs(upload_type_arg, local_release_dirname, data_version, anatomical_area)
 
     def data_dir = "${base_data_dir}/${data_location}"
@@ -35,7 +37,7 @@ process UPLOAD {
 
     """
     echo "\$(date) Run ${anatomical_area} ${upload_type_arg} upload on \$(hostname -s)"
-    full_data_dir=\$(readlink -m ${data_dir})
+    full_data_dir=\$(${readlink_cmd} -m ${data_dir})
     AWS_ACCESS_KEY_ID=\${AWS_ACCESS_KEY} AWS_SECRET_ACCESS_KEY=\${AWS_SECRET_KEY} ${upload_cmd}
     echo "\$(date) Completed ${anatomical_area} ${upload_type_arg} upload on \$(hostname -s)"
     """
