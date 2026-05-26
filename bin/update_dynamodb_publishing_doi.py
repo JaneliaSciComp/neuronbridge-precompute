@@ -12,10 +12,13 @@ import json
 from operator import attrgetter
 import re
 import sys
+import time
 import boto3
 import MySQLdb
 from tqdm import tqdm
 import jrc_common.jrc_common as JRC
+
+__version__ = '1.0.0'
 
 # pylint: disable=broad-exception-caught,inconsistent-return-statements,logging-fstring-interpolation
 # Configuration
@@ -30,7 +33,9 @@ PUBLISHING_DATABASE = ["mbew", "gen1mcfo", "raw"]
 READ = {"LINES": "SELECT DISTINCT line,value AS doi,GROUP_CONCAT(DISTINCT original_line) AS olines "
                  + "FROM image_data_mv mv JOIN line l ON (l.name=mv.line) "
                  + "JOIN line_property lp ON (lp.line_id=l.id AND "
-                 + "type_id=getCvTermId('line','doi',NULL)) GROUP BY 1,2"
+                 + "type_id=getCvTermId('line','doi',NULL)) GROUP BY 1,2",
+        "ALLLINES": "SELECT DISTINCT line,GROUP_CONCAT(DISTINCT original_line) AS olines "
+                    + "FROM image_data_mv mv WHERE alps_release=%" + "s GROUP BY 1",
        }
 READ["LINESREL"] = READ["LINES"].replace("GROUP BY", "AND alps_release=%" + "s GROUP BY")
 MONGODB = 'neuronbridge-mongo'
@@ -193,6 +198,7 @@ def get_citation(doi):
             LOGGER.info(f"Internal DOI: {doi}")
             return doi
         rec = JRC.call_crossref(doi)
+        time.sleep(.34)
         if rec:
             CITATION[doi] = from_crossref(rec)
             LOGGER.info(f"Crossref DOI: {doi}: {CITATION[doi]}")
@@ -309,6 +315,8 @@ def process_single_lm_image(row, database):
         Returns:
           None
     """
+    if ARG.LINE and row['line'] != ARG.LINE:
+        return
     if row['line'] in MAPPING:
         if row['doi'] != MAPPING[row['line']]:
             LOGGER.error("DOI %s does not match previous %s for publishing name %s",
@@ -348,17 +356,34 @@ def process_lm():
                 continue
             if database != "raw" and ARG.RELEASE == 'Split-GAL4 Omnibus Broad':
                 continue
-        LOGGER.info("Fetching lines from %s", database)
         try:
             if ARG.RELEASE:
+                LOGGER.info(f"Fetching lines from {database} image_data_mv/line_property for {ARG.RELEASE}")
                 DB[database]['cursor'].execute(READ["LINESREL"], (ARG.RELEASE,))
             else:
+                LOGGER.info(f"Fetching lines from {database} image_data_mv/line_property")
                 DB[database]['cursor'].execute(READ["LINES"])
             rows = DB[database]['cursor'].fetchall()
             if ARG.RELEASE and not rows:
                 terminate_program(f"{ARG.RELEASE} is not a valid release for FlyLight")
         except MySQLdb.Error as err:
             terminate_program(JRC.sql_error(err))
+        if ARG.RELEASE and ARG.DOI:
+            foundlines = {}
+            for row in rows:
+                foundlines[row['line']] = True
+            rows = list(rows)
+            try:
+                DB[database]['cursor'].execute(READ["ALLLINES"], (ARG.RELEASE,))
+                alllines = DB[database]['cursor'].fetchall()
+            except MySQLdb.Error as err:
+                terminate_program(JRC.sql_error(err))
+            added = 0
+            for row in alllines:
+                if row['line'] not in foundlines:
+                    rows.append({'line': row['line'], 'doi': ARG.DOI, 'olines': row['olines']})
+                    added += 1
+            LOGGER.info(f"Added {added:,} lines for processing")
         for row in tqdm(rows, desc=database):
             COUNT['read'] += 1
             process_single_lm_image(row, database)
@@ -391,9 +416,11 @@ if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
         description='Update DynamoDB table janelia-neuronbridge-publishing-doi')
     PARSER.add_argument('--release', dest='RELEASE', default='', help='ALPS release or EM dataset')
+    PARSER.add_argument('--line', dest='LINE', default='', help='Line name')
+    PARSER.add_argument('--doi', dest='DOI', default='', help='Fallback DOI')
     PARSER.add_argument('--source', dest='SOURCE', choices=['', 'em', 'lm'], default='',
                         help='Source release ([blank], em, or lm)')
-    PARSER.add_argument('--table', dest='EMSOURCE', choices=['', 'em', 'lm'],
+    PARSER.add_argument('--table', dest='EMSOURCE', choices=['', 'publishedURL', 'neuronMetadata'],
                         default='publishedURL',
                         help='Mongo table for EM data ([publishedURL] or neuronMetadata)')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
