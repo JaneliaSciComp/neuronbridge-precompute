@@ -4,7 +4,7 @@
     "db_config": "mylocal/proddb-config.properties",
     "masks_library": "flywire_banc_626",
     "masks_published_names": "",
-    "mask_tags": "",
+    "masks_tags": "bad-file-name",
     "masks_excluded_tags": "validationError,junk,not-released",
     "mask_excluded_terms": "",
     "targets_library": "flylight_split_gal4_published",
