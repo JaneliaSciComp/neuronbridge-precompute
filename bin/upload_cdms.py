@@ -1050,6 +1050,7 @@ def confirm_run():
     if "flyem_" in ARG.LIBRARY:
         print(f"NeuPrint dataset:     {CONF['DATASET']}")
     print(f"Alignment space:      {ARG.ALIGNMENT}")
+    print(f"Ignored tags:         {', '.join(CLOAD.ignore_tags)}")
     print(f"NeuronBridge version: {ARG.TAG}")
     if WILL_LOAD:
         print(f"Files to upload:      {', '.join(WILL_LOAD)}")
@@ -1077,7 +1078,7 @@ def read_json():
     coll = DBM['neuronbridge'].neuronMetadata
     payload = {"libraryName": ARG.LIBRARY,
                "$and": [{"tags": ARG.TAG},
-                        {"tags": {"$nin": ["unreleased", "validationError"]}}],
+                        {"tags": {"$nin": CLOAD.ignore_tags}}],
                "publishedName": {"$exists": True}}
     if ARG.PUBLISHED:
         payload["publishedName"] = ARG.PUBLISHED
