@@ -1,7 +1,7 @@
 {
     "anatomical_area": "brain",
     "import_library": "flywire_banc_626",
-    "import_tag": "import-banc-626",
+    "import_tag": "fixes4-banc-626",
     "jacs_url": "",
     "jacs_authorization": "",
     "db_config": "mylocal/devdb-config.properties",
