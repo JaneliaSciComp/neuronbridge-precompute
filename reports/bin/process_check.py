@@ -44,7 +44,7 @@ def call_responder(server, endpoint, authenticate=False):
     try:
         if authenticate:
             headers = {"Content-Type": "application/json",
-                       "Authorization": "Bearer " + os.environ["NEUPRINT_JWT"]}
+                       "Authorization": "Bearer " + os.environ["DSG_SA_NEUPRINT_NEURONBRIDGE_TOKEN"]}
             req = requests.get(url, headers=headers, timeout=10)
         else:
             req = requests.get(url, timeout=10)
