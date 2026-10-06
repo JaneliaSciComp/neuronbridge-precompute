@@ -1,7 +1,7 @@
 ''' This program will use JSON data to update neuronbridge.publishedURL and create
     an order file to upload imagery to AWS S3.
 '''
-__version__ = '2.5.1'
+__version__ = '2.6.0'
 
 import argparse
 import collections
@@ -97,7 +97,7 @@ def call_responder(server, endpoint, payload='', authenticate=False):
     try:
         if payload or authenticate:
             headers = {"Content-Type": "application/json",
-                       "Authorization": "Bearer " + os.environ['NEUPRINT_JWT']}
+                       "Authorization": "Bearer " + os.environ['DSG_SA_NEUPRINT_NEURONBRIDGE_TOKEN']}
         if payload:
             headers['Accept'] = 'application/json'
             headers['host'] = socket.gethostname()
